@@ -39,7 +39,7 @@
           to_regclass('public.rate_limits') AS rate_limits_table;
    ```
 
-3. 五项都为空、只留下 `schema_migrations`，或已确认其余对象来自同一份 Penlia 初始迁移时，可一次执行完整新版 SQL。已有同结构的表和索引会保留，缺少的对象由脚本补齐。如果出现来源不明的同名业务对象，先核对表结构。若收到解析、授权或锁超时错误，停在当前页面查看第一条报错。
+3. 五项都为空、只留下 `schema_migrations`，或已确认其余对象来自同一份 Penlia 初始迁移时，可一次执行完整新版 SQL。脚本在建表前检查事务是否仍在同一数据库会话，并在授权前核对表类型和必需字段。已有同结构的表和索引会保留，缺少的对象由脚本补齐。如果出现来源不明的同名业务对象，先核对表结构。若收到解析、授权或锁超时错误，停在当前页面查看第一条报错。
 4. 迁移后，在同一个数据库运行以下只读核对。四列都应返回 `true`。
 
    ```sql
@@ -63,7 +63,9 @@
 
 ## 3. 配置环信现有应用
 
-在环信控制台选择与你现有 App Key 对应的应用。在 **即时通讯 → 基础功能 → 用户** 中确认采用授权注册，并打开 **好友关系检查**。记录应用显示的 REST API 地址、App Key 和 Client ID。首次登录聊天时，FC 为该朋聊账号获取环信用户 Token。业务好友申请获接受后，首次发消息前由 FC 同步双向好友关系。消息漫游和保留期限取决于现有应用的套餐及配置，请在控制台核对；同一部手机重启时也可读取 SDK 的本机消息。[环信 User Token](https://doc.easemob.com/document/server-side/easemob_user_token.html) · [好友检查](https://doc.easemob.com/product/message_single_chat) · [消息漫游](https://doc.easemob.com/document/react-native/message_retrieve.html)
+在环信控制台选择与你现有 App Key 对应的应用。在 **即时通讯 → 基础功能 → 用户** 中确认采用授权注册，并打开 **好友关系检查**。记录应用显示的 REST API 地址、App Key 和 Client ID。首次登录聊天时，FC 为该朋聊账号获取环信用户 Token，Android 客户端启用环信 TLS。业务好友申请获接受后，首次发消息前由 FC 同步双向好友关系。消息漫游和保留期限取决于现有应用的套餐及配置，请在控制台核对；同一部手机重启时也可读取 SDK 的本机消息。[环信 User Token](https://doc.easemob.com/document/server-side/easemob_user_token.html) · [好友检查](https://doc.easemob.com/product/message_single_chat) · [消息漫游](https://doc.easemob.com/document/react-native/message_retrieve.html)
+
+正式开放前，从两个测试账号验证陌生人发消息会被环信拒绝。FC 在好友同步接口按 PostgreSQL 关系授权，环信 SDK 直连消息由环信的好友检查控制。开发联调使用开发库和联调 App Key。
 
 ## 4. 更新现有 FC 代码
 

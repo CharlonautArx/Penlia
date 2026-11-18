@@ -20,24 +20,37 @@ export class ApiError extends Error {
 export async function api<T>(path: string, { token, method = 'GET', body }: {
   token?: string; method?: string; body?: Record<string, string>;
 } = {}): Promise<T> {
-  const base = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
-  if (!base || (!base.startsWith('https://') && !(__DEV__ && base.startsWith('http://')))) {
+  const base = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
+  // React Native's URL polyfill accepts several malformed strings.
+  const validBase = base && /^https?:\/\/[^/?#@\s\\]+(?:\/[^?#\s\\]*)?$/.test(base);
+  if (!validBase || (!base.startsWith('https://') && !__DEV__) || !new URL(base).hostname) {
     throw new Error('请配置朋聊服务地址。');
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
-  const response = await fetch(base + '/v1' + path, {
-    method,
-    signal: controller.signal,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: 'Bearer ' + token } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  }).catch(() => { throw new Error('无法连接朋聊服务，请检查网络后重试。'); }).finally(() => clearTimeout(timeout));
-  const result = await response.json().catch(() => null);
-  if (!response.ok) throw new ApiError(response.status, result?.error || '朋聊服务暂时不可用。');
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  let response: Response;
+  let result: { error?: unknown } | null;
+  try {
+    response = await fetch(base + '/v1' + path, {
+      method,
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    result = await response.json().catch(() => null);
+    if (controller.signal.aborted) throw new Error('请求超时。');
+  } catch {
+    throw new Error('无法连接朋聊服务，请检查网络后重试。');
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, typeof result?.error === 'string' ? result.error : '朋聊服务暂时不可用。');
+  }
   if (!result) throw new Error('朋聊服务返回了无效数据。');
   return result as T;
 }

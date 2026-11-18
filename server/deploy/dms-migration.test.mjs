@@ -23,6 +23,12 @@ test('the download matches the generator and contains only flat migration statem
     assert.match(statement, /^CREATE (TABLE|INDEX) IF NOT EXISTS /);
   }
 
+  const firstCreate = statements.findIndex((statement) => statement.startsWith('CREATE '));
+  assert(statements.findIndex((statement) => statement.endsWith('AS transaction_check')) < firstCreate);
+  const firstGrant = statements.findIndex((statement) => statement.startsWith('GRANT '));
+  const structureCheck = statements.findIndex((statement) => statement.startsWith('WITH expected('));
+  assert(structureCheck > firstCreate && structureCheck < firstGrant);
+
   const granted = statements.filter((statement) => statement.startsWith('GRANT '));
   const expected = readFileSync(file('runtime-grants.sql'), 'utf8').trim().replace(/;$/, '').split(/;\s*/);
   assert.deepEqual(granted, expected);

@@ -37,6 +37,8 @@ function initialize() {
         appKey,
         debugModel: false,
         usingHttpsOnly: true,
+        enableTLS: true,
+        dataSyncType: sdk.ChatDataSyncType.Conversations,
         acceptInvitationAlways: false,
         autoAcceptGroupInvitation: false,
       }));
@@ -82,6 +84,10 @@ export function ImProvider({ children }: { children: ReactNode }) {
     let active = true;
     let current: ImConnection | undefined;
     let renewalPending = false;
+    let reloginPending = false;
+    let loginAccepted = false;
+    let databaseReady = false;
+    let connected = false;
     const ownUsername = imUserId(ownId);
     setConnection(null);
     setOnline(false);
@@ -93,41 +99,76 @@ export function ImProvider({ children }: { children: ReactNode }) {
       return result.token;
     }
 
-    const renew = (expired: boolean) => {
-      if (renewalPending || !active) return;
-      if (expired) setOnline(false);
+    function publishConnection() {
+      if (!active || !current || !loginAccepted || !databaseReady) return;
+      setConnection(current);
+      setOnline(connected);
+      setStatus(connected ? '' : '正在连接环信…');
+      changed();
+    }
+
+    async function login(connection: ImConnection) {
+      const token = await credentials();
+      if (!active) return;
+      await connection.client.loginWithToken(ownUsername, token);
+      if (!active) return;
+      loginAccepted = true;
+      if (await connection.client.isConnected()) connected = true;
+      publishConnection();
+    }
+
+    function renewSoon() {
+      if (renewalPending || reloginPending || !active) return;
       renewalPending = true;
       void enqueue(async () => {
-        if (!current || !active) return;
+        if (!current || !active || reloginPending) return;
         const token = await credentials();
-        if (!active) return;
-        if (expired) {
-          if (await current.client.getCurrentUsername()) await current.client.logout();
-          await current.client.loginWithToken(ownUsername, token);
-          if (active) listeners.onConnected?.();
-        } else {
-          await current.client.renewToken(token);
-        }
+        if (active && !reloginPending) await current.client.renewToken(token);
       }).catch(() => {
-        if (active) setStatus('聊天登录更新失败，请重试。');
+        if (active && !reloginPending) setStatus('聊天登录更新失败，请重试。');
       }).finally(() => { renewalPending = false; });
-    };
+    }
+
+    function reloginExpired() {
+      if (reloginPending || !active) return;
+      reloginPending = true;
+      loginAccepted = false;
+      databaseReady = false;
+      connected = false;
+      setConnection(null);
+      setOnline(false);
+      setStatus('正在重新登录环信…');
+      void enqueue(async () => {
+        if (current && active) await login(current);
+      }).catch(() => {
+        if (active) setStatus('聊天重新登录失败，请重试。');
+      }).finally(() => { reloginPending = false; });
+    }
 
     const listeners: ChatConnectEventListener = {
       onConnected() {
-        if (!active) return;
-        setOnline(true);
-        setStatus('');
-        changed();
+        connected = true;
+        publishConnection();
       },
       onDisconnected() {
+        connected = false;
         if (!active) return;
         setOnline(false);
-        setStatus('聊天连接已断开，正在等待重连。');
+        setStatus('聊天连接已断开，可以重连。');
       },
-      onTokenWillExpire: () => renew(false),
-      onTokenDidExpire: () => renew(true),
-      onOfflineMessageSyncFinish: () => { if (active) changed(); },
+      onTokenWillExpire: renewSoon,
+      onTokenDidExpire: reloginExpired,
+      onDatabaseOpened(username, errorCode) {
+        if (!active || username !== ownUsername) return;
+        if (errorCode !== 0) {
+          setStatus('暂时无法读取聊天数据库，请重连。');
+          return;
+        }
+        databaseReady = true;
+        publishConnection();
+      },
+      onDataSyncFinish(_type, errorCode) { if (active && errorCode === 0) changed(); },
+      onOfflineMessageSyncFinish() { if (active) changed(); },
     };
     const messages: ChatMessageEventListener = {
       onMessagesReceived: () => { if (active) changed(); },
@@ -138,18 +179,12 @@ export function ImProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       current = await initialize();
       if (!active) return;
-      const token = await credentials();
-      if (!active) return;
       const { client } = current;
-      if (await client.getCurrentUsername()) await client.logout();
+      if (await client.getCurrentUsername()) await client.logout(false);
       if (!active) return;
       client.addConnectionListener(listeners);
       client.chatManager.addMessageListener(messages);
-      await client.loginWithToken(ownUsername, token);
-      if (active) {
-        setConnection(current);
-        if (await client.isConnected()) listeners.onConnected?.();
-      }
+      await login(current);
     }).catch((error) => {
       if (active) setStatus(error instanceof Error ? errorMessage(error) : '无法登录环信，请重试。');
     });
@@ -164,7 +199,7 @@ export function ImProvider({ children }: { children: ReactNode }) {
         if (!current) return;
         current.client.removeConnectionListener(listeners);
         current.client.chatManager.removeMessageListener(messages);
-        if (await current.client.getCurrentUsername() === ownUsername) await current.client.logout();
+        if (await current.client.getCurrentUsername() === ownUsername) await current.client.logout(false);
       }).catch(() => {});
     };
   }, [attempt, changed, ownId, request]);
