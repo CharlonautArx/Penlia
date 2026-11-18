@@ -32,7 +32,15 @@
           "backgroundColor": "#47745C"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "-keep class com.hyphenate.** { *; }\n-dontwarn com.hyphenate.**"
+          }
+        }
+      ]
     ]
   }
 }

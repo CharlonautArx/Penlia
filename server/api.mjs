@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scrypt as derive, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { pool } from './db.mjs';
-import { syncFriends, userToken } from './im.mjs';
+import { checkDatabase, pool } from './db.mjs';
+import { checkEasemob, syncFriends, userToken } from './im.mjs';
 
 const scrypt = promisify(derive);
 const publicFields = 'id, username, name, bio';
@@ -9,7 +9,7 @@ const usernamePattern = /^[a-z0-9_]{3,24}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(status, message) {
     super(message);
     this.status = status;
@@ -189,38 +189,39 @@ async function prepareChat(userId, other) {
   return {};
 }
 
-function json(statusCode, data) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-    isBase64Encoded: false,
-    body: JSON.stringify(data),
-  };
+function json(statusCode, body) {
+  return { statusCode, body };
 }
 
-function readBody(event) {
-  const raw = event.body ?? '';
-  if (typeof raw !== 'string') throw new HttpError(400, '请求格式无效。');
-  if (Buffer.byteLength(raw) > 12000) throw new HttpError(413, '请求太大。');
-  try {
-    const body = JSON.parse(event.isBase64Encoded ? Buffer.from(raw, 'base64').toString('utf8') : raw);
-    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error();
-    return body;
-  } catch {
-    throw new HttpError(400, '请求格式无效。');
+async function readiness(authorization) {
+  const secret = process.env.PENLIA_DIAGNOSTIC_TOKEN;
+  if (!secret || secret.length < 32 ||
+      !timingSafeEqual(Buffer.from(hash(authorization ?? '')), Buffer.from(hash('Bearer ' + secret)))) {
+    return json(404, { error: '接口不存在。' });
   }
+  const [database, easemob] = await Promise.all([
+    checkDatabase().catch((error) => {
+      console.error('Database readiness failed', error.code ?? error.name);
+      return false;
+    }),
+    checkEasemob().catch((error) => {
+      console.error('Easemob readiness failed', error.status ?? error.cause?.code ?? error.name);
+      return false;
+    }),
+  ]);
+  const ok = database && easemob;
+  return json(ok ? 200 : 503, { ok, database, easemob });
 }
 
-export async function handle(event) {
+export async function handle({ method, path, headers, query, sourceIp, readBody }) {
+  const route = method + ' ' + path;
+  const { authorization } = headers;
   try {
-    const { rawPath: path, requestContext, headers = {}, queryParameters = {} } = event;
-    const { method, sourceIp = 'unknown' } = requestContext?.http ?? {};
-    const route = method + ' ' + path;
     if (route === 'GET /health') return json(200, { ok: true });
-    if (route === 'POST /v1/register') return json(201, await register(readBody(event), sourceIp));
-    if (route === 'POST /v1/login') return json(200, await login(readBody(event), sourceIp));
+    if (route === 'GET /ops/readiness') return await readiness(authorization);
+    if (route === 'POST /v1/register') return json(201, await register(await readBody(), sourceIp));
+    if (route === 'POST /v1/login') return json(200, await login(await readBody(), sourceIp));
 
-    const authorization = Object.entries(headers).find(([key]) => key.toLowerCase() === 'authorization')?.[1];
     const { user, tokenHash } = await requireSession(authorization);
     switch (route) {
       case 'POST /v1/logout':
@@ -229,7 +230,7 @@ export async function handle(event) {
       case 'GET /v1/me':
         return json(200, { user });
       case 'PATCH /v1/me': {
-        const { name, bio } = readBody(event);
+        const { name, bio } = await readBody();
         const { rows: [profile] } = await pool.query(
           `UPDATE users SET name = $1, bio = $2 WHERE id = $3 RETURNING ${publicFields}`,
           [cleanText(name, 16, true), cleanText(bio, 60), user.id]);
@@ -237,17 +238,17 @@ export async function handle(event) {
       }
       case 'GET /v1/people':
         await rateLimit('lookup:' + user.id, 60, 1);
-        return json(200, await findPeople(user.id, queryParameters?.username));
+        return json(200, await findPeople(user.id, query.get('username')));
       case 'GET /v1/friends':
         return json(200, await friendships(user.id));
       case 'POST /v1/friends':
-        return json(200, await requestFriend(user.id, readBody(event).userId));
+        return json(200, await requestFriend(user.id, (await readBody()).userId));
       case 'POST /v1/friends/accept':
-        return json(200, await respondToFriend(user.id, readBody(event).id, 'accept'));
+        return json(200, await respondToFriend(user.id, (await readBody()).id, 'accept'));
       case 'POST /v1/friends/decline':
-        return json(200, await respondToFriend(user.id, readBody(event).id, 'decline'));
+        return json(200, await respondToFriend(user.id, (await readBody()).id, 'decline'));
       case 'POST /v1/im/contact':
-        return json(200, await prepareChat(user.id, readBody(event).userId));
+        return json(200, await prepareChat(user.id, (await readBody()).userId));
       case 'POST /v1/im/token':
         await rateLimit('im:' + user.id, 20, 15);
         return json(200, await imOperation(() => userToken(user.id)));
@@ -256,7 +257,9 @@ export async function handle(event) {
     }
   } catch (error) {
     if (error instanceof HttpError) return json(error.status, { error: error.message });
-    console.error('API request failed', error.code ?? error.name);
+    const requestId = headers['x-fc-request-id'];
+    const trace = typeof requestId === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(requestId) ? requestId : undefined;
+    console.error('API request failed', error.code ?? error.name, trace ?? '');
     return json(500, { error: '服务暂时不可用，请稍后再试。' });
   }
 }

@@ -30,8 +30,8 @@ async function request(path, { token, body, method = 'POST' } = {}) {
   return response.json();
 }
 
-async function getAppToken() {
-  if (appToken?.validUntil > Date.now()) return appToken.value;
+async function getAppToken(refresh = false) {
+  if (!refresh && appToken?.validUntil > Date.now()) return appToken.value;
   if (!pendingToken) {
     pendingToken = (async () => {
       const clientId = process.env.EASEMOB_CLIENT_ID;
@@ -46,6 +46,11 @@ async function getAppToken() {
     })().finally(() => { pendingToken = undefined; });
   }
   return pendingToken;
+}
+
+export async function checkEasemob() {
+  await getAppToken(true);
+  return true;
 }
 
 async function authorized(path, options) {

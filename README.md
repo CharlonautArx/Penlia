@@ -30,7 +30,7 @@ Expo SDK 58 对应 React Native 0.88 和 React 19.3。仓库将环信原生 SDK 
 
 ## 用手机或平板生成独立 Android APK
 
-1. 审核并合并 Pull Request 后，使用浏览器进入 GitHub 仓库的 **Code → Codespaces → Create codespace on main**。平板横屏更方便。Codespaces 的可用性和用量取决于 GitHub 帐号，也可以用任何有 Node.js 和 npm 的终端替代。 [GitHub Codespaces 快速入门](https://docs.github.com/en/codespaces/getting-started/quickstart)
+1. 使用浏览器进入 GitHub 仓库，切换到待验收的开发分支，从 **Code → Codespaces** 创建或打开该分支的 Codespace。平板横屏更方便。Codespaces 的可用性和用量取决于 GitHub 帐号，也可以用任何有 Node.js 和 npm 的终端替代。 [GitHub Codespaces 快速入门](https://docs.github.com/en/codespaces/getting-started/quickstart)
 2. 在 Codespaces 的终端执行下列命令。使用自己的 Expo 帐号登录。先配置上述构建环境变量。首次配置项目时，Expo 会提示选择帐号并创建或关联 EAS 项目。 [EAS Build 入门](https://docs.expo.dev/build/setup/)
 
    ```sh

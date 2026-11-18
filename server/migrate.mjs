@@ -1,7 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readMigrations } from './migration-files.mjs';
 import { pool } from './db.mjs';
 
-const directory = new URL('./migrations/', import.meta.url);
 try {
   const client = await pool.connect();
   try {
@@ -10,10 +9,9 @@ try {
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY)');
     const applied = await client.query('SELECT name FROM schema_migrations');
     const names = new Set(applied.rows.map(({ name }) => name));
-    const files = (await readdir(directory)).filter((name) => /^\d+_.+\.sql$/.test(name)).sort();
-    for (const name of files) {
+    for (const { name, sql } of await readMigrations()) {
       if (names.has(name)) continue;
-      await client.query(await readFile(new URL(name, directory), 'utf8'));
+      await client.query(sql);
       await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [name]);
       console.log('Applied', name);
     }
