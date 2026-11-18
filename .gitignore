@@ -5,6 +5,7 @@ android/
 ios/
 *.tsbuildinfo
 .env*
+!.env.example
 *.jks
 *.keystore
 *.p8
