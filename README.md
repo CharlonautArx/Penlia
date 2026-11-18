@@ -24,7 +24,7 @@ npm run ios
 npx expo start --dev-client
 ```
 
-填写 `.env.local` 中的 HTTPS API 地址和环信 App Key。使用 EAS 时，在对应构建环境中配置同名变量。这两个值会打进客户端 bundle。服务端部署、内网连接和凭证配置见 [FC 后端说明](server/README.md)。
+填写 `.env.local` 中的 HTTPS API 地址和环信 App Key。App Key 含 `#`，请保留示例中的双引号。使用 EAS 时，在对应构建环境中配置同名变量。这两个值会打进客户端 bundle。服务端部署、内网连接和凭证配置见 [FC 后端说明](server/README.md)。
 
 Expo SDK 58 对应 React Native 0.88 和 React 19.3。仓库将环信原生 SDK 锁定在 `react-native-chat-sdk@5.0.0`。环信发布记录将该版本标为开发版，其集成示例使用 React Native 0.83.10 新架构。使用包含原生模块的开发构建或独立安装包。仅更新 Metro bundle 无法加入环信原生模块，Expo Go 无法运行这部分功能。[Expo SDK 版本](https://docs.expo.dev/versions/latest/) · [Expo 开发构建](https://docs.expo.dev/develop/development-builds/introduction/) · [环信原生集成](https://doc.easemob.com/document/react-native/integration.html) · [环信版本记录](https://doc.easemob.com/document/react-native/releasenote.html)
 
