@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "朋聊",
+    "slug": "penlia",
+    "version": "0.1.0",
+    "scheme": "penlia",
+    "platforms": ["android", "ios"],
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F7F8F3",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "app.penlia.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.penlia.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#47745C"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#47745C"
+        }
+      ]
+    ]
+  }
+}

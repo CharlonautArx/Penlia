@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+android/
+ios/
+*.tsbuildinfo
+.env*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+.DS_Store
