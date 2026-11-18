@@ -17,8 +17,8 @@ pool.on('error', () => console.error('Idle PostgreSQL connection failed'));
 
 export async function checkDatabase() {
   const { rows: [state] } = await pool.query(`
-    SELECT EXISTS (SELECT FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl)
-      AND has_table_privilege('public.users', 'SELECT')
+    SELECT EXISTS (SELECT FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl) AS tls,
+      has_table_privilege('public.users', 'SELECT')
       AND has_table_privilege('public.users', 'INSERT')
       AND has_table_privilege('public.users', 'UPDATE')
       AND has_table_privilege('public.sessions', 'SELECT')
@@ -31,5 +31,5 @@ export async function checkDatabase() {
       AND has_table_privilege('public.rate_limits', 'INSERT')
       AND has_table_privilege('public.rate_limits', 'UPDATE')
       AS ready`);
-  return state.ready;
+  return { ready: state.ready && state.tls === useTls, tls: state.tls };
 }

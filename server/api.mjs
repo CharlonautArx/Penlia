@@ -199,18 +199,19 @@ async function readiness(authorization) {
       !timingSafeEqual(Buffer.from(hash(authorization ?? '')), Buffer.from(hash('Bearer ' + secret)))) {
     return json(404, { error: '接口不存在。' });
   }
-  const [database, easemob] = await Promise.all([
+  const [databaseStatus, easemob] = await Promise.all([
     checkDatabase().catch((error) => {
       console.error('Database readiness failed', error.code ?? error.name);
-      return false;
+      return { ready: false, tls: null };
     }),
     checkEasemob().catch((error) => {
       console.error('Easemob readiness failed', error.status ?? error.cause?.code ?? error.name);
       return false;
     }),
   ]);
+  const { ready: database, tls: databaseTls } = databaseStatus;
   const ok = database && easemob;
-  return json(ok ? 200 : 503, { ok, database, easemob });
+  return json(ok ? 200 : 503, { ok, database, databaseTls, easemob });
 }
 
 export async function handle({ method, path, headers, query, sourceIp, readBody }) {

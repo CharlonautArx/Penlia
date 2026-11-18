@@ -15,13 +15,13 @@
 
 确认交换机的 **IPv4 网段**（形如 `10.x.x.0/24`）。在 **RDS 控制台 → 上海 → 实例 → 数据安全 → 白名单设置**，为已有 FC 交换机添加该网段。使用 RDS 内网域名，白名单中无需添加手机 IP。若环信控制台对 REST 请求配置了固定来源白名单，FC 的默认动态公网出口无法保证固定 IP，此时先核对现有出口和环信限制再继续。[FC 网络配置](https://www.alibabacloud.com/help/zh/functioncompute/configure-network-settings) · [RDS 白名单](https://www.alibabacloud.com/help/zh/functioncompute/how-to-configure-an-ip-address-whitelist-when-i-access-a-database)
 
-## 2. 配置 RDS TLS 并执行迁移
+## 2. 确认数据库连接方式并执行迁移
 
-1. 进入 **RDS → 实例 → 数据安全 → SSL 加密**，确认受保护地址就是要填写的 RDS 内网域名。使用阿里云云证书时，从同一页面下载 CA 证书。若需要开启 SSL，先查看控制台显示的实例适用条件和可能的连接影响。
+1. 支持 TLS 的实例，在 **RDS → 实例 → 数据安全性 → SSL** 中核对证书保护的内网域名，下载适用的 CA 证书。对不支持 TLS 的普通 RDS PostgreSQL Serverless 实例，开发联调可在同一 VPC、限定白名单下使用现有内网地址，并在 FC 显式设置 `PG_TLS=disable`。这一模式下 FC 到 RDS 的数据库流量没有 TLS 加密，仅用于测试数据。手机到 FC 仍使用 HTTPS。[RDS PostgreSQL SSL 支持范围](https://www.alibabacloud.com/help/zh/rds/apsaradb-rds-for-postgresql/configure-ssl-encryption-for-an-apsaradb-rds-for-postgresql-instance)
 2. 从 RDS 实例的 **登录数据库** 进入已有 DMS，选 `penlia_dev`，用已有数据库管理员或有建表权限的迁移账号登录。打开 **SQL 窗口**，将本次生成的 `penlia-dms.sql` 整份作为一个脚本执行。脚本在一个事务内应用迁移、记录版本并给 `penlia_app` 授予表级读写权限，可重复执行。若已有 DMS 安全规则拦截 DDL，按同一实例的结构变更审批流程执行该脚本，或在已有可访问内网的环境用管理员身份运行下方命令。
 3. 确认脚本成功提交。函数用普通账号 `penlia_app` 在运行时访问数据库。管理员凭证留在管理端，迁移脚本不会在每次函数启动时运行。
 
-已有内网终端等效做法是在 `server` 目录运行 `npm ci`、`npm run migrate`，再由迁移身份执行 `deploy/runtime-grants.sql`。在受控终端注入 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD` 和证书配置。代码默认验证 TLS 证书及域名。仅本机临时测试可使用 `PG_TLS=disable`。[RDS SSL 验证方式](https://www.alibabacloud.com/help/en/rds/apsaradb-rds-for-postgresql/connect-to-an-apsaradb-rds-for-postgresql-instance-over-ssl-connections)
+已有内网终端等效做法是在 `server` 目录运行 `npm ci`、`npm run migrate`，再由迁移身份执行 `deploy/runtime-grants.sql`。在受控终端注入 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD` 和证书配置。代码默认验证 TLS 证书及域名。本机测试或上述 Serverless 内网联调可显式使用 `PG_TLS=disable`。[RDS SSL 验证方式](https://www.alibabacloud.com/help/en/rds/apsaradb-rds-for-postgresql/connect-to-an-apsaradb-rds-for-postgresql-instance-over-ssl-connections)
 
 ## 3. 配置环信现有应用
 
@@ -52,9 +52,10 @@ Node.js 22 由 FC 环境提供，启动时在 `/code` 执行 `npm run start`，H
 
 | 环境变量 | 值 |
 | --- | --- |
-| `PGHOST` / `PGPORT` | SSL 证书保护的 RDS 内网域名 / `5432` |
+| `PGHOST` / `PGPORT` | RDS 内网域名 / `5432`。使用 TLS 时填写证书保护的域名 |
 | `PGDATABASE` / `PGUSER` | `penlia_dev` / `penlia_app` |
 | `PGPASSWORD` | 普通数据库账号的密码 |
+| `PG_TLS` | 默认留空并验证 TLS。上述 Serverless 内网联调填 `disable`，CA 变量留空 |
 | `PGSSLROOTCERT` | ZIP 包内置 CA 时填 `/code/rds-ca.pem` |
 | `PG_CA_PEM` | 如用环境变量传递 CA，填完整 PEM 内容，并留空 `PGSSLROOTCERT` |
 | `EASEMOB_APP_KEY` | 环信的 App Key |
@@ -73,7 +74,7 @@ Node.js 22 由 FC 环境提供，启动时在 `/code` 执行 `npm run start`，H
    unset PENLIA_CHECK_TOKEN
    ```
 
-3. 预期 HTTP 200 和 `{"ok":true,"database":true,"easemob":true}`。数据库检查验证 TLS、所需表和运行账号权限。环信检查会重新申请 App Token，以验证公网出口及凭证。HTTP 503 时，查看哪个字段为 `false`，再到函数的 **日志/测试结果** 查看 `Database readiness failed` 或 `Easemob readiness failed`。优先核对白名单、TLS CA、迁移或环信 REST 地址与凭证。后端只记录错误类别和可用的 FC 请求 ID。测试后可移除诊断口令以关闭此接口。
+3. 预期 HTTP 200，且 `ok`、`database` 和 `easemob` 均为 `true`。数据库检查核对实际连接模式以及所需表和运行账号权限。启用 TLS 时 `databaseTls` 为 `true`，显式关闭 TLS 的 Serverless 联调中为 `false`，数据库检查无法完成时为 `null`。环信检查会重新申请 App Token，以验证公网出口及凭证。HTTP 503 时，查看哪个字段为 `false`，再到函数的 **日志/测试结果** 查看 `Database readiness failed` 或 `Easemob readiness failed`。优先核对白名单、TLS CA、迁移或环信 REST 地址与凭证。后端只记录错误类别和可用的 FC 请求 ID。测试后可移除诊断口令以关闭此接口。
 4. 使用 APK 注册两个账号并收发一次，以实际验证用户 Token、好友同步与环信原生连接。检查通过的 App Token 与数据库探测无法覆盖这一整条流程。
 
 ## 6. 构建 APK 和双手机验收
