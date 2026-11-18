@@ -18,8 +18,10 @@
 ## 2. 确认数据库连接方式并执行迁移
 
 1. 支持 TLS 的实例，在 **RDS → 实例 → 数据安全性 → SSL** 中核对证书保护的内网域名，下载适用的 CA 证书。对不支持 TLS 的普通 RDS PostgreSQL Serverless 实例，开发联调可在同一 VPC、限定白名单下使用现有内网地址，并在 FC 显式设置 `PG_TLS=disable`。这一模式下 FC 到 RDS 的数据库流量没有 TLS 加密，仅用于测试数据。手机到 FC 仍使用 HTTPS。[RDS PostgreSQL SSL 支持范围](https://www.alibabacloud.com/help/zh/rds/apsaradb-rds-for-postgresql/configure-ssl-encryption-for-an-apsaradb-rds-for-postgresql-instance)
-2. 从 RDS 实例的 **登录数据库** 进入已有 DMS，选 `penlia_dev`，用已有数据库管理员或有建表权限的迁移账号登录。打开 **SQL 窗口**，将本次生成的 `penlia-dms.sql` 整份作为一个脚本执行。脚本在一个事务内应用迁移、记录版本并给 `penlia_app` 授予表级读写权限，可重复执行。若已有 DMS 安全规则拦截 DDL，按同一实例的结构变更审批流程执行该脚本，或在已有可访问内网的环境用管理员身份运行下方命令。
+2. 从 RDS 实例的 **登录数据库** 进入已有 DMS，选 `penlia_dev`，用已有数据库管理员或有建表权限的迁移账号登录。打开 **SQL 窗口**，从 GitHub 下载 [`penlia-dms.sql`](deploy/penlia-dms.sql)，整份作为一个脚本执行。脚本在一个事务内应用迁移、记录版本并给 `penlia_app` 授予表级读写权限，可重复执行。若已有 DMS 安全规则拦截 DDL，按同一实例的结构变更审批流程执行该脚本，或在已有可访问内网的环境用管理员身份运行下方命令。
 3. 确认脚本成功提交。函数用普通账号 `penlia_app` 在运行时访问数据库。管理员凭证留在管理端，迁移脚本不会在每次函数启动时运行。
+
+修改迁移或运行权限后，从仓库根目录运行 `node server/deploy/dms-migration.mjs > server/deploy/penlia-dms.sql` 更新这份下载文件。
 
 已有内网终端等效做法是在 `server` 目录运行 `npm ci`、`npm run migrate`，再由迁移身份执行 `deploy/runtime-grants.sql`。在受控终端注入 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD` 和证书配置。代码默认验证 TLS 证书及域名。本机测试或上述 Serverless 内网联调可显式使用 `PG_TLS=disable`。[RDS SSL 验证方式](https://www.alibabacloud.com/help/en/rds/apsaradb-rds-for-postgresql/connect-to-an-apsaradb-rds-for-postgresql-instance-over-ssl-connections)
 
