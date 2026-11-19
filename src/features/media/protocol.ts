@@ -17,7 +17,7 @@ export function summaryOf(message: RichMessage) {
 }
 
 function decimal(value: unknown, max: number) {
-  if (typeof value !== 'number' && (typeof value !== 'string' || !/^-?\d+(\.\d+)?$/.test(value))) return;
+  if (typeof value !== 'number' && (typeof value !== 'string' || !/^[+-]?\d+(\.\d+)?(?:e[+-]?\d+)?$/i.test(value))) return;
   const number = Number(value);
   if (Number.isFinite(number) && Math.abs(number) <= max) return number;
 }

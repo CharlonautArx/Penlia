@@ -36,6 +36,8 @@ test('Easemob location keeps coordinates and title, rejects invalid payloads, an
   assert.equal(locationValue('', '0', '', ''), undefined);
   assert.equal(locationValue(91, 0, '', ''), undefined);
   assert.equal(locationValue(30, 900, '', ''), undefined);
+  assert.equal(locationValue('-3.1E-7', '0', '', '')?.latitude, -3.1e-7);
+  assert.equal(locationValue('1e999', '0', '', ''), undefined);
   const source = buildPeerMessage(connection, 'friend', { kind: 'location', latitude: 31.22, longitude: 121.45,
     name: '路口', address: '上海' });
   assert.equal(source.body.address, '上海');
