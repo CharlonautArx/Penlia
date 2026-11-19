@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AvatarEditor } from '../features/media/AvatarEditor';
 import { Avatar, BrandMark, Button, DemoLabel, Icon, IconButton, ListRow, Notice, Sheet } from '../components/ui';
 import { brandGradient, colors, styles } from '../theme';
 import { demoPortrait } from './visuals';
@@ -19,7 +20,7 @@ const avatarOptions = [
 
 export function PhonePreview({ onLegacy, onEnter }: {
   onLegacy: () => void;
-  onEnter: (profile?: { name: string; username: string; avatarKey: string }) => void;
+  onEnter: (profile?: { name: string; username: string; avatarKey: string; avatarPhoto?: string }) => Promise<void>;
 }) {
   const [register, setRegister] = useState(false);
   const [phone, setPhone] = useState('');
@@ -33,6 +34,8 @@ export function PhonePreview({ onLegacy, onEnter }: {
   const [onboarding, setOnboarding] = useState(false);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
+  const [avatarPhoto, setAvatarPhoto] = useState<string | null>(null);
+  const [profileBusy, setProfileBusy] = useState(false);
   const [avatar, setAvatar] = useState<string>(avatarOptions[0].username);
 
   useEffect(() => {
@@ -66,19 +69,23 @@ export function PhonePreview({ onLegacy, onEnter }: {
     } else {
       setMessage(undefined);
       setError('');
-      if (phone === examples.existing) onEnter();
+      if (phone === examples.existing) void onEnter();
       else setOnboarding(true);
     }
   }
 
-  function complete() {
+  async function complete() {
     const clean = username.trim().toLowerCase();
     if (!/^[a-z0-9_]{3,24}$/.test(clean) || !name.trim()) return;
     if (['qinghe', 'xiaoman', 'azhu', 'linlu', 'shenyan', 'chenmo', 'taoxi', 'beiyang', 'yucheng', 'xiaohe', 'taozi', 'zhouzhou'].includes(clean)) {
       setError('这个朋聊号已被使用。');
       return;
     }
-    onEnter({ name: name.trim(), username: clean, avatarKey: avatar });
+    if (profileBusy) return;
+    setProfileBusy(true);
+    try { await onEnter({ name: name.trim(), username: clean, avatarKey: avatar, avatarPhoto: avatarPhoto ?? undefined }); }
+    catch { setError('暂时无法保存演示资料，请重试。'); }
+    finally { setProfileBusy(false); }
   }
 
   return <SafeAreaView style={local.screen}>
@@ -96,10 +103,12 @@ export function PhonePreview({ onLegacy, onEnter }: {
           <View style={local.avatars}>
             {avatarOptions.map(({ name: option, username: key }) => <Pressable key={key} accessibilityRole="button"
               accessibilityLabel={'选择' + option + '头像'} accessibilityState={{ selected: key === avatar }}
-              style={[local.avatar, key === avatar && local.avatarActive]} onPress={() => setAvatar(key)}>
+              style={[local.avatar, key === avatar && local.avatarActive]} onPress={() => { setAvatar(key); setAvatarPhoto(null); }}>
               <Avatar name={option} source={demoPortrait(key)} size={49} />
             </Pressable>)}
           </View>
+          <AvatarEditor account="demo-registration" name={name || '朋友'} fallback={demoPortrait(avatar)}
+            value={avatarPhoto} onChange={setAvatarPhoto} />
           <Text style={styles.strong}>昵称</Text>
           <TextInput accessibilityLabel="设置昵称" placeholder="朋友会怎么称呼你？" placeholderTextColor={colors.quiet}
             maxLength={16} value={name} onChangeText={setName} style={styles.input} />
@@ -107,7 +116,7 @@ export function PhonePreview({ onLegacy, onEnter }: {
           <TextInput accessibilityLabel="专属朋聊号" placeholder="3–24 位字母、数字或下划线" placeholderTextColor={colors.quiet}
             maxLength={24} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} style={styles.input} />
           {!!error && <Notice>{error}</Notice>}
-          <Button label="完成并进入朋聊" variant="gradient" disabled={!name.trim() || !/^[a-z0-9_]{3,24}$/i.test(username.trim())} onPress={complete} />
+          <Button label="完成并进入朋聊" variant="gradient" disabled={profileBusy || !name.trim() || !/^[a-z0-9_]{3,24}$/i.test(username.trim())} onPress={() => void complete()} />
           <Text style={styles.small}>昵称、头像和朋聊号为本次演示资料。</Text>
         </> : <>
           <View style={local.hero}>

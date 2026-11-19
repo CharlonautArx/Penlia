@@ -46,9 +46,27 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "允许选择用于说说、日志和相册的照片。",
+          "photosPermission": "允许选择用于头像、聊天、动态、日志和相册的照片。",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "在你确认发送位置前，允许朋聊获取一次当前位置。",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "允许你在视频通话中开启本机预览。",
+          "microphonePermission": "允许你在通话设置中检查麦克风权限。",
+          "recordAudioAndroid": true,
+          "barcodeScannerEnabled": false
         }
       ]
     ]

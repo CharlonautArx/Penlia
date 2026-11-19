@@ -4,14 +4,16 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Screen, Sheet, type IconName } from '../../components/ui';
+import { AvatarEditor } from '../../features/media/AvatarEditor';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
 
 export default function MeScreen() {
-  const { session, updateProfile, logout, enterDemo, demoAvatarKey } = useSession();
+  const { session, updateProfile, logout, enterDemo, demoAvatarKey, localAvatar, avatarNotice, changeLocalAvatar } = useSession();
   const [sheet, setSheet] = useState<'资料' | '通知与隐私' | '主题与外观' | '通用设置'>();
+  const [avatarDraft, setAvatarDraft] = useState<string | null>();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [busy, setBusy] = useState(false);
@@ -21,6 +23,7 @@ export default function MeScreen() {
 
   function edit() {
     setName(user.name);
+    setAvatarDraft(localAvatar ?? null);
     setBio(user.bio);
     setError('');
     setSheet('资料');
@@ -42,7 +45,7 @@ export default function MeScreen() {
   return <Screen title="我的" actions={<IconButton label="通用设置" icon="settings-outline" onPress={() => setSheet('通用设置')} />}>
     <LinearGradient colors={['#FDE7ED', '#F5F1F8', '#E1F8F5']} start={{ x: 0.02, y: 0.08 }} end={{ x: 1, y: 0.85 }} style={local.profile}>
       <View style={styles.row}>
-        <Avatar name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={64} />
+        <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={64} />
         <View style={styles.grow}>
           <Text style={local.name}>{user.name}</Text>
           <Text style={styles.muted}>朋聊号 @{user.username}</Text>
@@ -64,17 +67,23 @@ export default function MeScreen() {
       <ListRow title="主题与外观" left={<Tile icon="color-palette-outline" />} onPress={() => setSheet('主题与外观')} />
       <ListRow title="通用设置" left={<Tile icon="settings-outline" />} onPress={() => setSheet('通用设置')} />
     </View>
+    {!!avatarNotice && !sheet && <Notice>{avatarNotice}</Notice>}
     {!!error && !sheet && <Notice>{error}</Notice>}
     <Button label={enterDemo ? '退出演示' : '退出登录'} variant="danger" disabled={busy} onPress={() => void run(logout)} />
     {sheet && <Sheet title={sheet === '资料' ? '编辑资料' : sheet} onClose={() => { if (!busy) setSheet(undefined); }}>
       {sheet === '资料' && <>
+        <AvatarEditor account={user.id} name={name || user.name} fallback={demoPortrait(demoAvatarKey ?? user.username)}
+          value={avatarDraft} onChange={setAvatarDraft} />
         <Text style={styles.strong}>昵称</Text>
         <TextInput accessibilityLabel="昵称" value={name} onChangeText={setName} maxLength={16} style={styles.input} />
         <Text style={styles.strong}>个性签名</Text>
         <TextInput accessibilityLabel="签名" value={bio} onChangeText={setBio} maxLength={60} style={styles.input} />
         {!!error && <Notice>{error}</Notice>}
         <Button label={busy ? '保存中…' : '保存'} variant="gradient" disabled={busy || !name.trim()}
-          onPress={() => void run(() => updateProfile(name.trim(), bio.trim()))} />
+          onPress={() => void run(async () => {
+            await updateProfile(name.trim(), bio.trim());
+            if ((avatarDraft ?? undefined) !== localAvatar) await changeLocalAvatar(avatarDraft ?? null);
+          })} />
       </>}
       {sheet === '通知与隐私' && <>
         <ListRow title="位置" detail="选择城市和活动类别无需授予定位权限。" left={<Tile icon="location-outline" />} />

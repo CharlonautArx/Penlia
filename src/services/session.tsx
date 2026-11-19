@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import {
   createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState,
@@ -14,16 +15,51 @@ type ApiOptions = { method?: string; body?: Record<string, string> };
 const SessionContext = createContext<{
   session: Session | null;
   enterDemo?: () => void;
-  completeDemoProfile?: (profile: { name: string; username: string; avatarKey: string }) => void;
+  completeDemoProfile?: (profile: { name: string; username: string; avatarKey: string; avatarPhoto?: string }) => Promise<void>;
+  localAvatar?: string;
+  avatarNotice: string;
+  changeLocalAvatar: (photo: string | null) => Promise<void>;
   demoAvatarKey?: string;
   loading: boolean;
   restoreError: string;
   restore: () => Promise<void>;
-  authenticate: (register: boolean, fields: Record<string, string>) => Promise<void>;
+  authenticate: (register: boolean, fields: Record<string, string>, avatarPhoto?: string) => Promise<void>;
   request: <T>(path: string, options?: ApiOptions) => Promise<T>;
   updateProfile: (name: string, bio: string) => Promise<void>;
   logout: () => Promise<void>;
 } | null>(null);
+
+const avatarKey = (account: string) => 'penlia.avatar-local.v1.' + account;
+
+function useAccountAvatar(account?: string) {
+  const [value, setValue] = useState<{ account: string; photo: string | null }>();
+  const [avatarNotice, setAvatarNotice] = useState('');
+  useEffect(() => {
+    if (!account) return;
+    let active = true;
+    void AsyncStorage.getItem(avatarKey(account)).then((photo) => {
+      if (active) setValue({ account, photo });
+    }).catch(() => { if (active) setAvatarNotice('暂时无法读取本机头像。'); });
+    return () => { active = false; };
+  }, [account]);
+  const persist = async (id: string, photo: string | null) => {
+    if (photo) await AsyncStorage.setItem(avatarKey(id), photo);
+    else await AsyncStorage.removeItem(avatarKey(id));
+    setValue({ account: id, photo });
+    setAvatarNotice('');
+  };
+  async function changeLocalAvatar(photo: string | null) {
+    if (!account) throw new Error('请登录后再保存头像。');
+    try { await persist(account, photo); }
+    catch { throw new Error('资料头像未能保存到此设备，请重试。'); }
+  }
+  async function saveOnSignup(id: string, photo?: string) {
+    if (!photo) return;
+    try { await persist(id, photo); }
+    catch { setAvatarNotice('账号已创建，头像未能保存。可以在个人资料中重试。'); }
+  }
+  return { localAvatar: value?.account === account ? value?.photo ?? undefined : undefined, avatarNotice, changeLocalAvatar, saveOnSignup };
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   return isUiDemo
@@ -37,11 +73,15 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
 
   const [session, setSession] = useState<Session | null>(null);
   const [demoAvatarKey, setDemoAvatarKey] = useState<string>();
+  const avatar = useAccountAvatar(session?.user.id);
   const enterDemo = () => {
     setDemoAvatarKey(undefined);
     setSession({ user: demoUser, token: 'demo-only' });
   };
-  function completeDemoProfile({ avatarKey, ...profile }: { name: string; username: string; avatarKey: string }) {
+  async function completeDemoProfile({ avatarKey, avatarPhoto, ...profile }: {
+    name: string; username: string; avatarKey: string; avatarPhoto?: string;
+  }) {
+    await avatar.saveOnSignup(demoUser.id, avatarPhoto);
     setDemoAvatarKey(avatarKey);
     setSession({ user: { ...demoUser, ...profile }, token: 'demo-only' });
   }
@@ -51,7 +91,7 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext.Provider value={{
-      session, enterDemo, completeDemoProfile, demoAvatarKey, request: demo.request, updateProfile, loading: false, restoreError: '',
+      ...avatar, session, enterDemo, completeDemoProfile, demoAvatarKey, request: demo.request, updateProfile, loading: false, restoreError: '',
       restore: async () => {}, authenticate: async () => enterDemo(), logout: async () => setSession(null),
     }}>
       {children}
@@ -61,6 +101,7 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
 
 function RealSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const avatar = useAccountAvatar(session?.user.id);
   const activeToken = useRef<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [restoreError, setRestoreError] = useState('');
@@ -87,9 +128,10 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void restore(); }, [restore]);
 
-  const authenticate = async (register: boolean, fields: Record<string, string>) => {
+  const authenticate = async (register: boolean, fields: Record<string, string>, avatarPhoto?: string) => {
     const next = await api<Session>(register ? '/register' : '/login', { method: 'POST', body: fields });
     await SecureStore.setItemAsync(key, next.token);
+    if (register) await avatar.saveOnSignup(next.user.id, avatarPhoto);
     activeToken.current = next.token;
     setSession(next);
   };
@@ -123,7 +165,7 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SessionContext.Provider value={{ session, loading, restoreError, restore, authenticate, request, updateProfile, logout }}>
+    <SessionContext.Provider value={{ ...avatar, session, loading, restoreError, restore, authenticate, request, updateProfile, logout }}>
       {children}
     </SessionContext.Provider>
   );
@@ -133,4 +175,9 @@ export function useSession() {
   const context = useContext(SessionContext);
   if (!context) throw new Error('SessionProvider is required');
   return context;
+}
+
+export function useAccountPhoto(userId?: string) {
+  const state = useContext(SessionContext);
+  return userId && state?.session?.user.id === userId ? state.localAvatar : undefined;
 }

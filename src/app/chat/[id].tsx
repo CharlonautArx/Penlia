@@ -1,36 +1,49 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
 import { Avatar, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } from '../../components/ui';
+import { DemoCall } from '../../demo/calls';
+import { isUiDemo } from '../../demo/mode';
+import type { CallKind } from '../../features/calls/model';
 import { PetShortcut } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
-import { imUserId, textMessage, type TextMessage, useIm } from '../../services/im';
+import { ImageBubble } from '../../features/media/ImageBubble';
+import { LocationBubble, LocationComposer } from '../../features/media/LocationCard';
+import { deliverPeerMessage, readPeerMessage, SendRejected, UnknownDelivery, type PendingMessage, type RichMessage } from '../../features/media/messages';
+import { pickOnePhoto, preparePhoto, type PreparedPhoto } from '../../features/media/picker';
+import { useLocalPhotoUri } from '../../features/space/media';
+import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
-
-class UnconfirmedDelivery extends Error {}
 
 function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
   const { session, request } = useSession();
   const demo = useDemo();
   const markDemoRead = demo?.markRead;
-  const shownMessages = demo ? [...(demo.messages[person.userId] ?? [])].reverse() : undefined;
+  const shownMessages = demo ? [...(demo.messages[person.userId] ?? []), ...(demo.media[person.userId] ?? [])]
+    .sort((a, b) => b.timestamp - a.timestamp) : undefined;
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState(initialDraft);
-  const [picker, setPicker] = useState<'emoji' | 'attachments'>();
+  const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location'>();
   const [sendError, setSendError] = useState(false);
-  const [messages, setMessages] = useState<TextMessage[]>([]);
+  const [messages, setMessages] = useState<RichMessage[]>([]);
   const [cursor, setCursor] = useState<string>();
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [actionError, setActionError] = useState('');
   const [sending, setSending] = useState(false);
+  const [photo, setPhoto] = useState<PreparedPhoto>();
+  const [prepareBusy, setPrepareBusy] = useState(false);
+  const [transferProgress, setTransferProgress] = useState<number>();
+  const pending = useRef<{ value: PendingMessage; original?: ChatMessage; uncertain?: boolean } | undefined>(undefined);
+  const sendGuard = useRef(false);
+  const photoUri = useLocalPhotoUri(photo?.id);
   const [chatReady, setChatReady] = useState(person.chatReady);
   const ownUsername = session ? imUserId(session.user.id) : '';
   const peer = imUserId(person.userId);
@@ -40,12 +53,12 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     setMessages((current) => {
       const known = new Map(current.map((message) => [message.id, message]));
       for (const item of incoming) {
-        const message = textMessage(connection, item, ownUsername);
+        const message = readPeerMessage(connection, item, ownUsername, peer);
         if (message) known.set(message.id, message);
       }
       return [...known.values()].sort((a, b) => b.timestamp - a.timestamp);
     });
-  }, [connection, ownUsername]);
+  }, [connection, ownUsername, peer]);
 
   useFocusEffect(useCallback(() => {
     markDemoRead?.(person.userId);
@@ -84,7 +97,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       pageSize: 40,
       options: new sdk.ChatFetchMessageOptions({
         startTs: -1, endTs: -1, direction: sdk.ChatSearchDirection.UP, needSave: true,
-        msgTypes: [sdk.ChatMessageType.TXT],
+        msgTypes: [sdk.ChatMessageType.TXT, sdk.ChatMessageType.IMAGE, sdk.ChatMessageType.LOCATION],
       }),
     });
   }, [connection, online, peer]);
@@ -116,48 +129,75 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     }
   }
 
-  async function send() {
-    const content = draft.trim();
-    if (!content || sending) return;
-    if (demo) {
-      demo.send(person.userId, content);
-      setDraft('');
-      return;
-    }
-    if (!connection || !online) return;
-    setSending(true);
-    setActionError('');
-    setSendError(false);
+  async function prepareImage() {
+    if (prepareBusy || !session) return;
+    setPrepareBusy(true); setActionError('');
     try {
-      if (!chatReady) {
-        await request('/im/contact', { method: 'POST', body: { userId: person.userId } });
-        setChatReady(true);
+      const input = await pickOnePhoto();
+      setPicker(undefined);
+      if (!input) return;
+      pending.current = undefined;
+      setSendError(false);
+      setPhoto(await preparePhoto(input, session.user.id));
+    } catch (error) {
+      setPicker(undefined);
+      setActionError(errorMessage(error));
+    } finally { setPrepareBusy(false); }
+  }
+
+  async function transmit(value: PendingMessage, previous?: ChatMessage) {
+    if (sendGuard.current || (!demo && (!connection || !online))) return;
+    sendGuard.current = true;
+    setSending(true); setActionError(''); setSendError(false); setTransferProgress(undefined);
+    try {
+      if (demo) {
+        if (value.kind === 'text') demo.send(person.userId, value.text);
+        else demo.addMedia(person.userId, value);
+      } else if (connection) {
+        if (!chatReady) {
+          await request('/im/contact', { method: 'POST', body: { userId: person.userId } });
+          setChatReady(true);
+        }
+        if (await connection.client.getCurrentUsername() !== ownUsername) throw new Error('聊天已断开，请重新连接。');
+        const sent = await deliverPeerMessage(connection, peer, value, previous, setTransferProgress);
+        merge([sent]);
+        changed();
       }
-      const { client, sdk } = connection;
-      if (await client.getCurrentUsername() !== ownUsername) throw new Error('聊天已断开，请重新连接。');
-      const message = sdk.ChatMessage.createTextMessage(peer, content, sdk.ChatMessageChatType.PeerChat);
-      const sent = await new Promise<ChatMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new UnconfirmedDelivery('暂未确认送达，请查看会话后再重试。')), 20000);
-        const fail = () => { clearTimeout(timeout); reject(new Error('发送失败，请重试。')); };
-        void client.chatManager.sendMessage(message, {
-          onSuccess: (confirmed) => { clearTimeout(timeout); resolve(confirmed); },
-          onError: fail,
-        }).catch(fail);
-      });
-      merge([sent]);
-      setDraft('');
-      changed();
+      pending.current = undefined;
+      if (value.kind === 'text') setDraft('');
+      if (value.kind === 'image') setPhoto(undefined);
     } catch (failure) {
-      setSendError(!(failure instanceof UnconfirmedDelivery));
+      const uncertain = failure instanceof UnknownDelivery;
+      pending.current = { value, uncertain, original: failure instanceof SendRejected ? failure.original : previous };
+      setSendError(!uncertain);
       setActionError(errorMessage(failure));
     } finally {
+      sendGuard.current = false;
       setSending(false);
     }
+  }
+
+  function sendText() {
+    const text = draft.trim();
+    if (!text) return;
+    const previous = pending.current;
+    if (previous?.value.kind === 'text' && previous.value.text === text) {
+      if (!previous.uncertain) void transmit(previous.value, previous.original);
+    } else void transmit({ kind: 'text', text });
+  }
+
+  function sendImage() {
+    if (!photo) return;
+    const previous = pending.current;
+    if (previous?.value.kind === 'image' && previous.value.photoId === photo.id) {
+      if (!previous.uncertain) void transmit(previous.value, previous.original);
+    } else void transmit({ kind: 'image', photoId: photo.id, width: photo.width, height: photo.height, bytes: photo.bytes });
   }
 
   const items = shownMessages ?? messages;
   return (
     <>
+      {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
       {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
       <FlatList
         inverted data={items} style={styles.grow} contentContainerStyle={local.messages}
@@ -178,14 +218,18 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
                 ? <Avatar name={person.name} source={demoPortrait(person.username)} size={30} />
                 : <View style={local.avatarSpace} />)}
               <View style={[local.bubble, message.mine ? local.mine : local.theirs]}>
-                <Text style={styles.body}>{message.text}</Text>
+                {
+                  'text' in message ? <Text style={styles.body}>{message.text}</Text>
+                    : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
+                    : <LocationBubble value={message} />
+                }
               </View>
             </View>
           </View>;
         }}
       />
       {!!(actionError || historyError) && <View style={local.notice}>
-        <Notice action={sendError && online ? '重试' : undefined} onAction={() => void send()}>{actionError || historyError}</Notice>
+        <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
       <View style={local.composer}>
         <IconButton label="更多输入方式" icon="add-circle-outline" onPress={() => setPicker('attachments')} />
@@ -195,10 +239,14 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
             style={local.input} />
           <IconButton label="表情" icon="happy-outline" disabled={sending} onPress={() => setPicker('emoji')} />
         </View>
-        <Button label={sending ? '发送中…' : '发送'} onPress={() => void send()}
-          disabled={(!demo && !online) || !draft.trim() || sending} />
+        <Button label={sending ? '发送中…' : '发送'} onPress={sendText}
+          disabled={(!demo && !online) || !draft.trim() || sending || (pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim())} />
       </View>
-      {picker && <Sheet title={picker === 'emoji' ? '表情' : '更多输入方式'} onClose={() => setPicker(undefined)}>
+      {picker === 'location' && <LocationComposer onClose={() => setPicker(undefined)} onConfirm={(value) => {
+        setPicker(undefined);
+        void transmit({ kind: 'location', ...value });
+      }} />}
+      {picker && picker !== 'location' && <Sheet title={picker === 'emoji' ? '表情' : '更多输入方式'} onClose={() => setPicker(undefined)}>
         {picker === 'emoji' ? <View style={local.emoji}>
           {['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'].map((emoji) =>
             <Button key={emoji} label={emoji} variant="soft" onPress={() => {
@@ -206,14 +254,27 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
               setPicker(undefined);
             }} />)}
         </View> : <>
-          <Text style={styles.muted}>当前支持文字和表情。以下方式将随功能上线开放。</Text>
-          <View style={local.emoji}>
-            {([['mic-outline', '语音'], ['image-outline', '照片'], ['document-outline', '文件']] as const)
-              .map(([icon, label]) => <View key={label} style={local.future}>
-                <Icon name={icon} /><Text style={styles.strong}>{label}</Text><Text style={styles.small}>待支持</Text>
-              </View>)}
-          </View>
+          <Button label={prepareBusy ? '正在处理图片…' : '图片'} icon="image-outline" variant="soft"
+            disabled={prepareBusy || (!demo && !online) || sending} onPress={() => void prepareImage()} />
+          <Button label="位置" icon="location-outline" variant="soft" disabled={(!demo && !online) || sending}
+            onPress={() => setPicker('location')} />
+          {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
+      </Sheet>}
+      {photo && <Sheet title={demo ? '图片预览 · 本机演示' : '发送图片'} onClose={() => { if (!sending) setPhoto(undefined); }}>
+        {photoUri ? <Image source={{ uri: photoUri }} style={local.imagePreview} resizeMode="contain" accessibilityLabel="待发送图片" />
+          : <Empty busy>正在读取图片…</Empty>}
+        <Text style={styles.small}>{photo.width} × {photo.height} · {Math.max(1, Math.round(photo.bytes / 1024))} KB</Text>
+        {!!actionError && <Notice>{actionError}</Notice>}
+        <Button label={sending ? ('发送中' + (transferProgress === undefined ? '…' : ' ' + transferProgress + '%'))
+          : sendError ? '重试发送图片' : '发送图片'} variant="gradient"
+          disabled={!photoUri || sending || pending.current?.uncertain || (!demo && !online)} onPress={sendImage} />
+        {demo && <Button label="模拟好友发来此图" variant="soft" disabled={!photoUri || sending} onPress={() => {
+          try {
+            demo.addMedia(person.userId, { kind: 'image', photoId: photo.id, width: photo.width, height: photo.height, bytes: photo.bytes }, false);
+            setPhoto(undefined);
+          } catch (error) { setActionError(errorMessage(error)); }
+        }} />}
       </Sheet>}
     </>
   );
@@ -229,6 +290,7 @@ function messageTime(timestamp: number) {
 export default function ConversationScreen() {
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
   const [more, setMore] = useState(false);
+  const [call, setCall] = useState<{ kind: CallKind; incoming: boolean }>();
   const { relationships, refresh, error } = useFriends();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -256,11 +318,25 @@ export default function ConversationScreen() {
         {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
           <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
         {more && person && <Sheet title="聊天选项" onClose={() => setMore(false)}>
+          <Button label="语音通话" variant="soft" icon="call-outline" onPress={() => {
+            setMore(false); setCall({ kind: 'voice', incoming: false });
+          }} />
+          <Button label="视频通话" variant="soft" icon="videocam-outline" onPress={() => {
+            setMore(false); setCall({ kind: 'video', incoming: false });
+          }} />
+          {isUiDemo && <Button label="模拟视频来电" variant="quiet" onPress={() => {
+            setMore(false); setCall({ kind: 'video', incoming: true });
+          }} />}
           <Button label="查看好友资料" variant="soft" icon="person-outline" onPress={() => {
             setMore(false);
             router.push({ pathname: '/person/[id]', params: { id: person.userId } });
           }} />
         </Sheet>}
+        {call && person && (isUiDemo ? <DemoCall kind={call.kind} incoming={call.incoming}
+          name={person.name} username={person.username} onClose={() => setCall(undefined)} />
+          : <Sheet title={call.kind === 'voice' ? '语音通话' : '视频通话'} onClose={() => setCall(undefined)}>
+            <Notice>通话服务尚未启用。需要配置 RTC、通话信令和呼叫权限后才可以拨打。</Notice>
+          </Sheet>)}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -288,5 +364,5 @@ const local = StyleSheet.create({
   entry: { ...styles.grow, ...styles.row, gap: 0, borderRadius: 12, backgroundColor: colors.backdrop },
   input: { ...styles.grow, fontSize: 15, color: colors.text, maxHeight: 110, minHeight: 44, paddingLeft: 11, paddingVertical: 9 },
   emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  future: { padding: 12, borderRadius: 12, backgroundColor: colors.backdrop, alignItems: 'center', gap: 5 },
+  imagePreview: { width: '100%', height: 290, borderRadius: 12, backgroundColor: colors.backdrop },
 });

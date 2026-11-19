@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AvatarEditor } from '../features/media/AvatarEditor';
 import { PhonePreview } from '../demo/phone';
 import { errorMessage } from '../services/api';
 import { useSession } from '../services/session';
@@ -15,13 +16,14 @@ export function AuthScreen() {
   const { enterDemo, completeDemoProfile } = useSession();
   const [legacy, setLegacy] = useState(false);
   if (enterDemo && !legacy) return <PhonePreview onLegacy={() => setLegacy(true)}
-    onEnter={(profile) => profile ? completeDemoProfile?.(profile) : enterDemo()} />;
+    onEnter={async (profile) => { if (profile) await completeDemoProfile?.(profile); else enterDemo(); }} />;
   return <LegacyAuth onDemoPhone={enterDemo ? () => setLegacy(false) : undefined} />;
 }
 
 function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
   const { loading, restoreError, restore, authenticate, enterDemo } = useSession();
   const [register, setRegister] = useState(false);
+  const [avatarPhoto, setAvatarPhoto] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +45,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
     setBusy(true);
     setError('');
     try {
-      await authenticate(register, { username: username.trim(), name: name.trim(), password });
+      await authenticate(register, { username: username.trim(), name: name.trim(), password }, avatarPhoto ?? undefined);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -92,6 +94,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
                   value={name} onChangeText={setName} maxLength={16} editable={!enterDemo && !busy} style={local.input} />
               </View>
             </>}
+            {register && !enterDemo && <AvatarEditor account="registration" name={name || '朋友'} value={avatarPhoto} onChange={setAvatarPhoto} />}
             <Text style={styles.strong}>密码</Text>
             <View style={local.field}>
               <Icon name="lock-closed-outline" size={17} color={colors.quiet} />

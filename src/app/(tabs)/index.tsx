@@ -8,11 +8,12 @@ import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
-import { imUserId, textMessage, type TextMessage, useIm } from '../../services/im';
+import { readPeerMessage, summaryOf, type RichMessage } from '../../features/media/messages';
+import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
 
-type Thread = { person: Relationship; last: TextMessage; unread: number };
+type Thread = { person: Relationship; last: RichMessage; unread: number };
 
 export default function ChatsScreen() {
   const { session } = useSession();
@@ -41,7 +42,7 @@ export default function ChatsScreen() {
         const visible = local.filter((item) => item.convType === sdk.ChatConversationType.PeerChat && accepted.has(item.convId));
         const rows = await Promise.all(visible.map(async (item) => {
           const [message, unread] = await Promise.all([item.getLatestMessage(), item.getUnreadCount()]);
-          const last = textMessage(connection!, message, imUserId(ownId!));
+          const last = readPeerMessage(connection!, message, imUserId(ownId!), item.convId);
           if (!last) return [];
           return [{ person: accepted.get(item.convId)!, last, unread }];
         }));
@@ -60,14 +61,16 @@ export default function ChatsScreen() {
 
   const visibleThreads = demo
     ? (relationships ?? []).flatMap((person) => {
-      const last = demo.messages[person.userId]?.at(-1);
+      const lastText = demo.messages[person.userId]?.at(-1);
+      const lastMedia = demo.media[person.userId]?.at(-1);
+      const last = lastMedia && (!lastText || lastMedia.timestamp >= lastText.timestamp) ? lastMedia : lastText;
       return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
     }).sort((a, b) => b.last.timestamp - a.last.timestamp)
     : threads;
 
   const term = query.trim().toLowerCase();
   const filtered = visibleThreads.filter(({ person, last }) =>
-    !term || [person.name, person.username, last.text].some((value) => value.toLowerCase().includes(term)));
+    !term || [person.name, person.username, summaryOf(last)].some((value) => value.toLowerCase().includes(term)));
   const accepted = relationships?.filter((person) => person.status === 'accepted') ?? [];
 
   function openChat(id: string) {
@@ -91,7 +94,7 @@ export default function ChatsScreen() {
       </View>
       {filtered.map(({ person, last, unread }) => (
         <Pressable key={person.userId} accessibilityRole="button"
-          accessibilityLabel={`${person.name}，${unread ? unread + ' 条未读消息，' : ''}${last.text}`}
+          accessibilityLabel={`${person.name}，${unread ? unread + ' 条未读消息，' : ''}${summaryOf(last)}`}
           onPress={() => openChat(person.userId)} style={({ pressed }) => [local.thread, pressed && local.pressed]}>
           <Avatar name={person.name} source={demoPortrait(person.username)} size={48} />
           <View style={local.threadBody}>
@@ -102,7 +105,7 @@ export default function ChatsScreen() {
               <Text style={styles.small}>{threadTime(last.timestamp)}</Text>
             </View>
             <View style={local.line}>
-              <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{last.mine ? '我：' : ''}{last.text.replace(/\s+/g, ' ')}</Text>
+              <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{last.mine ? '我：' : ''}{summaryOf(last).replace(/\s+/g, ' ')}</Text>
               {unread > 0 && <View style={local.badge}>
                 <Text style={local.badgeText}>{unread > 99 ? '99+' : unread}</Text>
               </View>}

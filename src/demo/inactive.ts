@@ -19,3 +19,5 @@ export function spaceSamplePhoto() { return undefined; }
 export function initialDemoPets() { return {}; }
 
 export function PhonePreview() { return null; }
+
+export function DemoCall() { return null; }

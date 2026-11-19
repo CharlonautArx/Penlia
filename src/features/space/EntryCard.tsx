@@ -82,7 +82,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
     <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={author.name + '的空间'} onPress={() =>
         router.push({ pathname: '/space/[id]', params: { id: entry.ownerId, ...(viewer ? { viewer } : {}) } })}>
-        <Avatar name={author.name} source={demoPortrait((mine && state.demoAvatarKey) || author.username)} size={39} />
+        <Avatar userId={author.id} name={author.name} source={demoPortrait((mine && state.demoAvatarKey) || author.username)} size={39} />
       </Pressable>
       <View style={styles.grow}>
         <Text style={styles.strong}>{author.name}</Text>

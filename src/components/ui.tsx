@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useLocalPhotoUri } from '../features/space/media';
+import { useAccountPhoto } from '../services/session';
 import { isUiDemo } from '../demo/mode';
 import { brandGradient, colors, styles } from '../theme';
 
@@ -65,12 +67,17 @@ export function BrandMark({ size = 54 }: { size?: number }) {
     style={{ width: size, height: size, borderRadius: size * 0.31 }} />;
 }
 
-export function Avatar({ name, source, size = 46 }: { name: string; source?: ImageSourcePropType; size?: number }) {
+export function Avatar({ name, source, size = 46, userId, localPhotoId }: {
+  name: string; source?: ImageSourcePropType; size?: number; userId?: string; localPhotoId?: string;
+}) {
+  const accountPhoto = useAccountPhoto(userId);
+  const uri = useLocalPhotoUri(localPhotoId ?? accountPhoto);
+  const imageSource = uri ? { uri } : source;
   const shades = [colors.pink, colors.lavender, colors.ice, '#FAF1E5', '#EDF1FA'];
   const color = shades[(name.codePointAt(0) ?? 0) % shades.length];
   const frame = { width: size, height: size, borderRadius: size * 0.32 };
-  return source
-    ? <Image accessible={false} source={source} style={[frame, { backgroundColor: color }]} />
+  return imageSource
+    ? <Image accessible={false} source={imageSource} style={[frame, { backgroundColor: color }]} />
     : <View accessible={false} style={[ui.avatar, frame, { backgroundColor: color }]}>
       <Text style={[ui.avatarText, { fontSize: Math.round(size * 0.39) }]}>{Array.from(name)[0] || '朋'}</Text>
     </View>;

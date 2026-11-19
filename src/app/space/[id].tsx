@@ -63,7 +63,7 @@ export default function SpaceScreen() {
         <View style={local.profileBody}>
           <View style={local.profileRow}>
             <View style={local.avatar}>
-              <Avatar name={person.name} source={demoPortrait((state.owns(id) && state.demoAvatarKey) || person.username)} size={64} />
+              <Avatar userId={person.id} name={person.name} source={demoPortrait((state.owns(id) && state.demoAvatarKey) || person.username)} size={64} />
             </View>
             <View style={styles.grow}>
               <Text style={local.name}>{person.name}</Text>

@@ -58,10 +58,34 @@ export async function selectPhotos(account: string, remaining: number): Promise<
   }));
 }
 
-export function SpacePhoto({ photo, style, label = '照片' }: {
-  photo?: Photo; style: StyleProp<ImageStyle>; label?: string;
-}) {
-  const localFile = photo?.type === 'local' && /^[a-z\d_-]+\.[a-z]+$/i.test(photo.id) ? photo.id : undefined;
+export function nativePhotoUri(id: string): string | undefined {
+  if (Platform.OS === 'web' || !/^[a-z\d_-]+\.[a-z]+$/i.test(id)) return undefined;
+  try {
+    const file = new File(imageDirectory(), id);
+    return file.exists ? file.uri : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function savePreparedPhoto(uri: string, account: string): Promise<Photo> {
+  const id = account.replace(/[^a-z\d_-]/gi, '') + '-' + localId() + '.jpg';
+  if (Platform.OS === 'web') {
+    if (!/^(blob:|data:image\/)/.test(uri)) throw new Error('无法读取选中的图片。');
+    const blob = await (await fetch(uri)).blob();
+    if (blob.size > maxBytes || blob.type !== 'image/jpeg') throw new Error('图片格式或大小不受支持。');
+    await mediaStore('readwrite', (store) => store.put(blob, id));
+  } else {
+    const directory = imageDirectory();
+    directory.create({ intermediates: true, idempotent: true });
+    const source = new File(uri);
+    if (!source.exists || source.size > maxBytes) throw new Error('图片大小超限或文件已失效。');
+    source.copy(new File(directory, id));
+  }
+  return { type: 'local', id };
+}
+
+export function useLocalPhotoUri(localFile?: string) {
   const [webFile, setWebFile] = useState<{ id: string; uri: string }>();
   useEffect(() => {
     if (Platform.OS !== 'web' || !localFile) return;
@@ -74,8 +98,15 @@ export function SpacePhoto({ photo, style, label = '照片' }: {
     }).catch(() => {});
     return () => { active = false; if (url) URL.revokeObjectURL(url); };
   }, [localFile]);
-  const uri = localFile && (Platform.OS === 'web'
-    ? (webFile?.id === localFile ? webFile.uri : undefined) : new File(imageDirectory(), localFile).uri);
+  return localFile && (Platform.OS === 'web'
+    ? (webFile?.id === localFile ? webFile.uri : undefined) : nativePhotoUri(localFile));
+}
+
+export function SpacePhoto({ photo, style, label = '照片' }: {
+  photo?: Photo; style: StyleProp<ImageStyle>; label?: string;
+}) {
+  const localFile = photo?.type === 'local' && /^[a-z\d_-]+\.[a-z]+$/i.test(photo.id) ? photo.id : undefined;
+  const uri = useLocalPhotoUri(localFile);
   const source = photo?.type === 'sample' ? spaceSamplePhoto(photo.id) : uri ? { uri } : undefined;
   return source ? <Image accessibilityLabel={label} accessible source={source} style={style} resizeMode="cover" />
     : <View style={[{ backgroundColor: colors.lavender }, style as StyleProp<ViewStyle>]} />;

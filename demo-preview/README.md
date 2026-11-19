@@ -1,3 +1,38 @@
+# 朋聊 · 共同小宠物与聊天媒体
+
+本轮截图来自实际运行的 Expo React Native 网页版，每张为 824 × 1782。图库选择、头像裁剪、图片处理、浏览器权限和相机预览都实际运行。使用测试坐标及浏览器合成相机画面。消息收发、历史与通话状态在离线演示中运行。
+
+## 共同小宠物
+
+- [宠物详情](media/13-orb.png)
+- [六种表情对比](media/14-orb-expressions.png)
+- [实际运行录制 · 呼吸、眨眼和轻触弹动](media/pet-motion.gif)
+
+## 从图库选择头像
+
+- [注册 · 从图库选头像](media/01-avatar-registration.png)
+- [注册 · 圆形预览与裁剪](media/02-avatar-crop.png)
+- [编辑资料 · 已选用本机照片](media/03-avatar-edit.png)
+- [保存后的头像](media/04-avatar-updated.png)
+
+## 图片和位置消息
+
+- [图片压缩后的发送预览](media/05-image-staged.png)
+- [收到图片后的大图预览 · 演示消息](media/06-image-received-preview.png)
+- [定位权限未授权](media/07-location-permission.png)
+- [填写地点并确认发送](media/08-location-confirm.png)
+- [聊天中的位置详情及地图入口](media/09-location-detail.png)
+
+## 语音和视频通话
+
+- [语音通话与麦克风权限 · 演示](media/10-voice-call.png)
+- [视频来电 · 演示](media/11-video-incoming.png)
+- [视频通话与本机相机预览 · 演示](media/12-video-active.png)
+
+[主要代码、费用估算和接入顺序](media-notes.md)
+
+---
+
 # 朋聊 · 手机号认证与视觉精修
 
 每张手机图为 824 × 1782，来自实际运行的 React Native 网页版。手机号认证和短信收件箱为离线演示。

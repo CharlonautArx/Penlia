@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
-import { PetOrb } from '../../features/pet/Orb';
+import { OrbFace, PetOrb, type Expression } from '../../features/pet/Orb';
 import { confirmName, emptyPet, feedPet, foods, petMood, proposeName, type Food, type Pet } from '../../features/pet/model';
 import { usePets } from '../../features/pet/store';
 import { createdTime } from '../../features/space/model';
@@ -22,7 +22,7 @@ export default function PetScreen() {
   const state = usePets();
   const friend = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   const pet = state.value?.[id] ?? newborn;
-  const [sheet, setSheet] = useState<'name' | 'rules' | 'confirm'>();
+  const [sheet, setSheet] = useState<'name' | 'rules' | 'confirm' | 'faces'>();
   const [name, setName] = useState('');
   const [selected, setSelected] = useState<Food>();
   const [feedback, setFeedback] = useState('');
@@ -58,7 +58,7 @@ export default function PetScreen() {
             <Text style={styles.muted}>{pet.name ? petMood(pet) : '给这段友谊养一个小陪伴。'}</Text>
           </View>
           <View style={local.partners}>
-            <Avatar name={session.user.name} source={demoPortrait(demoAvatarKey ?? session.user.username)} size={32} />
+            <Avatar userId={session.user.id} name={session.user.name} source={demoPortrait(demoAvatarKey ?? session.user.username)} size={32} />
             <View style={local.second}><Avatar name={friend.name} source={demoPortrait(friend.username)} size={32} /></View>
           </View>
         </View>
@@ -126,6 +126,18 @@ export default function PetScreen() {
       <Text style={styles.body}>活力会保留。聊天隔了几天，回来还是原来的它。</Text>
       <Text style={styles.body}>双方有来有回可攒 4 点能量。重复内容不计，同一对好友两分钟内最多计一轮，每 24 小时最多计四轮。能量最多存 99 点。</Text>
       <Text style={styles.body}>取名和改名都需要另一位好友确认。演示里的另一位由本机模拟。</Text>
+      <Button label="查看表情" variant="soft" onPress={() => setSheet('faces')} />
+    </Sheet>}
+    {sheet === 'faces' && <Sheet title="小宠物的表情" onClose={() => setSheet(undefined)}>
+      <View style={local.foods}>
+        {([['calm', '平静'], ['curious', '好奇'], ['resting', '困倦'], ['happy', '开心'],
+          ['surprised', '惊喜'], ['blink', '眨眼']] as [Expression, string][]).map(([face, label]) => (
+          <View key={face} style={local.faceTile}>
+            <OrbFace size={60} expression={face} />
+            <Text style={styles.small}>{label}</Text>
+          </View>
+        ))}
+      </View>
     </Sheet>}
     {sheet === 'name' && <Sheet title={pet.name ? '提议改名' : '提议名字'} onClose={() => setSheet(undefined)}>
       <Text style={styles.muted}>{friend?.name} 确认后，新名字才会生效。</Text>
@@ -169,6 +181,7 @@ const local = StyleSheet.create({
   foods: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   food: { width: '31.7%', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel,
     minHeight: 78, alignItems: 'center', justifyContent: 'center', paddingVertical: 7 },
+  faceTile: { width: '31.7%', borderRadius: 12, backgroundColor: colors.backdrop, alignItems: 'center', paddingVertical: 9, gap: 6 },
   foodSelected: { backgroundColor: colors.pink, borderColor: '#DA9CB0' },
   emoji: { fontSize: 20, marginBottom: 1 },
   pressed: { opacity: 0.67 },

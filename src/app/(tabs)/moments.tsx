@@ -45,7 +45,7 @@ export default function MomentsScreen() {
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="发布动态" style={({ pressed }) => [local.quick, pressed && local.pressed]}
       onPress={() => compose('thought')}>
-      <Avatar name={me.name} source={demoPortrait(state.demoAvatarKey ?? me.username)} size={32} />
+      <Avatar userId={me.id} name={me.name} source={demoPortrait(state.demoAvatarKey ?? me.username)} size={32} />
       <Text style={[styles.muted, styles.grow]}>写动态…</Text>
       {draftCount > 0 && <Text style={local.draft}>草稿 {draftCount}</Text>}
       <Icon name="image-outline" color={colors.accent} size={18} />

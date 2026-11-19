@@ -15,15 +15,6 @@ export function imUserId(id: string) {
   return 'penlia_' + id.replaceAll('-', '');
 }
 
-export function textMessage(connection: ImConnection, message: ChatMessage | undefined, ownId: string): TextMessage | null {
-  if (!message || message.chatType !== connection.sdk.ChatMessageChatType.PeerChat ||
-      !(message.body instanceof connection.sdk.ChatTextMessageBody)) return null;
-  const mine = message.from === ownId;
-  if (!mine && message.to !== ownId) return null;
-  if (mine && message.status !== connection.sdk.ChatMessageStatus.SUCCESS) return null;
-  return { id: message.msgId, text: message.body.content, mine, timestamp: message.serverTime || message.localTime };
-}
-
 let initialized: Promise<ImConnection> | undefined;
 let transitions = Promise.resolve();
 
