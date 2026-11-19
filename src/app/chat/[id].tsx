@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
 import { Avatar, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } from '../../components/ui';
+import { PetShortcut } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
@@ -248,6 +249,7 @@ export default function ConversationScreen() {
             {person && <Text style={styles.small}>@{person.username}</Text>}
           </View>
           <DemoLabel />
+          {person && <PetShortcut peer={person.userId} /> }
           {person && <IconButton label="聊天选项" icon="ellipsis-horizontal" onPress={() => setMore(true)} />}
         </View>
         {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :

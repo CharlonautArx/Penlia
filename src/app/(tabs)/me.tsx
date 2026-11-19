@@ -52,6 +52,8 @@ export default function MeScreen() {
       <Text style={styles.body}>{user.bio || '还没有个性签名'}</Text>
     </LinearGradient>
     <View style={local.group}>
+      <ListRow title="我的空间" detail="说说、日志和相册" left={<Tile icon="person-circle-outline" />}
+        onPress={() => router.push({ pathname: '/space/[id]', params: { id: user.id } })} />
       <ListRow title="我的动态" detail="查看本机发布的动态" left={<Tile icon="albums-outline" />}
         onPress={() => router.navigate({ pathname: '/moments', params: { mine: '1' } })} />
       <ListRow title="想去的地方" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
@@ -77,7 +79,8 @@ export default function MeScreen() {
       {sheet === '通知与隐私' && <>
         <ListRow title="位置" detail="选择城市和活动类别无需授予定位权限。" left={<Tile icon="location-outline" />} />
         <ListRow title="通知偏好" detail="应用内通知偏好待开放。" left={<Tile icon="notifications-outline" />} />
-        <ListRow title="动态可见范围" detail="动态保存在当前设备。" left={<Tile icon="eye-outline" />} />
+        <ListRow title="空间隐私" detail="访问范围、历史和互动" left={<Tile icon="eye-outline" />}
+          onPress={() => { setSheet(undefined); router.push('/space/privacy'); }} />
       </>}
       {sheet === '主题与外观' && <ListRow title="浅色主题" detail="当前使用 · 深色主题待开放" left={<Tile icon="sunny-outline" />} />}
       {sheet === '通用设置' && <ListRow title="朋聊" detail={enterDemo ? '0.1.0 · 离线演示' : '0.1.0'} left={<Tile icon="chatbubbles-outline" />} />}

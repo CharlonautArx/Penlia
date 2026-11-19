@@ -25,3 +25,18 @@ const momentPhotos = {
 export function demoMomentPhoto(photo: keyof typeof momentPhotos) {
   return isUiDemo ? momentPhotos[photo] : undefined;
 }
+
+const spacePhotos: Record<string, ImageSourcePropType> = {
+  alley: require('../../assets/demo/alley.jpg'),
+  pottery: require('../../assets/demo/pottery.jpg'),
+  coffee: require('../../assets/demo/coffee.jpg'),
+  cinema: require('../../assets/play/cinema.jpg'),
+};
+
+export function spaceSamplePhoto(id: string) {
+  return isUiDemo ? spacePhotos[id] : undefined;
+}
+
+export function demoPetArt(): ImageSourcePropType | undefined {
+  return isUiDemo ? require('../../assets/pet/companion.jpg') : undefined;
+}

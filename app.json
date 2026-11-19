@@ -20,7 +20,8 @@
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F8D9E2"
+        "backgroundColor": "#F8D9E2",
+        "backgroundImage": "./assets/identity/icon-background.png"
       }
     },
     "plugins": [
@@ -40,6 +41,14 @@
           "android": {
             "extraProguardRules": "-keep class com.hyphenate.** { *; }\n-dontwarn com.hyphenate.**"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "允许选择用于说说、日志和相册的照片。",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ]

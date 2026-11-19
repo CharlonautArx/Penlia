@@ -2,7 +2,7 @@ const path = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
-const fixturePaths = new Set(['data', 'places', 'visuals'].map((name) => path.join(__dirname, 'src', 'demo', name)));
+const fixturePaths = new Set(['data', 'places', 'visuals', 'space', 'pets'].map((name) => path.join(__dirname, 'src', 'demo', name)));
 const disabledFixtures = path.join(__dirname, 'src', 'demo', 'inactive.ts');
 
 if (process.env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1') {

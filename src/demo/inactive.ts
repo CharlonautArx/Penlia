@@ -13,3 +13,8 @@ export function demoMomentPhoto() { return undefined; }
 export function demoRelationship(): never {
   throw new Error('Demo fixtures are disabled');
 }
+
+export function spaceSamples() { return undefined; }
+export function spaceSamplePhoto() { return undefined; }
+export function initialDemoPets() { return {}; }
+export function demoPetArt() { return undefined; }

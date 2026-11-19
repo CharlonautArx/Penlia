@@ -86,7 +86,7 @@ export default function FriendsScreen() {
       {relationships && !shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
       {shown.map((friend) => <View key={friend.id} style={local.contact}>
         <View style={styles.grow}><ListRow title={friend.name} detail={'@' + friend.username + (friend.bio ? ' · ' + friend.bio : '')}
-          left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={46} />}
+          left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={44} />}
           trailing={<View />} onPress={() => router.push({ pathname: '/person/[id]', params: { id: friend.userId } })} /></View>
         <IconButton label={`和${friend.name}聊天`} icon="chatbubble-outline"
           onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />

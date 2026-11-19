@@ -8,6 +8,7 @@ const DemoContext = createContext<{
   unread: Record<string, number>;
   markRead: (peerId: string) => void;
   send: (peerId: string, text: string) => void;
+  receive: (peerId: string, text: string) => void;
   request: <T>(path: string, options?: { method?: string; body?: Record<string, string> }) => Promise<T>;
 } | null>(null);
 
@@ -16,16 +17,20 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [unread, setUnread] = useState<Record<string, number>>(demoUnread);
   const relationships = useRef(demoRelationships);
   const messageSequence = useRef(0);
+  const messageSession = useRef(Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8));
 
   const markRead = useCallback((peerId: string) => {
     setUnread((current) => current[peerId] ? { ...current, [peerId]: 0 } : current);
   }, []);
 
-  const send = useCallback((peerId: string, text: string) => {
+  const addMessage = useCallback((peerId: string, text: string, mine: boolean) => {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
-    const message = { id: 'simulated-' + ++messageSequence.current, mine: true, text, timestamp: Date.now() };
+    const message = { id: 'simulated-' + messageSession.current + '-' + ++messageSequence.current, mine, text, timestamp: Date.now() };
     setMessages((current) => ({ ...current, [peerId]: [...(current[peerId] ?? []), message] }));
+    if (!mine) setUnread((current) => ({ ...current, [peerId]: (current[peerId] ?? 0) + 1 }));
   }, []);
+  const send = useCallback((peerId: string, text: string) => addMessage(peerId, text, true), [addMessage]);
+  const receive = useCallback((peerId: string, text: string) => addMessage(peerId, text, false), [addMessage]);
 
   const request = useCallback(async <T,>(path: string, { method = 'GET', body }: {
     method?: string;
@@ -55,7 +60,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     throw new Error('该操作在演示模式中不可用。');
   }, []);
 
-  return <DemoContext.Provider value={{ messages, unread, markRead, send, request }}>{children}</DemoContext.Provider>;
+  return <DemoContext.Provider value={{ messages, unread, markRead, send, receive, request }}>{children}</DemoContext.Provider>;
 }
 
 export function useDemo() {

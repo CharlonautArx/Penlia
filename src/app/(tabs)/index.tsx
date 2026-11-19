@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Empty, Icon, IconButton, ListRow, Notice, Screen, SearchField, Sheet } from '../../components/ui';
+import { PetSignal } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { type Relationship } from '../../services/api';
@@ -95,7 +96,9 @@ export default function ChatsScreen() {
           <Avatar name={person.name} source={demoPortrait(person.username)} size={48} />
           <View style={local.threadBody}>
             <View style={local.line}>
-              <Text style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
+              <View style={[local.threadName, styles.grow]}>
+                <Text style={styles.strong} numberOfLines={1}>{person.name}</Text><PetSignal peer={person.userId} />
+              </View>
               <Text style={styles.small}>{threadTime(last.timestamp)}</Text>
             </View>
             <View style={local.line}>
@@ -138,8 +141,9 @@ function threadTime(timestamp: number) {
 
 const local = StyleSheet.create({
   controls: { gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 7 },
-  thread: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, gap: 12, minHeight: 74 },
+  thread: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, gap: 12, minHeight: 71 },
   threadBody: { ...styles.grow, ...styles.divider, alignSelf: 'stretch', justifyContent: 'center', gap: 4, paddingRight: 16, paddingVertical: 8 },
+  threadName: { ...styles.row, gap: 6 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 19 },
   badge: { minWidth: 18, height: 18, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#B83259', borderRadius: 10 },

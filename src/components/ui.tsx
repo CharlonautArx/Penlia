@@ -48,7 +48,7 @@ export function TopBar({ title, actions, back }: { title: string; actions?: Reac
   return <View style={ui.barWrap}>
     <View style={[ui.bar, ui.width]}>
       {back && <IconButton label="返回" icon="chevron-back" onPress={back} />}
-      <Text accessibilityRole="header" style={ui.title}>{title}</Text>
+      <Text accessibilityRole="header" numberOfLines={1} style={ui.title}>{title}</Text>
       <DemoLabel />
       <View style={styles.grow} />
       <View style={ui.actions}>{actions}</View>
@@ -61,10 +61,8 @@ export function DemoLabel() {
 }
 
 export function BrandMark({ size = 54 }: { size?: number }) {
-  return <LinearGradient colors={brandGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-    style={{ width: size, height: size, borderRadius: size * 0.32, alignItems: 'center', justifyContent: 'center' }}>
-    <Icon name="chatbubbles" size={Math.round(size * 0.55)} color="#292430" />
-  </LinearGradient>;
+  return <Image accessible={false} source={require('../../assets/icon.png')}
+    style={{ width: size, height: size, borderRadius: size * 0.31 }} />;
 }
 
 export function Avatar({ name, source, size = 46 }: { name: string; source?: ImageSourcePropType; size?: number }) {
@@ -148,8 +146,8 @@ export function ListRow({ title, detail, left, trailing, onPress }: {
     : <View style={ui.listRow}>{content}</View>;
 }
 
-export function Sheet({ title, onClose, children, ...props }: ScrollViewProps & {
-  title: string; onClose: () => void; children: ReactNode;
+export function Sheet({ title, onClose, children, footer, ...props }: ScrollViewProps & {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode;
 }) {
   return <Modal visible animationType="fade" transparent onRequestClose={onClose}>
     <View style={ui.scrim}>
@@ -160,6 +158,7 @@ export function Sheet({ title, onClose, children, ...props }: ScrollViewProps & 
           <IconButton label="关闭" icon="close-outline" onPress={onClose} />
         </View>
         <ScrollView {...props} keyboardShouldPersistTaps="handled" contentContainerStyle={ui.sheetBody}>{children}</ScrollView>
+        {footer && <View style={ui.sheetFooter}>{footer}</View>}
       </SafeAreaView>
     </View>
   </Modal>;
@@ -173,7 +172,7 @@ const ui = StyleSheet.create({
   inset: { paddingHorizontal: 16, paddingTop: 10, gap: 16 },
   barWrap: { backgroundColor: colors.panel, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   bar: { minHeight: 57, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  title: { fontSize: 25, lineHeight: 32, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
+  title: { flexShrink: 1, fontSize: 25, lineHeight: 32, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   demoLabel: { color: '#7E3B50', backgroundColor: colors.pink, borderRadius: 5, overflow: 'hidden',
     paddingHorizontal: 6, paddingVertical: 2, fontSize: 10, lineHeight: 14, fontWeight: '700' },
@@ -203,4 +202,5 @@ const ui = StyleSheet.create({
     borderTopRightRadius: 19, maxHeight: '88%', paddingBottom: 12 },
   sheetTop: { ...styles.row, ...styles.divider, paddingHorizontal: 16, paddingVertical: 4 },
   sheetBody: { padding: 16, gap: 14 },
+  sheetFooter: { paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 });
