@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import type { IconName } from '../../components/ui';
 import { colors } from '../../theme';
@@ -22,8 +22,8 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.deep,
         tabBarInactiveTintColor: colors.muted,
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
-        tabBarStyle: { backgroundColor: colors.panel, borderTopColor: colors.border },
+        tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel],
+        tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar],
       }}
     >
       {tabs.map(({ name, title, icon, activeIcon }) => (
@@ -45,6 +45,10 @@ export default function TabLayout() {
 }
 
 const local = StyleSheet.create({
+  label: { fontSize: 12, fontWeight: '600' },
+  webLabel: { lineHeight: 18, flexShrink: 0 },
+  bar: { backgroundColor: colors.panel, borderTopColor: colors.border },
+  webBar: { height: 60, paddingBottom: 4 },
   icon: { width: 39, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
   selected: { backgroundColor: colors.sage },
 });
