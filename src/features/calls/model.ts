@@ -20,13 +20,17 @@ export function transitionCall(state: CallState, event: CallEvent): CallState {
 
 // The server authenticates both UUIDs and the accepted friendship before granting a room.
 export type RtcGrant = { callId: string; roomId: string; participantId: string; token: string; expiresAt: number };
+export type CallSignal =
+  | { kind: 'invite'; call: CallState & { phase: 'incoming' }; callerUserId: string; expiresAt: number }
+  | { kind: 'event'; event: CallEvent };
+
 export interface CallSignaling {
   invite(peerUserId: string, type: CallKind): Promise<CallState>;
   accept(callId: string): Promise<RtcGrant>;
   grant(callId: string): Promise<RtcGrant>;
   decline(callId: string): Promise<void>;
   end(callId: string): Promise<void>;
-  subscribe(listener: (event: CallEvent) => void): () => void;
+  subscribe(listener: (signal: CallSignal) => void): () => void;
 }
 export interface RtcEngine {
   join(grant: RtcGrant, kind: CallKind): Promise<void>;
