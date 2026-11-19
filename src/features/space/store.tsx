@@ -55,7 +55,7 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
 }
 
 function useAccountSpace() {
-  const { session } = useSession();
+  const { session, demoAvatarKey } = useSession();
   const { relationships, refresh } = useFriends();
   const me = session?.user;
   const samples = useMemo(() => isUiDemo ? spaceSamples() : undefined, []);
@@ -112,7 +112,7 @@ function useAccountSpace() {
     return owns(ownerId) || (!!me && spaceVisible(ownerId) && card(ownerId).privacy.interact === 'friends');
   }
 
-  return { ...store, me, friends, person, owns, card, entryVisible, albumVisible, spaceVisible, updateEntry, note, canInteract };
+  return { ...store, me, demoAvatarKey, friends, person, owns, card, entryVisible, albumVisible, spaceVisible, updateEntry, note, canInteract };
 }
 
 export function useSpace() {

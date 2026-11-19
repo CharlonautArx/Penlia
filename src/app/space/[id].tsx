@@ -21,7 +21,7 @@ const tones = {
 } as const;
 const albumThemes = ['全部', '日常', '旅行', '聚会', '其他'] as const;
 const panes = [
-  { key: 'thought', title: '说说' },
+  { key: 'thought', title: '动态' },
   { key: 'albums', title: '相册' },
   { key: 'journal', title: '日志' },
   { key: 'about', title: '关于' },
@@ -63,7 +63,7 @@ export default function SpaceScreen() {
         <View style={local.profileBody}>
           <View style={local.profileRow}>
             <View style={local.avatar}>
-              <Avatar name={person.name} source={demoPortrait(person.username)} size={64} />
+              <Avatar name={person.name} source={demoPortrait((state.owns(id) && state.demoAvatarKey) || person.username)} size={64} />
             </View>
             <View style={styles.grow}>
               <Text style={local.name}>{person.name}</Text>
@@ -83,15 +83,15 @@ export default function SpaceScreen() {
         </Pressable>)}
       </View>
       {(current === 'thought' || current === 'journal') && <>
-        <Section title={current === 'journal' ? '空间日志' : '最近说说'} detail={entries.length + ' 条'}>
-          {mine && <Button label={current === 'journal' ? '写日志' : '发说说'} icon="add-outline" variant="soft"
+        <Section title={current === 'journal' ? '空间日志' : '最近动态'} detail={entries.length + ' 条'}>
+          {mine && <Button label={current === 'journal' ? '写日志' : '发布动态'} icon="add-outline" variant="soft"
             onPress={() => router.push({ pathname: '/space/compose', params: { kind: current } })} />}
         </Section>
         {entries.map((entry) => current === 'journal'
           ? <JournalLink key={entry.id} entry={entry} viewer={viewer} />
           : <View key={entry.id} style={local.post}><EntryCard entry={entry} viewer={viewer} /></View>)}
         {!entries.length && <Empty icon={current === 'journal' ? 'book-outline' : 'chatbox-ellipses-outline'}>
-          {current === 'journal' ? '还没有可见的日志。' : '还没有可见的说说。'}
+          {current === 'journal' ? '还没有可见的日志。' : '还没有可见的动态。'}
         </Empty>}
       </>}
       {current === 'albums' && <>

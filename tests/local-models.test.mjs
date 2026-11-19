@@ -68,3 +68,23 @@ test('pet energy comes from a two-sided exchange, and replay does not add energy
   assert.equal(fed.vitality, 53);
   assert.equal(fed.last.label, '奶茶');
 });
+
+test('repeated phrases, fast exchanges and excessive same-day exchanges do not farm energy', () => {
+  let pet = confirmName(proposeName(emptyPet(), '云团', now), now, true);
+  const turn = (n, at, mineText, otherText) => [
+    { id: 'simulated-m' + n, mine: true, timestamp: at, text: mineText },
+    { id: 'simulated-o' + n, mine: false, timestamp: at + 1, text: otherText },
+  ];
+  pet = creditConversation(pet, turn(1, now, '周六一起散步', '下午来找我'));
+  assert.equal(pet.energy, 4);
+  pet = creditConversation(pet, turn(2, now + 5_000, '再带一杯咖啡', '正好想喝拿铁'));
+  assert.equal(pet.energy, 4);
+  pet = creditConversation(pet, turn(3, now + 121_000, '周六一起散步！！', '下午来找我'));
+  assert.equal(pet.energy, 4);
+  for (let n = 4; n < 9; n++) {
+    pet = creditConversation(pet, turn(n, now + n * 180_000, '我找到了第' + n + '个好去处', '等我看第' + n + '个'));
+  }
+  assert.equal(pet.energy, 16);
+  pet = creditConversation(pet, turn(10, now + 2 * day, '很久没见了', '今天聊聊近况吧'));
+  assert.equal(pet.energy, 20);
+});

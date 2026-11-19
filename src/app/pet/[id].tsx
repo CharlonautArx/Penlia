@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet } from '../../components/ui';
-import { demoPetArt, demoPortrait } from '../../demo/visuals';
+import { demoPortrait } from '../../demo/visuals';
+import { PetOrb } from '../../features/pet/Orb';
 import { confirmName, emptyPet, feedPet, foods, petMood, proposeName, type Food, type Pet } from '../../features/pet/model';
 import { usePets } from '../../features/pet/store';
 import { createdTime } from '../../features/space/model';
@@ -17,7 +18,7 @@ const newborn = emptyPet();
 export default function PetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { relationships } = useFriends();
-  const { session } = useSession();
+  const { session, demoAvatarKey } = useSession();
   const state = usePets();
   const friend = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   const pet = state.value?.[id] ?? newborn;
@@ -25,7 +26,7 @@ export default function PetScreen() {
   const [name, setName] = useState('');
   const [selected, setSelected] = useState<Food>();
   const [feedback, setFeedback] = useState('');
-  const art = demoPetArt();
+  const [fed, setFed] = useState(0);
 
   function startNaming() {
     setName(pet.proposal?.name ?? pet.name ?? '');
@@ -39,6 +40,7 @@ export default function PetScreen() {
     if (!selected || selected.cost > pet.energy) return;
     state.mutate(id, (item) => feedPet(item, selected, Date.now()));
     setFeedback('已投喂 ' + selected.name);
+    setFed((count) => count + 1);
     setSelected(undefined);
   }
 
@@ -48,7 +50,7 @@ export default function PetScreen() {
     {state.value && friend && session ? <>
       <View style={local.hero}>
         <LinearGradient colors={['#F4E7F0', '#E0F6F3']} style={local.art}>
-          {art && <Image source={art} accessible accessibilityLabel="粉蓝色小宠物" style={local.illustration} />}
+          <PetOrb vitality={pet.vitality} fed={fed} />
         </LinearGradient>
         <View style={local.heroCaption}>
           <View style={styles.grow}>
@@ -56,7 +58,7 @@ export default function PetScreen() {
             <Text style={styles.muted}>{pet.name ? petMood(pet) : '给这段友谊养一个小陪伴。'}</Text>
           </View>
           <View style={local.partners}>
-            <Avatar name={session.user.name} source={demoPortrait(session.user.username)} size={32} />
+            <Avatar name={session.user.name} source={demoPortrait(demoAvatarKey ?? session.user.username)} size={32} />
             <View style={local.second}><Avatar name={friend.name} source={demoPortrait(friend.username)} size={32} /></View>
           </View>
         </View>
@@ -122,7 +124,7 @@ export default function PetScreen() {
     {sheet === 'rules' && <Sheet title="一起养的小规则" onClose={() => setSheet(undefined)}>
       <Text style={styles.strong}>想起它时，就来看看。</Text>
       <Text style={styles.body}>活力会保留。聊天隔了几天，回来还是原来的它。</Text>
-      <Text style={styles.body}>双方各发一条消息就攒 4 点聊天能量。连续发送几条会合为一轮。能量可投喂，最多存 99 点。</Text>
+      <Text style={styles.body}>双方有来有回可攒 4 点能量。重复内容不计，同一对好友两分钟内最多计一轮，每 24 小时最多计四轮。能量最多存 99 点。</Text>
       <Text style={styles.body}>取名和改名都需要另一位好友确认。演示里的另一位由本机模拟。</Text>
     </Sheet>}
     {sheet === 'name' && <Sheet title={pet.name ? '提议改名' : '提议名字'} onClose={() => setSheet(undefined)}>
@@ -152,7 +154,6 @@ function eventText(pet: Pet) {
 const local = StyleSheet.create({
   hero: { borderRadius: 15, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   art: { height: 221, overflow: 'hidden' },
-  illustration: { width: '100%', height: '100%', resizeMode: 'cover' },
   heroCaption: { ...styles.row, paddingHorizontal: 14, paddingVertical: 10 },
   name: { fontSize: 25, lineHeight: 33, color: colors.text, fontWeight: '800' },
   partners: { flexDirection: 'row', alignItems: 'center' },

@@ -43,10 +43,10 @@ export default function MomentsScreen() {
       </View>
       <Text style={styles.small}>仅此设备</Text>
     </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="发说说" style={({ pressed }) => [local.quick, pressed && local.pressed]}
+    <Pressable accessibilityRole="button" accessibilityLabel="发布动态" style={({ pressed }) => [local.quick, pressed && local.pressed]}
       onPress={() => compose('thought')}>
-      <Avatar name={me.name} source={demoPortrait(me.username)} size={32} />
-      <Text style={[styles.muted, styles.grow]}>写条说说…</Text>
+      <Avatar name={me.name} source={demoPortrait(state.demoAvatarKey ?? me.username)} size={32} />
+      <Text style={[styles.muted, styles.grow]}>写动态…</Text>
       {draftCount > 0 && <Text style={local.draft}>草稿 {draftCount}</Text>}
       <Icon name="image-outline" color={colors.accent} size={18} />
     </Pressable>
@@ -55,7 +55,7 @@ export default function MomentsScreen() {
     {!state.loading && !state.error && !entries.length && <Empty icon="create-outline">还没有动态。写下今天的一件小事吧。</Empty>}
     {entries.map((entry) => <EntryCard key={entry.id} entry={entry} />)}
     {actions && <Sheet title="发布动态" onClose={() => setActions(false)}>
-      <ListRow title="发说说" detail={state.value?.drafts.thought ? '继续本机草稿' : '记录此刻的想法和照片'}
+      <ListRow title="发布动态" detail={state.value?.drafts.thought ? '继续本机草稿' : '记录此刻的想法和照片'}
         left={<Icon name="chatbox-ellipses-outline" color={colors.accent} />} onPress={() => compose('thought')} />
       <ListRow title="写日志" detail={state.value?.drafts.journal ? '继续本机草稿' : '写一段想留住的生活'}
         left={<Icon name="book-outline" color={colors.accent} />} onPress={() => compose('journal')} />

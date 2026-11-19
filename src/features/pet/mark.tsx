@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { isUiDemo } from '../../demo/mode';
-import { demoPetArt } from '../../demo/visuals';
 import { colors } from '../../theme';
+import { OrbFace } from './Orb';
 import { usePets } from './store';
 
 export function PetSignal({ peer }: { peer: string }) {
@@ -21,9 +21,8 @@ export function PetShortcut({ peer }: { peer: string }) {
 }
 
 function PetMark({ size }: { size: number }) {
-  const art = demoPetArt();
   return <View style={[local.frame, { width: size, height: size, borderRadius: size * 0.33 }]}>
-    {art && <Image source={art} accessible={false} style={local.art} />}
+    <OrbFace size={size * 0.86} />
   </View>;
 }
 
@@ -31,5 +30,4 @@ const local = StyleSheet.create({
   button: { width: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, backgroundColor: colors.pink },
   pressed: { opacity: 0.72 },
   frame: { overflow: 'hidden', backgroundColor: colors.pink, justifyContent: 'center', alignItems: 'center' },
-  art: { width: '145%', height: '145%', resizeMode: 'cover' },
 });

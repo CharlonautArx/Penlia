@@ -82,7 +82,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
     <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={author.name + '的空间'} onPress={() =>
         router.push({ pathname: '/space/[id]', params: { id: entry.ownerId, ...(viewer ? { viewer } : {}) } })}>
-        <Avatar name={author.name} source={demoPortrait(author.username)} size={39} />
+        <Avatar name={author.name} source={demoPortrait((mine && state.demoAvatarKey) || author.username)} size={39} />
       </Pressable>
       <View style={styles.grow}>
         <Text style={styles.strong}>{author.name}</Text>
@@ -159,7 +159,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
       <SpacePhoto photo={focusPhoto} style={local.fullPhoto} />
     </Sheet>}
     {sheet === 'options' && <Sheet title="动态选项" onClose={() => setSheet(undefined)}>
-      <ListRow title={entry.kind === 'journal' ? '编辑日志' : '编辑说说'} left={<Icon name="create-outline" />}
+      <ListRow title={entry.kind === 'journal' ? '编辑日志' : '编辑动态'} left={<Icon name="create-outline" />}
         onPress={() => { setSheet(undefined); router.push({ pathname: '/space/compose', params: { kind: entry.kind, edit: entry.id } }); }} />
       <Button label="删除" variant="danger" onPress={() => setSheet('delete')} />
     </Sheet>}

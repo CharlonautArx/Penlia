@@ -36,7 +36,3 @@ const spacePhotos: Record<string, ImageSourcePropType> = {
 export function spaceSamplePhoto(id: string) {
   return isUiDemo ? spacePhotos[id] : undefined;
 }
-
-export function demoPetArt(): ImageSourcePropType | undefined {
-  return isUiDemo ? require('../../assets/pet/companion.jpg') : undefined;
-}

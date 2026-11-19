@@ -14,6 +14,8 @@ type ApiOptions = { method?: string; body?: Record<string, string> };
 const SessionContext = createContext<{
   session: Session | null;
   enterDemo?: () => void;
+  completeDemoProfile?: (profile: { name: string; username: string; avatarKey: string }) => void;
+  demoAvatarKey?: string;
   loading: boolean;
   restoreError: string;
   restore: () => Promise<void>;
@@ -34,14 +36,22 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
   if (!demo) throw new Error('DemoProvider is required');
 
   const [session, setSession] = useState<Session | null>(null);
-  const enterDemo = () => setSession({ user: demoUser, token: 'demo-only' });
+  const [demoAvatarKey, setDemoAvatarKey] = useState<string>();
+  const enterDemo = () => {
+    setDemoAvatarKey(undefined);
+    setSession({ user: demoUser, token: 'demo-only' });
+  };
+  function completeDemoProfile({ avatarKey, ...profile }: { name: string; username: string; avatarKey: string }) {
+    setDemoAvatarKey(avatarKey);
+    setSession({ user: { ...demoUser, ...profile }, token: 'demo-only' });
+  }
   const updateProfile = async (name: string, bio: string) => {
     setSession((current) => current && { ...current, user: { ...current.user, name, bio } });
   };
 
   return (
     <SessionContext.Provider value={{
-      session, enterDemo, request: demo.request, updateProfile, loading: false, restoreError: '',
+      session, enterDemo, completeDemoProfile, demoAvatarKey, request: demo.request, updateProfile, loading: false, restoreError: '',
       restore: async () => {}, authenticate: async () => enterDemo(), logout: async () => setSession(null),
     }}>
       {children}

@@ -41,7 +41,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
   const ready = (draft.text.trim().length > 0 || (!journal && draft.photos.length > 0)) && (!journal || draft.title.trim().length > 0);
   const partial = !!(draft.title || draft.text || draft.photos.length || draft.location || draft.videoPreview || draft.sourceId
     || draft.audience.mode !== 'friends');
-  const title = entry ? '编辑' + (journal ? '日志' : '说说') : journal ? '写日志' : '发说说';
+  const title = entry ? '编辑' + (journal ? '日志' : '动态') : journal ? '写日志' : '发布动态';
 
   function persistDraft() {
     if (!partial) return;
@@ -102,7 +102,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
       {journal && <TextInput accessibilityLabel="日志标题" placeholder="给这段日子起个标题" maxLength={80}
         placeholderTextColor={colors.quiet} value={draft.title} onChangeText={(title) => setDraft({ ...draft, title })}
         style={local.title} />}
-      <TextInput accessibilityLabel={journal ? '日志正文' : '说说内容'}
+      <TextInput accessibilityLabel={journal ? '日志正文' : '动态内容'}
         placeholder={journal ? '写下想留住的生活片段…' : '此刻有什么想和朋友说？'}
         placeholderTextColor={colors.quiet} value={draft.text} multiline maxLength={limit}
         onChangeText={(text) => setDraft({ ...draft, text })} style={[local.body, journal && local.article]} />

@@ -10,7 +10,7 @@ import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
 
 export default function MeScreen() {
-  const { session, updateProfile, logout, enterDemo } = useSession();
+  const { session, updateProfile, logout, enterDemo, demoAvatarKey } = useSession();
   const [sheet, setSheet] = useState<'资料' | '通知与隐私' | '主题与外观' | '通用设置'>();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
@@ -42,7 +42,7 @@ export default function MeScreen() {
   return <Screen title="我的" actions={<IconButton label="通用设置" icon="settings-outline" onPress={() => setSheet('通用设置')} />}>
     <LinearGradient colors={['#FDE7ED', '#F5F1F8', '#E1F8F5']} start={{ x: 0.02, y: 0.08 }} end={{ x: 1, y: 0.85 }} style={local.profile}>
       <View style={styles.row}>
-        <Avatar name={user.name} source={demoPortrait(user.username)} size={64} />
+        <Avatar name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={64} />
         <View style={styles.grow}>
           <Text style={local.name}>{user.name}</Text>
           <Text style={styles.muted}>朋聊号 @{user.username}</Text>
@@ -52,7 +52,7 @@ export default function MeScreen() {
       <Text style={styles.body}>{user.bio || '还没有个性签名'}</Text>
     </LinearGradient>
     <View style={local.group}>
-      <ListRow title="我的空间" detail="说说、日志和相册" left={<Tile icon="person-circle-outline" />}
+      <ListRow title="我的空间" detail="动态、日志和相册" left={<Tile icon="person-circle-outline" />}
         onPress={() => router.push({ pathname: '/space/[id]', params: { id: user.id } })} />
       <ListRow title="我的动态" detail="查看本机发布的动态" left={<Tile icon="albums-outline" />}
         onPress={() => router.navigate({ pathname: '/moments', params: { mine: '1' } })} />

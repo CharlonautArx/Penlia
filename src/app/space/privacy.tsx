@@ -48,7 +48,7 @@ export default function PrivacyScreen() {
       {panel === 'access' && <AudienceSheet title="空间访问权限" initial={privacy.access} friends={state.friends}
         onSave={(access) => save({ access })} onClose={() => setPanel(undefined)} />}
       {panel === 'history' && <Sheet title="动态历史范围" onClose={() => setPanel(undefined)}>
-        <Text style={styles.muted}>只限制好友能看到的说说和日志。你始终可以查看自己的历史。</Text>
+        <Text style={styles.muted}>只限制好友能看到的动态和日志。你始终可以查看自己的历史。</Text>
         {(Object.keys(history) as (keyof typeof history)[]).map((value) => <Choice key={value}
           label={history[value]} picked={value === privacy.history} onPress={() => save({ history: value })} />)}
       </Sheet>}

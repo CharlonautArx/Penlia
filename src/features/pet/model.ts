@@ -15,6 +15,8 @@ export type Pet = {
   vitality: number;
   waiting?: { side: 'mine' | 'theirs'; at: number };
   seen: string[];
+  creditTimes?: number[];
+  fingerprints?: Partial<Record<'mine' | 'theirs', string[]>>;
   last?: { kind: 'named' | 'chat' | 'food'; at: number; label?: string };
   mood?: string;
 };
@@ -35,20 +37,41 @@ export function confirmName(pet: Pet, at: number, byOther: boolean) {
     last: { kind: 'named' as const, at } };
 }
 
+const DAY = 86_400_000;
+const CREDIT_COOLDOWN = 120_000;
+
+function fingerprint(text: string) {
+  const normalized = text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  if (Array.from(normalized).length < 2 || new Set(normalized).size < 2) return undefined;
+  let hash = 2166136261;
+  for (const character of normalized) hash = Math.imul(hash ^ character.codePointAt(0)!, 16777619);
+  return (hash >>> 0).toString(36);
+}
+
 export function creditConversation(pet: Pet, messages: ChatEvent[]) {
   if (!pet.name) return pet;
   const seen = new Set(pet.seen);
   let next = pet;
   for (const message of messages.slice(-160)) {
-    if (!message.id.startsWith('simulated-') || !message.text.trim() || seen.has(message.id)) continue;
+    if (!message.id.startsWith('simulated-') || seen.has(message.id)) continue;
     seen.add(message.id);
     const side = message.mine ? 'mine' : 'theirs';
-    if (next.waiting && next.waiting.side !== side) {
-      next = { ...next, waiting: undefined, energy: Math.min(99, next.energy + 4),
-        vitality: Math.min(100, next.vitality + 2), mood: undefined, last: { kind: 'chat', at: message.timestamp } };
-    } else next = { ...next, waiting: { side, at: message.timestamp } };
+    const key = fingerprint(message.text);
+    const recent = next.fingerprints?.[side] ?? [];
+    if (!key || recent.includes(key)) continue;
+    const fingerprints = { ...next.fingerprints, [side]: [...recent.slice(-7), key] };
+    if (next.waiting && next.waiting.side !== side && message.timestamp >= next.waiting.at) {
+      const creditTimes = (next.creditTimes ?? []).filter((time) => message.timestamp - time < DAY);
+      const latest = creditTimes.at(-1);
+      const eligible = creditTimes.length < 4 && (latest === undefined || message.timestamp - latest >= CREDIT_COOLDOWN);
+      next = eligible ? { ...next, fingerprints, waiting: undefined, creditTimes: [...creditTimes, message.timestamp],
+        energy: Math.min(99, next.energy + 4), vitality: Math.min(100, next.vitality + 2), mood: undefined,
+        last: { kind: 'chat', at: message.timestamp } } : { ...next, fingerprints, waiting: undefined, creditTimes };
+    } else if (!next.waiting || message.timestamp >= next.waiting.at) {
+      next = { ...next, fingerprints, waiting: { side, at: message.timestamp } };
+    }
   }
-  return next === pet ? pet : { ...next, seen: [...seen].slice(-192) };
+  return seen.size === pet.seen.length ? next : { ...next, seen: [...seen].slice(-192) };
 }
 
 export function feedPet(pet: Pet, food: Food, at: number) {

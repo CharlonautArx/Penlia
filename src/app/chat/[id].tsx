@@ -1,6 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
@@ -243,11 +243,12 @@ export default function ConversationScreen() {
       <KeyboardAvoidingView style={local.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={local.header}>
           <IconButton label="返回" icon="chevron-back" onPress={goBack} />
-          {person && <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />}
-          <View style={styles.grow}>
-            <Text accessibilityRole="header" style={styles.strong} numberOfLines={1}>{person?.name ?? '聊天'}</Text>
-            {person && <Text style={styles.small}>@{person.username}</Text>}
-          </View>
+          {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
+            style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
+            onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
+            <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />
+            <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
+          </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
           <DemoLabel />
           {person && <PetShortcut peer={person.userId} /> }
           {person && <IconButton label="聊天选项" icon="ellipsis-horizontal" onPress={() => setMore(true)} />}
@@ -269,6 +270,8 @@ const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.panel },
   page: { flex: 1, width: '100%', maxWidth: 620, alignSelf: 'center', backgroundColor: '#F4F4F7' },
   header: { ...styles.row, ...styles.divider, minHeight: 58, gap: 9, paddingHorizontal: 8, backgroundColor: colors.panel },
+  profileLink: { ...styles.row, ...styles.grow, gap: 9, minHeight: 44 },
+  profilePressed: { opacity: 0.72 },
   messages: { paddingHorizontal: 13, paddingVertical: 14 },
   invertedEmpty: { transform: [{ scaleY: -1 }] },
   notice: { paddingHorizontal: 12, paddingVertical: 6 },

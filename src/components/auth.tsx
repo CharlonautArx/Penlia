@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PhonePreview } from '../demo/phone';
 import { errorMessage } from '../services/api';
 import { useSession } from '../services/session';
 import { colors, styles } from '../theme';
@@ -11,6 +12,14 @@ import { BrandMark, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } 
 const hero = require('../../assets/identity/hero.jpg');
 
 export function AuthScreen() {
+  const { enterDemo, completeDemoProfile } = useSession();
+  const [legacy, setLegacy] = useState(false);
+  if (enterDemo && !legacy) return <PhonePreview onLegacy={() => setLegacy(true)}
+    onEnter={(profile) => profile ? completeDemoProfile?.(profile) : enterDemo()} />;
+  return <LegacyAuth onDemoPhone={enterDemo ? () => setLegacy(false) : undefined} />;
+}
+
+function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
   const { loading, restoreError, restore, authenticate, enterDemo } = useSession();
   const [register, setRegister] = useState(false);
   const [username, setUsername] = useState('');
@@ -100,6 +109,7 @@ export function AuthScreen() {
             disabled={!!enterDemo || busy || !username.trim() || !password || (register && !name.trim())} />
           {enterDemo && <View style={local.preview}>
             <Button label="进入演示" icon="arrow-forward" variant="soft" onPress={enterDemo} />
+            {onDemoPhone && <Button label="手机号演示" variant="quiet" onPress={onDemoPhone} />}
             <Text style={[styles.small, local.center]}>使用虚构账号和内容，无需注册或联网</Text>
           </View>}
         </>}
