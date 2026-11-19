@@ -6,7 +6,9 @@ import { Button, Icon, Notice, Sheet } from '../../components/ui';
 import { colors, styles } from '../../theme';
 import { locationValue, type LocationValue } from './messages';
 
-export function LocationComposer({ onClose, onConfirm }: { onClose: () => void; onConfirm: (value: LocationValue) => void }) {
+export function LocationComposer({ online, onClose, onConfirm }: {
+  online: boolean; onClose: () => void; onConfirm: (value: LocationValue) => void;
+}) {
   const [point, setPoint] = useState<LocationValue>();
   const [name, setName] = useState('当前位置');
   const [address, setAddress] = useState('');
@@ -40,13 +42,14 @@ export function LocationComposer({ onClose, onConfirm }: { onClose: () => void; 
       <TextInput accessibilityLabel="地点名称" maxLength={48} value={name} onChangeText={setName} style={styles.input} />
       <TextInput accessibilityLabel="地点地址" placeholder="可填写街道或地标（选填）" placeholderTextColor={colors.quiet}
         maxLength={160} value={address} onChangeText={setAddress} style={styles.input} />
-      <Button label="确认发送位置" variant="gradient" onPress={() => {
+      <Button label="确认发送位置" variant="gradient" disabled={!online} onPress={() => {
         const value = locationValue(point.latitude, point.longitude, name, address);
         if (value) onConfirm(value);
       }} />
     </> : <Button label={busy ? '正在获取位置…' : '获取当前位置'} icon="locate-outline" variant="gradient" disabled={busy}
       onPress={() => void locate()} />}
     {!!notice && <Notice>{notice}</Notice>}
+    {!online && <Notice>聊天连接已断开，恢复后可以继续发送。</Notice>}
   </Sheet>;
 }
 

@@ -242,7 +242,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         <Button label={sending ? '发送中…' : '发送'} onPress={sendText}
           disabled={(!demo && !online) || !draft.trim() || sending || (pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim())} />
       </View>
-      {picker === 'location' && <LocationComposer onClose={() => setPicker(undefined)} onConfirm={(value) => {
+      {picker === 'location' && <LocationComposer online={!!demo || online} onClose={() => setPicker(undefined)} onConfirm={(value) => {
         setPicker(undefined);
         void transmit({ kind: 'location', ...value });
       }} />}
@@ -266,6 +266,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           : <Empty busy>正在读取图片…</Empty>}
         <Text style={styles.small}>{photo.width} × {photo.height} · {Math.max(1, Math.round(photo.bytes / 1024))} KB</Text>
         {!!actionError && <Notice>{actionError}</Notice>}
+        {!demo && !online && <Notice>聊天连接已断开，恢复后可以继续发送。</Notice>}
         <Button label={sending ? ('发送中' + (transferProgress === undefined ? '…' : ' ' + transferProgress + '%'))
           : sendError ? '重试发送图片' : '发送图片'} variant="gradient"
           disabled={!photoUri || sending || pending.current?.uncertain || (!demo && !online)} onPress={sendImage} />
