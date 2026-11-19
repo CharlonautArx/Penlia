@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Button, Screen } from '../../components/ui';
+import { demoPosts } from '../../demo/data';
+import { isUiDemo } from '../../demo/mode';
 import { type User } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
@@ -12,9 +14,10 @@ type Post = {
   id: string;
   text: string;
   time: string;
+  author?: string;
   likes: number;
   liked: boolean;
-  comments: { id: string; text: string }[];
+  comments: { id: string; text: string; author?: string }[];
 };
 
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -32,7 +35,7 @@ function LocalMoments({ user }: { user: User }) {
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem(storageKey).then((value) => {
-      if (active) setPosts(value ? JSON.parse(value) as Post[] : []);
+      if (active) setPosts(value ? JSON.parse(value) as Post[] : isUiDemo ? demoPosts : []);
     }).catch(() => { if (active) setError('暂时无法读取本机动态。'); });
     return () => { active = false; };
   }, [storageKey]);
@@ -101,9 +104,9 @@ function PostCard({ post, user, update }: {
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <Avatar name={user.name} color={colors.sage} />
+        <Avatar name={post.author ?? user.name} color={colors.sage} />
         <View style={styles.grow}>
-          <Text style={styles.strong}>{user.name}</Text>
+          <Text style={styles.strong}>{post.author ?? user.name}</Text>
           <Text style={styles.small}>{post.time}</Text>
         </View>
       </View>
@@ -137,7 +140,7 @@ function PostCard({ post, user, update }: {
           {post.comments.length === 0 && <Text style={styles.muted}>还没有评论。</Text>}
           {post.comments.map((comment) => (
             <Text key={comment.id} style={styles.muted}>
-              <Text style={styles.strong}>{user.name}：</Text>
+              <Text style={styles.strong}>{comment.author ?? user.name}：</Text>
               {comment.text}
             </Text>
           ))}

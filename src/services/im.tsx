@@ -2,6 +2,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useS
 import { AppState } from 'react-native';
 import type { ChatConnectEventListener, ChatMessage, ChatMessageEventListener } from 'react-native-chat-sdk';
 
+import { isUiDemo } from '../demo/mode';
 import { errorMessage } from './api';
 import { useSession } from './session';
 
@@ -68,7 +69,17 @@ const ImContext = createContext<{
   changed: () => void;
 } | null>(null);
 
+const inactiveIm = {
+  connection: null, online: false, status: '', revision: 0, retry: () => {}, changed: () => {},
+};
+
 export function ImProvider({ children }: { children: ReactNode }) {
+  return isUiDemo
+    ? <ImContext.Provider value={inactiveIm}>{children}</ImContext.Provider>
+    : <NativeImProvider>{children}</NativeImProvider>;
+}
+
+function NativeImProvider({ children }: { children: ReactNode }) {
   const { session, request } = useSession();
   const [connection, setConnection] = useState<ImConnection | null>(null);
   const [online, setOnline] = useState(false);

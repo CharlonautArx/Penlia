@@ -7,7 +7,7 @@ import { styles } from '../theme';
 import { Button, Empty, Screen } from './ui';
 
 export function AuthScreen() {
-  const { loading, restoreError, restore, authenticate } = useSession();
+  const { loading, restoreError, restore, authenticate, enterDemo } = useSession();
   const [register, setRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
@@ -35,26 +35,32 @@ export function AuthScreen() {
           <Button label="重试" onPress={() => void restore()} />
         </View>
       ) : (
-        <View style={styles.card}>
-          <Text style={styles.strong}>账号</Text>
-          <TextInput accessibilityLabel="账号" placeholder="3–24 位字母、数字或下划线" autoCapitalize="none"
-            autoCorrect={false} autoComplete="username" value={username} onChangeText={setUsername}
-            maxLength={24} style={styles.input} />
-          {register && <>
-            <Text style={styles.strong}>昵称</Text>
-            <TextInput accessibilityLabel="昵称" value={name} onChangeText={setName} maxLength={16} style={styles.input} />
-          </>}
-          <Text style={styles.strong}>密码</Text>
-          <TextInput accessibilityLabel="密码" placeholder={register ? '至少 10 个字符' : undefined}
-            secureTextEntry autoCapitalize="none" autoCorrect={false}
-            autoComplete={register ? 'new-password' : 'current-password'} value={password} onChangeText={setPassword}
-            maxLength={128} style={styles.input} />
-          {!!error && <Text accessibilityRole="alert" style={styles.body}>{error}</Text>}
-          <Button label={busy ? '处理中…' : register ? '注册' : '登录'} onPress={() => void submit()}
-            disabled={busy || !username.trim() || !password || (register && !name.trim())} />
-          <Button label={register ? '已有账号，去登录' : '创建账号'} variant="soft" disabled={busy}
-            onPress={() => { setRegister(!register); setError(''); }} />
-        </View>
+        <>
+          {enterDemo && <View style={styles.card}>
+            <Text style={styles.muted}>使用虚构账号和聊天记录在本机体验。</Text>
+            <Button label="进入演示" icon="arrow-forward" onPress={enterDemo} />
+          </View>}
+          <View style={styles.card}>
+            <Text style={styles.strong}>账号</Text>
+            <TextInput accessibilityLabel="账号" placeholder="3–24 位字母、数字或下划线" autoCapitalize="none"
+              autoCorrect={false} autoComplete="username" value={username} onChangeText={setUsername}
+              maxLength={24} editable={!enterDemo} style={styles.input} />
+            {register && <>
+              <Text style={styles.strong}>昵称</Text>
+              <TextInput accessibilityLabel="昵称" value={name} onChangeText={setName} maxLength={16} editable={!enterDemo} style={styles.input} />
+            </>}
+            <Text style={styles.strong}>密码</Text>
+            <TextInput accessibilityLabel="密码" placeholder={register ? '至少 10 个字符' : undefined}
+              secureTextEntry autoCapitalize="none" autoCorrect={false}
+              autoComplete={register ? 'new-password' : 'current-password'} value={password} onChangeText={setPassword}
+              maxLength={128} editable={!enterDemo} style={styles.input} />
+            {!!error && <Text accessibilityRole="alert" style={styles.body}>{error}</Text>}
+            <Button label={busy ? '处理中…' : register ? '注册' : '登录'} onPress={() => void submit()}
+              disabled={!!enterDemo || busy || !username.trim() || !password || (register && !name.trim())} />
+            <Button label={register ? '已有账号，去登录' : '创建账号'} variant="soft" disabled={busy}
+              onPress={() => { setRegister(!register); setError(''); }} />
+          </View>
+        </>
       )}
     </Screen>
   );

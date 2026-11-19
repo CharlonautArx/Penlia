@@ -3,6 +3,9 @@ import {
   createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
 
+import { demoUser } from '../demo/data';
+import { isUiDemo } from '../demo/mode';
+import { DemoProvider, useDemo } from '../demo/state';
 import { api, ApiError, errorMessage, type Session, type User } from './api';
 
 const key = 'penlia.session.v1';
@@ -10,6 +13,7 @@ type ApiOptions = { method?: string; body?: Record<string, string> };
 
 const SessionContext = createContext<{
   session: Session | null;
+  enterDemo?: () => void;
   loading: boolean;
   restoreError: string;
   restore: () => Promise<void>;
@@ -20,6 +24,32 @@ const SessionContext = createContext<{
 } | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  return isUiDemo
+    ? <DemoProvider><DemoSessionProvider>{children}</DemoSessionProvider></DemoProvider>
+    : <RealSessionProvider>{children}</RealSessionProvider>;
+}
+
+function DemoSessionProvider({ children }: { children: ReactNode }) {
+  const demo = useDemo();
+  if (!demo) throw new Error('DemoProvider is required');
+
+  const [session, setSession] = useState<Session | null>(null);
+  const enterDemo = () => setSession({ user: demoUser, token: 'demo-only' });
+  const updateProfile = async (name: string, bio: string) => {
+    setSession((current) => current && { ...current, user: { ...current.user, name, bio } });
+  };
+
+  return (
+    <SessionContext.Provider value={{
+      session, enterDemo, request: demo.request, updateProfile, loading: false, restoreError: '',
+      restore: async () => {}, authenticate: async () => enterDemo(), logout: async () => setSession(null),
+    }}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+function RealSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const activeToken = useRef<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);

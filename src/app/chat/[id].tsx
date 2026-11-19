@@ -5,7 +5,8 @@ import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
-import { Avatar, Button, Empty } from '../../components/ui';
+import { Avatar, Button, DemoLabel, Empty } from '../../components/ui';
+import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { imUserId, textMessage, type TextMessage, useIm } from '../../services/im';
@@ -14,6 +15,9 @@ import { colors, styles } from '../../theme';
 
 function Conversation({ person }: { person: Relationship }) {
   const { session, request } = useSession();
+  const demo = useDemo();
+  const markDemoRead = demo?.markRead;
+  const shownMessages = demo ? [...(demo.messages[person.userId] ?? [])].reverse() : undefined;
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<TextMessage[]>([]);
@@ -37,6 +41,10 @@ function Conversation({ person }: { person: Relationship }) {
       return [...known.values()].sort((a, b) => b.timestamp - a.timestamp);
     });
   }, [connection, ownUsername]);
+
+  useFocusEffect(useCallback(() => {
+    markDemoRead?.(person.userId);
+  }, [markDemoRead, person.userId]));
 
   useFocusEffect(useCallback(() => {
     if (!connection) return;
@@ -105,7 +113,13 @@ function Conversation({ person }: { person: Relationship }) {
 
   async function send() {
     const content = draft.trim();
-    if (!connection || !online || !content || sending) return;
+    if (!content || sending) return;
+    if (demo) {
+      demo.send(person.userId, content);
+      setDraft('');
+      return;
+    }
+    if (!connection || !online) return;
     setSending(true);
     setActionError('');
     try {
@@ -141,7 +155,7 @@ function Conversation({ person }: { person: Relationship }) {
         <Button label="重连" variant="soft" onPress={retry} />
       </View>}
       <FlatList
-        inverted data={messages} style={styles.grow} contentContainerStyle={local.messages}
+        inverted data={shownMessages ?? messages} style={styles.grow} contentContainerStyle={local.messages}
         keyboardShouldPersistTaps="handled" keyExtractor={(message) => message.id}
         ListEmptyComponent={<Text style={styles.muted}>还没有消息，可以先打个招呼。</Text>}
         ListFooterComponent={cursor && online ? (
@@ -157,10 +171,10 @@ function Conversation({ person }: { person: Relationship }) {
       />
       {!!(actionError || historyError) && <Text accessibilityRole="alert" style={[styles.muted, local.notice]}>{actionError || historyError}</Text>}
       <View style={[styles.row, local.composer]}>
-        <TextInput accessibilityLabel="消息" placeholder="输入消息" placeholderTextColor={colors.muted}
+        <TextInput accessibilityLabel="消息" placeholder={demo ? '输入模拟消息' : '输入消息'} placeholderTextColor={colors.muted}
           multiline maxLength={500} value={draft} onChangeText={setDraft} editable={!sending}
           style={[styles.input, styles.grow, local.input]} />
-        <Button label={sending ? '发送中…' : '发送'} onPress={() => void send()} disabled={!online || !draft.trim() || sending} />
+        <Button label={sending ? '发送中…' : '发送'} onPress={() => void send()} disabled={(!demo && !online) || !draft.trim() || sending} />
       </View>
     </>
   );
@@ -186,6 +200,7 @@ export default function ConversationScreen() {
           </Pressable>
           {person && <Avatar name={person.name} color={colors.sage} size={38} />}
           <Text style={styles.strong}>{person?.name ?? '聊天'}</Text>
+          <DemoLabel />
         </View>
         {person ? <Conversation key={person.userId} person={person} />
           : <Empty>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}

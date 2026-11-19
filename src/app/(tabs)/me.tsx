@@ -7,7 +7,7 @@ import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
 
 export default function MeScreen() {
-  const { session, updateProfile, logout } = useSession();
+  const { session, updateProfile, logout, enterDemo } = useSession();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
@@ -62,7 +62,7 @@ export default function MeScreen() {
         </View>
       )}
       {!!error && <Text accessibilityRole="alert" style={styles.body}>{error}</Text>}
-      <Button label="退出登录" variant="danger" disabled={busy} onPress={() => void run(logout)} />
+      <Button label={enterDemo ? '退出演示' : '退出登录'} variant="danger" disabled={busy} onPress={() => void run(logout)} />
     </Screen>
   );
 }

@@ -5,14 +5,35 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_PENLIA_UI_DEMO": "0"
+      }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
-      "environment": "preview"
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_PENLIA_UI_DEMO": "0"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_PENLIA_UI_DEMO": "0"
+      }
+    },
+    "ui-demo": {
+      "distribution": "internal",
+      "environment": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_PENLIA_UI_DEMO": "1"
+      }
     }
   }
 }

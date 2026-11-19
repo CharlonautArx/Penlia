@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Empty, Screen } from '../../components/ui';
+import { useDemo } from '../../demo/state';
 import { type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { imUserId, textMessage, type TextMessage, useIm } from '../../services/im';
@@ -18,6 +19,7 @@ export default function ChatsScreen() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [listError, setListError] = useState('');
   const ownId = session?.user.id;
+  const demo = useDemo();
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
@@ -49,6 +51,13 @@ export default function ChatsScreen() {
     return () => { active = false; };
   }, [connection, ownId, relationships, revision]);
 
+  const visibleThreads = demo
+    ? (relationships ?? []).flatMap((person) => {
+      const last = demo.messages[person.userId]?.at(-1);
+      return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
+    }).sort((a, b) => b.last.timestamp - a.last.timestamp)
+    : threads;
+
   return (
     <Screen title="聊天" subtitle="查看最近会话，或去好友列表发起聊天。">
       {!!status && <View style={styles.card}>
@@ -57,8 +66,8 @@ export default function ChatsScreen() {
       </View>}
       {!!(friendsError || listError) && <Empty>{friendsError || listError}</Empty>}
       <Text accessibilityRole="header" style={styles.section}>最近会话</Text>
-      {connection && !threads.length && !listError && <Empty>暂无会话。可以从好友页发起聊天。</Empty>}
-      {threads.map(({ person, last, unread }) => (
+      {(demo || connection) && !visibleThreads.length && !listError && <Empty>暂无会话。可以从好友页发起聊天。</Empty>}
+      {visibleThreads.map(({ person, last, unread }) => (
         <Pressable key={person.userId} accessibilityRole="button"
           accessibilityLabel={`${person.name}，${unread ? unread + ' 条未读消息，' : ''}${last.text}`}
           onPress={() => router.push({ pathname: '/chat/[id]', params: { id: person.userId } })}

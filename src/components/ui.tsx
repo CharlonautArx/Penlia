@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isUiDemo } from '../demo/mode';
 import { colors, styles } from '../theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -12,7 +13,10 @@ export function Screen({ title, subtitle, children }: { title: string; subtitle:
     <SafeAreaView style={ui.safe} edges={['top', 'left', 'right']}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.screen}>
         <View style={ui.heading}>
-          <Text style={ui.brand}>朋聊 · Penlia</Text>
+          <View style={ui.brandRow}>
+            <Text style={ui.brand}>朋聊 · Penlia</Text>
+            <DemoLabel />
+          </View>
           <Text accessibilityRole="header" style={ui.title}>{title}</Text>
           <Text style={styles.muted}>{subtitle}</Text>
         </View>
@@ -20,6 +24,10 @@ export function Screen({ title, subtitle, children }: { title: string; subtitle:
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export function DemoLabel() {
+  return isUiDemo ? <Text style={ui.demoLabel}>演示数据</Text> : null;
 }
 
 export function Avatar({ name, color, size = 48 }: { name: string; color: string; size?: number }) {
@@ -64,7 +72,9 @@ const ui = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.backdrop },
   screen: { width: '100%', maxWidth: 660, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 30, gap: 16 },
   heading: { gap: 5, paddingBottom: 3 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   brand: { color: colors.green, fontSize: 13, fontWeight: '700' },
+  demoLabel: { alignSelf: 'flex-start', color: colors.deep, backgroundColor: colors.sage, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, fontSize: 11, fontWeight: '700' },
   title: { color: colors.text, fontSize: 36, fontWeight: '800' },
   avatar: { alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.deep, fontWeight: '800' },
