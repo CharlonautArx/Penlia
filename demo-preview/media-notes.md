@@ -12,7 +12,7 @@
 
 ## 正式媒体消息
 
-环信 React Native SDK 5.0.0 提供 `createImageMessage`、`createLocationMessage`、`resendMessage`、`downloadAttachment` 和按类型拉取历史。图片接收和历史恢复依赖 SDK 授权下载及应用沙箱缓存。客户端只接受目录校验通过的本机文件，远端附件须通过 HTTPS 环信域名校验，图片组件读取本地文件。正式联调应核对现有应用实际返回的附件域名、接收下载 Token、历史保留期、过期后的表现和套餐流量。需要新增 CDN 域名时，逐个核实域名归属并调整允许列表。[环信多类型消息与 SDK 接口](https://doc.easemob.com/document/react-native/message_send_receive.html)
+环信 React Native SDK 5.0.0 提供 `createImageMessage`、`createLocationMessage`、`resendMessage`、`downloadAttachment` 和按类型拉取历史。图片接收和历史恢复依赖 SDK 授权下载及应用沙箱缓存。客户端只接受目录校验通过的本机文件，远端附件须通过 HTTPS 环信域名校验，图片组件读取本地文件。正式联调应核对现有应用实际返回的附件域名、接收下载 Token、历史保留期、过期后的表现和套餐流量。需要新增 CDN 域名时，逐个核实域名归属并调整允许列表。[环信多类型消息与 SDK 接口](https://doc.easemob.com/document/react-native/message_send.html)
 
 位置消息附带 WGS84 经纬度及用户确认的地点信息。当前方案使用系统定位及地图应用交接，无内嵌地图或反查地址的付费 API。面向中国大陆正式发布时，需验证系统地图交接、坐标系转换及不同厂商的定位行为。如果以后接入高德地图或 POI 查询，按官方 URI 坐标参数选择 WGS84，并确认商业应用的授权、月配额和服务费用。[高德地图 URI API](https://lbs.amap.com/api/uri-api/gettingstarted) [高德开放平台服务许可](https://lbs.amap.com/upgrade)
 

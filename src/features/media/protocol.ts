@@ -58,8 +58,9 @@ export function buildPeerMessage(connection: ImConnection, peer: string, value: 
   const { sdk } = connection;
   const peerType = sdk.ChatMessageChatType.PeerChat;
   if (value.kind === 'image') {
-    if (!photoUri) throw new Error('这张本机照片已失效，请重新选择。');
-    return sdk.ChatMessage.createImageMessage(peer, photoUri, peerType, {
+    const path = photoUri?.replace(/^file:\/\//, '');
+    if (!path?.startsWith('/')) throw new Error('这张本机照片已失效，请重新选择。');
+    return sdk.ChatMessage.createImageMessage(peer, path, peerType, {
       width: value.width, height: value.height, fileSize: value.bytes, displayName: 'photo.jpg', sendOriginalImage: true,
     });
   }

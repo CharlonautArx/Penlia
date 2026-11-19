@@ -21,7 +21,7 @@ test('Easemob image builder uses one preprocessed local file and parser isolates
     'file:///app/photo.jpg');
   assert.equal(source.body.sendOriginalImage, true);
   assert.equal(source.body.fileSize, 12400);
-  assert.equal(source.body.localPath, 'file:///app/photo.jpg');
+  assert.equal(source.body.localPath, '/app/photo.jpg');
   assert.equal(readPeerMessage(connection, { ...source, status: 0 }, 'me', 'friend'), null);
   assert.equal(readPeerMessage(connection, { ...source, from: 'other', to: 'me' }, 'me', 'friend'), null);
   assert.equal(readPeerMessage(connection, { ...source, chatType: 1 }, 'me', 'friend'), null);
