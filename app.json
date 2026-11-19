@@ -59,15 +59,6 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false
         }
-      ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "允许你在视频通话中开启本机预览。",
-          "microphonePermission": "允许你在通话设置中检查麦克风权限。",
-          "recordAudioAndroid": true,
-          "barcodeScannerEnabled": false
-        }
       ]
     ]
   }
