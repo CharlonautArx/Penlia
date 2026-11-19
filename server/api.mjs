@@ -2,6 +2,7 @@ import { createHash, randomBytes, scrypt as derive, timingSafeEqual } from 'node
 import { promisify } from 'node:util';
 import { checkDatabase, pool } from './db.mjs';
 import { checkEasemob, syncFriends, userToken } from './im.mjs';
+import { PhoneError, unavailable as phoneUnavailable } from './phone/policy.mjs';
 
 const scrypt = promisify(derive);
 const publicFields = 'id, username, name, bio';
@@ -87,6 +88,13 @@ async function register(body, sourceIp) {
   return { token, user };
 }
 
+async function matchesPassword(password, stored) {
+  const candidate = await passwordHash(password, stored?.split(':')[0] ?? '00000000000000000000000000000000');
+  const expected = Buffer.from(stored ?? '0'.repeat(candidate.length));
+  const actual = Buffer.from(candidate);
+  return expected.length === actual.length && timingSafeEqual(actual, expected) && !!stored;
+}
+
 async function login(body, sourceIp) {
   await rateLimit('login:' + sourceIp, 40, 15);
   const username = readUsername(body.username);
@@ -95,11 +103,7 @@ async function login(body, sourceIp) {
   await rateLimit('login-account:' + username, 30, 15);
   const { rows: [row] } = await pool.query(`SELECT ${publicFields}, password_hash FROM users WHERE username = $1`, [username]);
   const { password_hash: stored, ...user } = row ?? {};
-  const candidate = await passwordHash(password, stored?.split(':')[0] ?? '00000000000000000000000000000000');
-  const expected = stored ?? '0'.repeat(candidate.length);
-  if (!timingSafeEqual(Buffer.from(candidate), Buffer.from(expected)) || !stored) {
-    throw new HttpError(401, '账号或密码不正确。');
-  }
+  if (!await matchesPassword(password, stored)) throw new HttpError(401, '账号或密码不正确。');
   return createSession(user);
 }
 
@@ -193,12 +197,14 @@ function json(statusCode, body) {
   return { statusCode, body };
 }
 
-async function readiness(authorization) {
+function diagnosticAllowed(authorization) {
   const secret = process.env.PENLIA_DIAGNOSTIC_TOKEN;
-  if (!secret || secret.length < 32 ||
-      !timingSafeEqual(Buffer.from(hash(authorization ?? '')), Buffer.from(hash('Bearer ' + secret)))) {
-    return json(404, { error: '接口不存在。' });
-  }
+  return !!secret && secret.length >= 32 &&
+    timingSafeEqual(Buffer.from(hash(authorization ?? '')), Buffer.from(hash('Bearer ' + secret)));
+}
+
+async function readiness(authorization) {
+  if (!diagnosticAllowed(authorization)) return json(404, { error: '接口不存在。' });
   const [databaseStatus, easemob] = await Promise.all([
     checkDatabase().catch((error) => {
       console.error('Database readiness failed', error.code ?? error.name);
@@ -214,14 +220,45 @@ async function readiness(authorization) {
   return json(ok ? 200 : 503, { ok, database, databaseTls, easemob });
 }
 
-export async function handle({ method, path, headers, query, sourceIp, readBody }) {
+const phoneRoutes = new Map([
+  ['POST /v1/phone/challenge', { purpose: 'access', action: 'challenge' }],
+  ['POST /v1/phone/send', { purpose: 'access', action: 'send' }],
+  ['POST /v1/phone/verify', { purpose: 'access', action: 'verify' }],
+  ['POST /v1/phone/onboard', { purpose: 'access', action: 'onboard' }],
+  ['POST /v1/phone/bind/challenge', { purpose: 'bind', action: 'challenge' }],
+  ['POST /v1/phone/bind/send', { purpose: 'bind', action: 'send' }],
+  ['POST /v1/phone/bind/verify', { purpose: 'bind', action: 'verify' }],
+]);
+
+async function runPhone({ purpose, action }, request, phoneAuth) {
+  if (!phoneAuth) throw phoneUnavailable();
+  const { authorization, sourceIp, readBody } = request;
+  const user = purpose === 'bind' ? (await requireSession(authorization)).user : undefined;
+  const body = await readBody();
+  if (purpose === 'bind' && action === 'challenge') {
+    await rateLimit('phone-bind-password:' + user.id, 6, 15);
+    const { rows: [row] } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [user.id]);
+    if (!await matchesPassword(readPassword(body.password), row?.password_hash)) {
+      throw new HttpError(401, '请重新验证旧账号的密码。');
+    }
+  }
+  return phoneAuth[action](body, { sourceIp, purpose, userId: user?.id });
+}
+
+export async function handle({ method, path, headers, query, sourceIp, readBody }, { phoneAuth } = {}) {
   const route = method + ' ' + path;
   const { authorization } = headers;
   try {
     if (route === 'GET /health') return json(200, { ok: true });
     if (route === 'GET /ops/readiness') return await readiness(authorization);
+    if (route === 'GET /ops/phone-usage') {
+      if (!diagnosticAllowed(authorization)) return json(404, { error: '接口不存在。' });
+      return json(200, phoneAuth ? await phoneAuth.usage() : { enabled: false });
+    }
     if (route === 'POST /v1/register') return json(201, await register(await readBody(), sourceIp));
     if (route === 'POST /v1/login') return json(200, await login(await readBody(), sourceIp));
+    const phoneRoute = phoneRoutes.get(route);
+    if (phoneRoute) return json(200, await runPhone(phoneRoute, { authorization, sourceIp, readBody }, phoneAuth));
 
     const { user, tokenHash } = await requireSession(authorization);
     switch (route) {
@@ -257,7 +294,7 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
         return json(404, { error: '接口不存在。' });
     }
   } catch (error) {
-    if (error instanceof HttpError) return json(error.status, { error: error.message });
+    if (error instanceof HttpError || error instanceof PhoneError) return json(error.status, { error: error.message });
     const requestId = headers['x-fc-request-id'];
     const trace = typeof requestId === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(requestId) ? requestId : undefined;
     console.error('API request failed', error.code ?? error.name, trace ?? '');

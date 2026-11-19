@@ -8,15 +8,17 @@ output_dir="$(cd "$output_dir" && pwd)"
 staging="$(mktemp -d)"
 trap 'rm -rf "$staging"' EXIT
 
-cp "$server_dir"/{index,api,db,im,migrate,migration-files}.mjs "$server_dir"/package{,-lock}.json "$staging/"
+cp "$server_dir"/{index,http,api,db,im,migrate,migration-files}.mjs "$server_dir"/package{,-lock}.json "$staging/"
 cp -R "$server_dir/migrations" "$staging/"
+mkdir "$staging/phone"
+cp "$server_dir"/phone/{policy,services}.mjs "$staging/phone/"
 if [[ -n "${PENLIA_RDS_CA_FILE:-}" ]]; then
   cp "$PENLIA_RDS_CA_FILE" "$staging/rds-ca.pem"
 fi
 npm ci --prefix "$staging" --omit=dev
 (
   cd "$staging"
-  zip -qr Penlia-api.zip index.mjs api.mjs db.mjs im.mjs migrate.mjs migration-files.mjs migrations package.json package-lock.json node_modules
+  zip -qr Penlia-api.zip index.mjs http.mjs api.mjs db.mjs im.mjs migrate.mjs migration-files.mjs migrations phone package.json package-lock.json node_modules
   if [[ -f rds-ca.pem ]]; then
     zip -q Penlia-api.zip rds-ca.pem
   fi
