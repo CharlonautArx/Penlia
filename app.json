@@ -9,7 +9,7 @@
       "ios"
     ],
     "userInterfaceStyle": "light",
-    "backgroundColor": "#F7F8F3",
+    "backgroundColor": "#F7F8FA",
     "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "app.penlia.mobile",
@@ -20,7 +20,7 @@
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#47745C"
+        "backgroundColor": "#F8D9E2"
       }
     },
     "plugins": [
@@ -30,7 +30,7 @@
         {
           "image": "./assets/adaptive-icon.png",
           "imageWidth": 160,
-          "backgroundColor": "#47745C"
+          "backgroundColor": "#F8D9E2"
         }
       ],
       "expo-secure-store",

@@ -1,11 +1,11 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
-import { Avatar, Button, DemoLabel, Empty } from '../../components/ui';
+import { Avatar, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } from '../../components/ui';
+import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
@@ -13,13 +13,17 @@ import { imUserId, textMessage, type TextMessage, useIm } from '../../services/i
 import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
 
-function Conversation({ person }: { person: Relationship }) {
+class UnconfirmedDelivery extends Error {}
+
+function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
   const { session, request } = useSession();
   const demo = useDemo();
   const markDemoRead = demo?.markRead;
   const shownMessages = demo ? [...(demo.messages[person.userId] ?? [])].reverse() : undefined;
   const { connection, online, status, revision, retry, changed } = useIm();
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft);
+  const [picker, setPicker] = useState<'emoji' | 'attachments'>();
+  const [sendError, setSendError] = useState(false);
   const [messages, setMessages] = useState<TextMessage[]>([]);
   const [cursor, setCursor] = useState<string>();
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -122,6 +126,7 @@ function Conversation({ person }: { person: Relationship }) {
     if (!connection || !online) return;
     setSending(true);
     setActionError('');
+    setSendError(false);
     try {
       if (!chatReady) {
         await request('/im/contact', { method: 'POST', body: { userId: person.userId } });
@@ -131,7 +136,7 @@ function Conversation({ person }: { person: Relationship }) {
       if (await client.getCurrentUsername() !== ownUsername) throw new Error('聊天已断开，请重新连接。');
       const message = sdk.ChatMessage.createTextMessage(peer, content, sdk.ChatMessageChatType.PeerChat);
       const sent = await new Promise<ChatMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('暂未确认送达，请查看会话后再重试。')), 20000);
+        const timeout = setTimeout(() => reject(new UnconfirmedDelivery('暂未确认送达，请查看会话后再重试。')), 20000);
         const fail = () => { clearTimeout(timeout); reject(new Error('发送失败，请重试。')); };
         void client.chatManager.sendMessage(message, {
           onSuccess: (confirmed) => { clearTimeout(timeout); resolve(confirmed); },
@@ -142,46 +147,87 @@ function Conversation({ person }: { person: Relationship }) {
       setDraft('');
       changed();
     } catch (failure) {
+      setSendError(!(failure instanceof UnconfirmedDelivery));
       setActionError(errorMessage(failure));
     } finally {
       setSending(false);
     }
   }
 
+  const items = shownMessages ?? messages;
   return (
     <>
-      {!!status && <View style={[styles.row, local.notice]}>
-        <Text style={[styles.muted, styles.grow]}>{status}</Text>
-        <Button label="重连" variant="soft" onPress={retry} />
-      </View>}
+      {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
       <FlatList
-        inverted data={shownMessages ?? messages} style={styles.grow} contentContainerStyle={local.messages}
+        inverted data={items} style={styles.grow} contentContainerStyle={local.messages}
         keyboardShouldPersistTaps="handled" keyExtractor={(message) => message.id}
-        ListEmptyComponent={<Text style={styles.muted}>还没有消息，可以先打个招呼。</Text>}
+        ListEmptyComponent={<View style={local.invertedEmpty}><Empty>还没有消息，可以先打个招呼。</Empty></View>}
         ListFooterComponent={cursor && online ? (
-          <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="soft" disabled={loadingOlder}
+          <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
             onPress={() => void loadOlder()} />
         ) : undefined}
-        renderItem={({ item: message }) => (
-          <View style={[local.bubble, message.mine ? local.mine : local.theirs]}>
-            <Text style={styles.body}>{message.text}</Text>
-            <Text style={styles.small}>{new Date(message.timestamp).toLocaleString('zh-CN')}</Text>
-          </View>
-        )}
+        renderItem={({ item: message, index }) => {
+          const previous = items[index + 1];
+          const groupStart = !previous || message.timestamp - previous.timestamp >= 8 * 60_000;
+          const standalone = groupStart || message.mine !== previous?.mine;
+          return <View>
+            {groupStart && <Text style={local.time}>{messageTime(message.timestamp)}</Text>}
+            <View style={[local.messageRow, message.mine && local.myRow, standalone && local.groupGap]}>
+              {!message.mine && (standalone
+                ? <Avatar name={person.name} source={demoPortrait(person.username)} size={30} />
+                : <View style={local.avatarSpace} />)}
+              <View style={[local.bubble, message.mine ? local.mine : local.theirs]}>
+                <Text style={styles.body}>{message.text}</Text>
+              </View>
+            </View>
+          </View>;
+        }}
       />
-      {!!(actionError || historyError) && <Text accessibilityRole="alert" style={[styles.muted, local.notice]}>{actionError || historyError}</Text>}
-      <View style={[styles.row, local.composer]}>
-        <TextInput accessibilityLabel="消息" placeholder={demo ? '输入模拟消息' : '输入消息'} placeholderTextColor={colors.muted}
-          multiline maxLength={500} value={draft} onChangeText={setDraft} editable={!sending}
-          style={[styles.input, styles.grow, local.input]} />
-        <Button label={sending ? '发送中…' : '发送'} onPress={() => void send()} disabled={(!demo && !online) || !draft.trim() || sending} />
+      {!!(actionError || historyError) && <View style={local.notice}>
+        <Notice action={sendError && online ? '重试' : undefined} onAction={() => void send()}>{actionError || historyError}</Notice>
+      </View>}
+      <View style={local.composer}>
+        <IconButton label="更多输入方式" icon="add-circle-outline" onPress={() => setPicker('attachments')} />
+        <View style={local.entry}>
+          <TextInput accessibilityLabel="消息" placeholder={demo ? '输入模拟消息' : '发消息'} placeholderTextColor={colors.quiet}
+            multiline maxLength={500} value={draft} onChangeText={setDraft} editable={!sending}
+            style={local.input} />
+          <IconButton label="表情" icon="happy-outline" disabled={sending} onPress={() => setPicker('emoji')} />
+        </View>
+        <Button label={sending ? '发送中…' : '发送'} onPress={() => void send()}
+          disabled={(!demo && !online) || !draft.trim() || sending} />
       </View>
+      {picker && <Sheet title={picker === 'emoji' ? '表情' : '更多输入方式'} onClose={() => setPicker(undefined)}>
+        {picker === 'emoji' ? <View style={local.emoji}>
+          {['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'].map((emoji) =>
+            <Button key={emoji} label={emoji} variant="soft" onPress={() => {
+              setDraft((text) => text.length + emoji.length <= 500 ? text + emoji : text);
+              setPicker(undefined);
+            }} />)}
+        </View> : <>
+          <Text style={styles.muted}>当前支持文字和表情。以下方式将随功能上线开放。</Text>
+          <View style={local.emoji}>
+            {([['mic-outline', '语音'], ['image-outline', '照片'], ['document-outline', '文件']] as const)
+              .map(([icon, label]) => <View key={label} style={local.future}>
+                <Icon name={icon} /><Text style={styles.strong}>{label}</Text><Text style={styles.small}>待支持</Text>
+              </View>)}
+          </View>
+        </>}
+      </Sheet>}
     </>
   );
 }
 
+function messageTime(timestamp: number) {
+  const date = new Date(timestamp);
+  const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return date.toDateString() === new Date().toDateString()
+    ? '今天 ' + clock : date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }) + ' ' + clock;
+}
+
 export default function ConversationScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
+  const [more, setMore] = useState(false);
   const { relationships, refresh, error } = useFriends();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -194,31 +240,48 @@ export default function ConversationScreen() {
   return (
     <SafeAreaView style={local.safe}>
       <KeyboardAvoidingView style={local.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.row, local.header]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="返回" onPress={goBack} style={local.back}>
-            <Ionicons name="chevron-back" size={24} color={colors.deep} />
-          </Pressable>
-          {person && <Avatar name={person.name} color={colors.sage} size={38} />}
-          <Text style={styles.strong}>{person?.name ?? '聊天'}</Text>
+        <View style={local.header}>
+          <IconButton label="返回" icon="chevron-back" onPress={goBack} />
+          {person && <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />}
+          <View style={styles.grow}>
+            <Text accessibilityRole="header" style={styles.strong} numberOfLines={1}>{person?.name ?? '聊天'}</Text>
+            {person && <Text style={styles.small}>@{person.username}</Text>}
+          </View>
           <DemoLabel />
+          {person && <IconButton label="聊天选项" icon="ellipsis-horizontal" onPress={() => setMore(true)} />}
         </View>
-        {person ? <Conversation key={person.userId} person={person} />
-          : <Empty>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
+        {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
+          <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
+        {more && person && <Sheet title="聊天选项" onClose={() => setMore(false)}>
+          <Button label="查看好友资料" variant="soft" icon="person-outline" onPress={() => {
+            setMore(false);
+            router.push({ pathname: '/person/[id]', params: { id: person.userId } });
+          }} />
+        </Sheet>}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const local = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backdrop },
-  page: { flex: 1, width: '100%', maxWidth: 660, alignSelf: 'center' },
-  header: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border },
-  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  messages: { padding: 18, gap: 10 },
-  notice: { paddingHorizontal: 14, paddingVertical: 8 },
-  bubble: { borderRadius: 19, paddingHorizontal: 14, paddingVertical: 10, gap: 3, maxWidth: '85%' },
-  mine: { alignSelf: 'flex-end', backgroundColor: colors.sage, borderBottomRightRadius: 4 },
-  theirs: { alignSelf: 'flex-start', backgroundColor: colors.panel, borderBottomLeftRadius: 4 },
-  composer: { paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderColor: colors.border },
-  input: { maxHeight: 110 },
+  safe: { flex: 1, backgroundColor: colors.panel },
+  page: { flex: 1, width: '100%', maxWidth: 620, alignSelf: 'center', backgroundColor: '#F4F4F7' },
+  header: { ...styles.row, ...styles.divider, minHeight: 58, gap: 9, paddingHorizontal: 8, backgroundColor: colors.panel },
+  messages: { paddingHorizontal: 13, paddingVertical: 14 },
+  invertedEmpty: { transform: [{ scaleY: -1 }] },
+  notice: { paddingHorizontal: 12, paddingVertical: 6 },
+  time: { ...styles.small, textAlign: 'center', paddingTop: 9, paddingBottom: 13 },
+  messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 4 },
+  myRow: { justifyContent: 'flex-end' },
+  groupGap: { paddingTop: 9 },
+  avatarSpace: { width: 30 },
+  bubble: { borderRadius: 17, paddingHorizontal: 12, paddingVertical: 8, maxWidth: '79%' },
+  mine: { backgroundColor: '#F1E3F0', borderBottomRightRadius: 5 },
+  theirs: { backgroundColor: colors.panel, borderBottomLeftRadius: 5 },
+  composer: { ...styles.row, gap: 5, backgroundColor: colors.panel, paddingHorizontal: 8, paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  entry: { ...styles.grow, ...styles.row, gap: 0, borderRadius: 12, backgroundColor: colors.backdrop },
+  input: { ...styles.grow, fontSize: 15, color: colors.text, maxHeight: 110, minHeight: 44, paddingLeft: 11, paddingVertical: 9 },
+  emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  future: { padding: 12, borderRadius: 12, backgroundColor: colors.backdrop, alignItems: 'center', gap: 5 },
 });

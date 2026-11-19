@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from 'react';
 
 import type { TextMessage } from '../services/im';
-import { demoMessages, demoPeople, demoRelationship, demoRelationships } from './data';
+import { demoMessages, demoPeople, demoRelationship, demoRelationships, demoUnread } from './data';
 
 const DemoContext = createContext<{
   messages: Record<string, TextMessage[]>;
@@ -13,7 +13,7 @@ const DemoContext = createContext<{
 
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState(demoMessages);
-  const [unread, setUnread] = useState<Record<string, number>>({ 'demo-xiaoman': 2, 'demo-azhu': 1 });
+  const [unread, setUnread] = useState<Record<string, number>>(demoUnread);
   const relationships = useRef(demoRelationships);
   const messageSequence = useRef(0);
 

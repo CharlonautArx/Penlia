@@ -1,14 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router/js-tabs';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import type { IconName } from '../../components/ui';
-import { colors } from '../../theme';
+import { brandGradient, colors } from '../../theme';
 
 const tabs: { name: string; title: string; icon: IconName; activeIcon: IconName }[] = [
   { name: 'index', title: '聊天', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles' },
   { name: 'friends', title: '好友', icon: 'people-outline', activeIcon: 'people' },
-  { name: 'moments', title: '动态', icon: 'leaf-outline', activeIcon: 'leaf' },
+  { name: 'moments', title: '动态', icon: 'planet-outline', activeIcon: 'planet' },
   { name: 'play', title: '玩乐', icon: 'game-controller-outline', activeIcon: 'game-controller' },
   { name: 'me', title: '我的', icon: 'person-circle-outline', activeIcon: 'person-circle' },
 ];
@@ -19,7 +20,8 @@ export default function TabLayout() {
       backBehavior="initialRoute"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.deep,
+        animation: Platform.OS === 'web' ? 'none' : 'fade',
+        tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel],
@@ -32,9 +34,12 @@ export default function TabLayout() {
           name={name}
           options={{
             title,
+            tabBarAccessibilityLabel: title,
             tabBarIcon: ({ focused }) => (
-              <View style={[local.icon, focused && local.selected]}>
-                <Ionicons name={focused ? activeIcon : icon} color={focused ? colors.deep : colors.muted} size={21} />
+              <View style={local.icon}>
+                {focused && <LinearGradient colors={brandGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
+                  style={local.selected} />}
+                <Ionicons accessible={false} name={focused ? activeIcon : icon} color={focused ? colors.accent : colors.muted} size={21} />
               </View>
             ),
           }}
@@ -50,5 +55,5 @@ const local = StyleSheet.create({
   bar: { backgroundColor: colors.panel, borderTopColor: colors.border },
   webBar: { height: 60, paddingBottom: 4 },
   icon: { width: 39, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
-  selected: { backgroundColor: colors.sage },
+  selected: { ...StyleSheet.absoluteFill, borderRadius: 10, opacity: 0.37 },
 });

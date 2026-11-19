@@ -19,6 +19,8 @@ function AppNavigation() {
           <Stack.Protected guard={!!session}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="chat/[id]" />
+            <Stack.Screen name="person/[id]" />
+            <Stack.Screen name="playground" />
           </Stack.Protected>
         </Stack>
       </ImProvider>

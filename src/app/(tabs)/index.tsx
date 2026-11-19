@@ -2,7 +2,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Empty, Screen } from '../../components/ui';
+import { Avatar, Empty, Icon, IconButton, ListRow, Notice, Screen, SearchField, Sheet } from '../../components/ui';
+import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
@@ -18,6 +19,10 @@ export default function ChatsScreen() {
   const { connection, status, retry, revision } = useIm();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [listError, setListError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [query, setQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [compose, setCompose] = useState(false);
   const ownId = session?.user.id;
   const demo = useDemo();
 
@@ -42,6 +47,7 @@ export default function ChatsScreen() {
         if (active) {
           setThreads(rows.flat().sort((a, b) => b.last.timestamp - a.last.timestamp));
           setListError('');
+          setLoaded(true);
         }
       } catch {
         if (active) setListError('暂时无法读取会话。');
@@ -58,38 +64,85 @@ export default function ChatsScreen() {
     }).sort((a, b) => b.last.timestamp - a.last.timestamp)
     : threads;
 
+  const term = query.trim().toLowerCase();
+  const filtered = visibleThreads.filter(({ person, last }) =>
+    !term || [person.name, person.username, last.text].some((value) => value.toLowerCase().includes(term)));
+  const accepted = relationships?.filter((person) => person.status === 'accepted') ?? [];
+
+  function openChat(id: string) {
+    setCompose(false);
+    router.push({ pathname: '/chat/[id]', params: { id } });
+  }
+
+  async function reload() {
+    setRefreshing(true);
+    try { await refresh(); } finally { setRefreshing(false); }
+  }
+
   return (
-    <Screen title="聊天" subtitle="查看最近会话，或去好友列表发起聊天。">
-      {!!status && <View style={styles.card}>
-        <Text style={styles.body}>{status}</Text>
-        <Button label="重连" variant="soft" onPress={retry} />
-      </View>}
-      {!!(friendsError || listError) && <Empty>{friendsError || listError}</Empty>}
-      <Text accessibilityRole="header" style={styles.section}>最近会话</Text>
-      {(demo || connection) && !visibleThreads.length && !listError && <Empty>暂无会话。可以从好友页发起聊天。</Empty>}
-      {visibleThreads.map(({ person, last, unread }) => (
+    <Screen title="聊天" solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} actions={
+      <IconButton label="发起会话" icon="add-outline" tinted onPress={() => setCompose(true)} />
+    }>
+      <View style={local.controls}>
+        <SearchField label="搜索会话" placeholder="搜索联系人或消息" value={query} onChangeText={setQuery} returnKeyType="search" />
+        {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
+        {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
+      </View>
+      {filtered.map(({ person, last, unread }) => (
         <Pressable key={person.userId} accessibilityRole="button"
           accessibilityLabel={`${person.name}，${unread ? unread + ' 条未读消息，' : ''}${last.text}`}
-          onPress={() => router.push({ pathname: '/chat/[id]', params: { id: person.userId } })}
-          style={({ pressed }) => [styles.row, local.thread, pressed && local.pressed]}>
-          <Avatar name={person.name} color={colors.sage} size={52} />
-          <View style={styles.grow}>
-            <Text style={styles.strong}>{person.name}</Text>
-            <Text numberOfLines={1} style={styles.muted}>{last.mine ? '我：' : ''}{last.text}</Text>
-          </View>
-          <View style={local.meta}>
-            <Text style={styles.small}>{new Date(last.timestamp).toLocaleDateString('zh-CN')}</Text>
-            {unread > 0 && <View style={local.dot} />}
+          onPress={() => openChat(person.userId)} style={({ pressed }) => [local.thread, pressed && local.pressed]}>
+          <Avatar name={person.name} source={demoPortrait(person.username)} size={48} />
+          <View style={local.threadBody}>
+            <View style={local.line}>
+              <Text style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
+              <Text style={styles.small}>{threadTime(last.timestamp)}</Text>
+            </View>
+            <View style={local.line}>
+              <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{last.mine ? '我：' : ''}{last.text.replace(/\s+/g, ' ')}</Text>
+              {unread > 0 && <View style={local.badge}>
+                <Text style={local.badgeText}>{unread > 99 ? '99+' : unread}</Text>
+              </View>}
+            </View>
           </View>
         </Pressable>
       ))}
+      {filtered.length === 0 && !(friendsError || listError) && (
+        !relationships || (!demo && connection && !loaded) ? <Empty busy>正在加载会话…</Empty> :
+          (demo || connection) && <Empty>{term ? '没有找到符合条件的会话。' : '还没有会话。点右上角，和好友聊聊。'}</Empty>
+      )}
+      {compose && <Sheet title="发起会话" onClose={() => setCompose(false)}>
+        <ListRow title="查找或添加好友" left={<Icon name="person-add-outline" />}
+          onPress={() => { setCompose(false); router.navigate('/friends'); }} />
+        {accepted.map((person) => <ListRow key={person.userId} title={person.name} detail={'@' + person.username}
+          left={<Avatar name={person.name} source={demoPortrait(person.username)} size={40} />}
+          onPress={() => openChat(person.userId)} />)}
+        {accepted.length === 0 && <Empty>添加一位好友，就可以开始聊天。</Empty>}
+      </Sheet>}
     </Screen>
   );
 }
 
+function threadTime(timestamp: number) {
+  const date = new Date(timestamp);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return '昨天';
+  const parts = { month: 'numeric', day: 'numeric' } as const;
+  return date.toLocaleDateString('zh-CN', date.getFullYear() === today.getFullYear() ? parts : { ...parts, year: 'numeric' });
+}
+
 const local = StyleSheet.create({
-  thread: { ...styles.card, padding: 13, minHeight: 78 },
-  pressed: { backgroundColor: colors.sage },
-  meta: { alignItems: 'flex-end', gap: 7 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.green },
+  controls: { gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 7 },
+  thread: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, gap: 12, minHeight: 74 },
+  threadBody: { ...styles.grow, ...styles.divider, alignSelf: 'stretch', justifyContent: 'center', gap: 4, paddingRight: 16, paddingVertical: 8 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 19 },
+  badge: { minWidth: 18, height: 18, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#B83259', borderRadius: 10 },
+  badgeText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '800' },
+  pressed: { backgroundColor: colors.backdrop },
 });
