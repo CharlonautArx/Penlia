@@ -11,15 +11,15 @@
 | 阶段 | 已开发并通过本地测试 | 已实现但等待外部配置 | 仍有代码缺陷或未完成 | 需要真实手机测试 |
 | --- | --- | --- | --- | --- |
 | P0 | 两个隔离账号完成好友确认、群邀请、文字和多图群聊、私密动态发布、视频播放及撤权。PostgreSQL 17 增量迁移重复执行、Android ARM64 Release 编译和 APK 签名校验通过。 | 环信单聊、图片和位置消息、发送前回调及静默规则待联调。 | 真实滑块和短信供应商接线、厂商推送、群聊后台同步、跨设备头像、完整数据导出及注销流程。动态多人共创归 P1。 | 双机私聊、附件历史、QR 相机、设备撤销后的环信会话、后台推送、原生视频及深色与大字体。 |
-| P1 | 待授权 | 待更新 | 待更新 | 待更新 |
+| P1 | 本地 PostgreSQL 17 跑通功能 10–13 与 15 的主要链路，功能 14 覆盖成员授权、续期和停用状态。 | 私聊标签和短视频、私聊证据核验、审核定时任务、RTC 服务与原生引擎。 | 群聊媒体作为举报证据的内容核验、推送唤醒、厂商实际 RTC 接入。DeepSeek 可选契约默认关闭。 | 双机私聊文字、图片、短视频与两种标签，RTC 多机通话、重连、静默、弱网、深色及大字体。 |
 | P2 | 待授权 | 待更新 | 待更新 | 待更新 |
 | P3 | 待授权，第 24 项暂缓 | 待更新 | 待更新 | 待更新 |
 
-P0 证据见 [验收记录](docs/penlia-p0.md) 和 [12 张实际操作截图](demo-preview/p0/README.md)。完整功能范围见 [四阶段路线图](docs/penlia-roadmap.md)。
+P1 证据见 [开发与验收](docs/penlia-p1.md) 和 [9 张实际操作截图](demo-preview/p1/README.md)。P0 证据见 [验收记录](docs/penlia-p0.md) 和 [12 张实际操作截图](demo-preview/p0/README.md)。完整功能范围见 [四阶段路线图](docs/penlia-roadmap.md)。
 
 ## 外部服务接入登记
 
-**阿里云 FC 与 PostgreSQL · 已有代码和迁移，待隔离云环境验证。** 沿用 Node.js 22 Web 函数的 `npm run start` 和 9000 端口，核对 HTTPS、VPC、交换机、安全组、RDS 内网地址及白名单。归档本次提交、迁移清单、ZIP 摘要和备份恢复点。数据库参数为 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`；使用证书校验时按现有实现选 `PGSSLROOTCERT` 或 `PG_CA_PEM`。已部署的初始迁移从账本核对，先在隔离库验证 P0 和后续增量，迁移角色与业务账号分别授权。现有 Serverless 实例缺少 TLS 时，`PG_TLS=disable` 仅限隔离内网和测试数据，正式数据的传输方案待确认。本机可用 `bash server/deploy/package-fc.sh` 生成 ZIP，云端先检查 `/health`，再用临时 `PENLIA_DIAGNOSTIC_TOKEN` 检查 `/ops/readiness`，并单独验证新表和角色权限。费用核对 FC 请求、计算、网络、日志以及 RDS 容量、备份和连接压力。 [FC 手册](server/README.md) · [P0 DMS 增量](server/deploy/penlia-p0-dms.sql)
+**阿里云 FC 与 PostgreSQL · 已有代码和迁移，待隔离云环境验证。** 沿用 Node.js 22 Web 函数的 `npm run start` 和 9000 端口，核对 HTTPS、VPC、交换机、安全组、RDS 内网地址及白名单。归档本次提交、迁移清单、ZIP 摘要和备份恢复点。数据库参数为 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`；使用证书校验时按现有实现选 `PGSSLROOTCERT` 或 `PG_CA_PEM`。已部署的初始迁移从账本核对，先在隔离库验证 P0 和后续增量，迁移角色与业务账号分别授权。现有 Serverless 实例缺少 TLS 时，`PG_TLS=disable` 仅限隔离内网和测试数据，正式数据的传输方案待确认。本机可用 `bash server/deploy/package-fc.sh` 生成 ZIP，云端先检查 `/health`，再用临时 `PENLIA_DIAGNOSTIC_TOKEN` 检查 `/ops/readiness`，并单独验证新表和角色权限。费用核对 FC 请求、计算、网络、日志以及 RDS 容量、备份和连接压力。 [FC 手册](server/README.md) · [P0 DMS 增量](server/deploy/penlia-p0-dms.sql) · [P1 DMS 增量](server/deploy/penlia-p1-dms.sql)
 
 **环信 IM · 已有 REST 和客户端 SDK，待供应商配置及双机验收。** 服务端使用 `EASEMOB_APP_KEY`、`EASEMOB_REST_URL`、`EASEMOB_CLIENT_ID` 和 `EASEMOB_CLIENT_SECRET`，Android 仅使用公开的 `EXPO_PUBLIC_EASEMOB_APP_KEY`。在隔离环信应用启用好友关系检查，配置 HTTPS 发送前回调 `POST /callbacks/easemob/<path-key>`，将 `PENLIA_IM_CALLBACK_SECRET` 和 `PENLIA_IM_CALLBACK_PATH_KEY` 放在服务端。回调失败默认拒绝，确认规则后在隔离 FC 开 `PENLIA_IM_PRIVACY_READY=1`。验证陌生人、拉黑、删除好友、签名错误和回调超时均被拦截，再验证文字、图片、位置、历史恢复及设备撤销。仅在确认供应商支持后启用 `PENLIA_IM_REWRITE_MEDIA=1`。待核对套餐中的漫游、附件留存、公网流量和回调能力。P0 群聊使用独立的 HTTP 与 PostgreSQL 链路，后台同步见下方代码待办。 [P0 环信接入说明](docs/penlia-p0.md#阿里云与环信接入顺序) · [发送前回调](https://doc.easemob.com/document/server-side/callback_presending.html)
 
@@ -27,15 +27,17 @@ P0 证据见 [验收记录](docs/penlia-p0.md) 和 [12 张实际操作截图](de
 
 **厂商推送 · 已有静默和安静规则，令牌注册、投递及回执链路待实现。** 最终确定 Android 对应厂商通道与可选 iOS APNs，记录应用包名、签名、通道 ID、证书或服务端凭据、设备令牌归属与退出清理规则。适配器须在投递前用真实会话与通知偏好过滤收件人，支持幂等键、明确的接受或失败状态及有限重试。双机验收前台、后台、锁屏、应用被关闭、系统拒绝权限、跨时区、重要联系人、安静送达和撤销设备。前台群聊轮询的成功只记录为前台消息同步。费用核对套餐、通道、消息量和日志保留。 [环信静默推送扩展](https://doc.easemob.com/document/react-native/push/push_extension.html)
 
-**多人 RTC · 已有一对一信令与引擎接口，多人接入待 P1。** 复用 `src/features/calls/model.ts` 的会话状态、短期 Token 和引擎边界，群成员鉴权、房间信令和真实 SDK 接线需另行实现。配置时确认供应商、App ID、签发密钥、地域、原生 SDK 和并发限制。服务端验证仍在群内的身份后才能签发绑定房间和成员的短期 Token。独立测试未授权入房、重复接听、短期凭证过期及续期。用真机验收多人来电、音视频权限、降级、退后台和重连。费用按实际合同核对参与者分钟、分辨率、附加功能及超量费，内测前设可停用的费用边界。 [现有媒体与通话接口说明](demo-preview/media-notes.md)
+**多人 RTC · P1 群信令已实现，待供应商适配。** `server/p1/rtc.mjs` 只在注入 `mintRoomToken` 和 `closeRoom` 时启用，供应商选定后同时实现成员踢出与服务端房间回收。客户端通过 `src/features/calls/group-provider.ts` 接原生 SDK，分别提供摄像头、麦克风权限与引擎生命周期。配置获批项目的 App ID、服务端签发密钥、地域、SDK、权限、并发与费用上限后，验证身份绑定、最多 8 个参与者、短期凭证续期、群成员撤销、后台唤醒、网络重连和质量降级。需要验证供应商可按用户立即撤销已签发房间权限，未配置全链路前保持关闭。费用按合同核对参与者分钟、分辨率、附加服务、超量费和预算开关。 [现有媒体与通话接口说明](demo-preview/media-notes.md)
+
+**生活边界审核 · P1 实现人工审核与处置。** 在联调 FC 配置 32 字节 Base64URL `PENLIA_EVIDENCE_KEY`，并用安全保管单独保存密钥、轮换及保留策略。由独立管理员给明确授权的账号配置 `p1_reviewers`，业务角色只能读取该表。独立配置至少 32 字符的 `PENLIA_MODERATION_JOB_TOKEN`，获批后让定时任务调用 `POST /ops/p1/moderation/run`，检查积压处理时延、失败重试和权限。延迟默认 86400 至 604800 秒，使用 `PENLIA_MODERATION_DELAY_MIN_SECONDS` 与 `PENLIA_MODERATION_DELAY_MAX_SECONDS` 在 1–7 日范围内配置。已有私聊核验契约 `moderationEvidence.verifyPrivate`，接入前核对环信历史可用性、必要授权、附件核验和处理时限。验收过期、覆核、紧急和普通案件，检查日志及推送不含证据、举报人或具体时间。费用按定时触发、计算、存储与日志量核算。 [P1 业务与接口](docs/penlia-p1.md)
 
 **阿里云 OSS · 私有上传与访问方案已设计，客户端和存储适配器待实现。** P0 动态和群图在 PostgreSQL 中按登录身份读取，单文件上限 4 MB、每账号 32 MB；头像仍保存于本机。配置 OSS 前选择地域、私有 Bucket、RAM 角色、上传与下载签名期限、配额、生命周期和对象键规则。存储适配层负责短期上传授权、类型与大小验证、确认提交、读取和回收，业务权限留在服务端。验证地址转发、权限撤回、账号注销、替换头像、上传重试及孤儿清理；如使用短期读取签名，实测撤权至签名失效的窗口。费用核对存储、请求、下载流量、备份、转码及未完成上传。 [私有头像上传接口设计](demo-preview/media-notes.md#头像上传接入方案)
 
 **地图与生活服务 API · 地图交接已实现，供应商与商家适配器待确认。** 当前由用户确认后发送位置，再交给系统地图。未来按授权阶段定义地图与商家接口；配置前确认坐标系、区域覆盖、SDK 或 API Key 的配额、包名与签名限制、缓存许可及合作授权。用已知地点验证 WGS‑84 交接、定位权限、区域偏差及断网。商家数据须核验来源、时间、价格、跳转归属和赞助标识；真实合作接口接通前使用自由输入或系统交接流程。费用核对地图调用、逆地理编码、商用许可和合作结算。 [地图接入说明](demo-preview/media-notes.md#正式媒体消息)
 
-**DeepSeek 辅助审核 · 规划中的可选适配器。** P1 先实现用户主动提交证据、人工审核、申诉及审计。未来获准后核对服务端密钥、模型与版本、数据处理地域和保留政策、超时和调用预算。适配器只接收授权且必要的脱敏材料，返回建议供有权限人员复核。验证超时、错误建议、恶意输入、最小化披露和可审计人工决定。费用核对用量计价、调用限额和长期日志成本。供应商及配置开关随实际接口定义补充。
+**DeepSeek 辅助审核 · 已有默认关闭的可选接口。** 经审核员主动请求，`reviewAdvisor.suggest` 只接收工单分类、证据出处类型和政策版本。供应商接线、密钥、服务端接入和预算留到获批配置阶段。需核对调用地域、数据处理及保留政策、超时和费用。返回值只可作为上下文、真实性、紧急程度或材料不足的复核方向，处罚始终由人工确认。验证供应商故障时仍可人工处理，限制费用及避免在报告中曝露敏感内容。 [P1 审核说明](docs/penlia-p1.md)
 
-**Android 安装包 · P0 本机 Release 编译通过，正式安装与联调待执行。** 用最终提交构建内部测试 APK，核对包名、版本、签名和发布渠道。现有 EAS `preview` 配置生成 APK；联调构建使用 `EXPO_PUBLIC_API_URL`、公开 IM App Key 和 `EXPO_PUBLIC_PENLIA_UI_DEMO=0`。保持签名连续性，并核对 EAS 配额。至少两台 Android 手机验证全新安装、覆盖升级、弱网、权限拒绝、扫码、相册、视频、消息与推送，记录设备、系统版本及 APK 摘要。 [EAS 配置](eas.json) · [Android APK 构建](https://docs.expo.dev/build-reference/apk/)
+**Android 安装包 · P0 与 P1 本机 ARM64 Release 编译与测试签名验证通过，安装与联调待执行。** 用最终提交构建内部测试 APK，核对包名、版本、签名和发布渠道。现有 EAS `preview` 配置生成 APK；联调构建使用 `EXPO_PUBLIC_API_URL`、公开 IM App Key 和 `EXPO_PUBLIC_PENLIA_UI_DEMO=0`。保持签名连续性，并核对 EAS 配额。至少两台 Android 手机验证全新安装、覆盖升级、弱网、权限拒绝、扫码、相册、视频、消息与推送，记录设备、系统版本及 APK 摘要。 [EAS 配置](eas.json) · [Android APK 构建](https://docs.expo.dev/build-reference/apk/)
 
 ## 开发期间的架构待办
 

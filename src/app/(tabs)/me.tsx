@@ -1,3 +1,4 @@
+import { isUiDemo } from '../../demo/mode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -60,6 +61,8 @@ export default function MeScreen() {
         onPress={() => router.push('/privacy')} />
     </View>
     <View style={local.group}>
+      {!isUiDemo && <ListRow title="生活边界保护" detail="举报记录、处置与申诉"
+        left={<Tile icon="flag-outline" />} onPress={() => router.push('/boundary')} />}
       <ListRow title="我的空间" detail="动态、日志和相册" left={<Tile icon="person-circle-outline" />}
         onPress={() => router.push({ pathname: '/space/[id]', params: { id: user.id } })} />
       <ListRow title="我的动态" detail="查看你发布的动态" left={<Tile icon="albums-outline" />}

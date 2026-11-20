@@ -11,7 +11,7 @@ const DemoContext = createContext<{
   mediaError: string;
   retryMedia: () => void;
   media: Record<string, (ImageItem | LocationItem)[]>;
-  addMedia: (peerId: string, item: Exclude<PendingMessage, { kind: 'text' }>, mine?: boolean) => void;
+  addMedia: (peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine?: boolean) => void;
   unread: Record<string, number>;
   markRead: (peerId: string) => void;
   send: (peerId: string, text: string) => void;
@@ -44,7 +44,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const send = useCallback((peerId: string, text: string) => addMessage(peerId, text, true), [addMessage]);
   const receive = useCallback((peerId: string, text: string) => addMessage(peerId, text, false), [addMessage]);
 
-  function addMedia(peerId: string, item: Exclude<PendingMessage, { kind: 'text' }>, mine = true) {
+  function addMedia(peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine = true) {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
     if (!media.value) throw new Error('正在读取本机演示附件，请稍后重试。');
     const message = { ...item, id: 'demo-media-' + messageSession.current + '-' + ++messageSequence.current, timestamp: Date.now(), mine };

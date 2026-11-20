@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Empty, Icon, IconButton, Screen, Section, Sheet } from '../../components/ui';
+import { Empty, Icon, IconButton, ListRow, Screen, Section, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { Chips, GameCard, PlaceCard } from '../../features/play/Cards';
 import { discoveryCatalog } from '../../features/play/catalog';
@@ -72,6 +72,7 @@ export default function PlayScreen() {
       </View>
       <View style={local.invite}>
         <Section title="朋友一起去" />
+        {!isUiDemo && <ListRow title="约朋友一起玩" detail="心愿共振、约局、共同日记" onPress={() => router.push('/social')} />}
         <InviteButton label="发起聚会提议" message="这周找一天一起出去走走？你想喝咖啡、看电影，还是试个新活动？" />
       </View>
     </>}

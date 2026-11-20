@@ -3,18 +3,22 @@ import type { ImConnection, TextMessage } from '../../services/im';
 
 export type LocationValue = { latitude: number; longitude: number; name: string; address: string };
 export type ImageItem = { id: string; timestamp: number; mine: boolean; kind: 'image'; width: number; height: number;
-  photoId?: string; source?: ChatMessage; silent?: boolean };
-export type LocationItem = LocationValue & { id: string; timestamp: number; mine: boolean; kind: 'location'; silent?: boolean };
-export type RichMessage = TextMessage | ImageItem | LocationItem;
+  photoId?: string; source?: ChatMessage; silent?: boolean; noReply?: boolean };
+export type LocationItem = LocationValue & { id: string; timestamp: number; mine: boolean; kind: 'location'; silent?: boolean; noReply?: boolean };
+export type VideoItem = { id: string; timestamp: number; mine: boolean; kind:'video'; source:ChatMessage; silent?:boolean; noReply?:boolean };
+export type RichMessage = TextMessage | ImageItem | LocationItem | VideoItem;
 export type PendingMessage = (
   | { kind: 'text'; text: string }
   | { kind: 'image'; photoId: string; width: number; height: number; bytes: number }
+  | { kind:'video'; uri:string; bytes:number; duration?:number }
   | ({ kind: 'location' } & LocationValue)
-) & { silent?: boolean };
+) & { silent?: boolean; noReply?: boolean };
 
 export function summaryOf(message: RichMessage) {
   if ('text' in message) return message.text;
-  return message.kind === 'image' ? '[图片]' : '[位置] ' + message.name;
+  if (message.kind === 'image') return '[图片]';
+  if (message.kind === 'video') return '[视频]';
+  return '[位置] ' + message.name;
 }
 
 function decimal(value: unknown, max: number) {
@@ -41,11 +45,15 @@ export function readPeerMessage(connection: ImConnection, message: ChatMessage |
   const fromPeer = message.from === peer && message.to === own;
   if ((!mine && !fromPeer) || (mine && message.status !== sdk.ChatMessageStatus.SUCCESS)) return null;
   const metadata = { id: message.msgId, timestamp: message.serverTime || message.localTime, mine,
-    ...(message.attributes?.penlia_quiet === true ? { silent:true } : {}) };
+    ...(message.attributes?.penlia_quiet === true ? { silent:true } : {}),
+    ...(message.attributes?.penlia_no_reply === true ? { noReply:true } : {}) };
   if (message.body instanceof sdk.ChatTextMessageBody) return { ...metadata, text: message.body.content };
   if (message.body instanceof sdk.ChatImageMessageBody) {
     const body = message.body;
     return { ...metadata, kind: 'image', width: body.width || 1, height: body.height || 1, source: message };
+  }
+  if (typeof sdk.ChatVideoMessageBody === 'function' && message.body instanceof sdk.ChatVideoMessageBody) {
+    return { ...metadata, kind:'video', source:message };
   }
   if (message.body instanceof sdk.ChatLocationMessageBody) {
     const body = message.body;
@@ -62,6 +70,7 @@ export function buildPeerMessage(connection: ImConnection, peer: string, value: 
     message.attributes.penlia_quiet=true;
     message.attributes.em_ignore_notification=true;
   }
+  if (value.noReply && value.kind !== 'location') message.attributes.penlia_no_reply=true;
   return message;
 }
 
@@ -73,6 +82,13 @@ function buildContent(connection: ImConnection, peer: string, value: PendingMess
     if (!path?.startsWith('/')) throw new Error('这张本机照片已失效，请重新选择。');
     return sdk.ChatMessage.createImageMessage(peer, path, peerType, {
       width: value.width, height: value.height, fileSize: value.bytes, displayName: 'photo.jpg', sendOriginalImage: true,
+    });
+  }
+  if (value.kind === 'video') {
+    const path = photoUri?.replace(/^file:\/\//, '');
+    if (!path?.startsWith('/')) throw new Error('这段本机视频已失效，请重新选择。');
+    return sdk.ChatMessage.createVideoMessage(peer,path,peerType,{
+      displayName:'video.mp4',fileSize:value.bytes,duration:value.duration,
     });
   }
   if (value.kind === 'location') {

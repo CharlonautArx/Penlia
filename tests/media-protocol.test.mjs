@@ -5,13 +5,15 @@ import { transitionCall } from '../src/features/calls/model.ts';
 
 class Text { constructor(content) { this.content = content; } }
 class Image { constructor(properties) { Object.assign(this, properties); } }
+class Video { constructor(properties) { Object.assign(this, properties); } }
 class Location { constructor(latitude, longitude, address) { Object.assign(this, { latitude, longitude, address }); } }
 const local = (peer, body) => ({ to: peer, from: 'me', body, chatType: 0, status: 1, msgId: '1', localTime: 3, attributes: {} });
 const connection = { sdk: {
-  ChatTextMessageBody: Text, ChatImageMessageBody: Image, ChatLocationMessageBody: Location,
+  ChatTextMessageBody: Text, ChatImageMessageBody: Image, ChatLocationMessageBody: Location, ChatVideoMessageBody: Video,
   ChatMessageChatType: { PeerChat: 0 }, ChatMessageStatus: { SUCCESS: 1 }, ChatMessage: {
     createTextMessage: (target, value) => local(target, new Text(value)),
     createImageMessage: (target, localPath, _type, props) => local(target, new Image({ localPath, ...props })),
+    createVideoMessage: (target, localPath, _type, props) => local(target, new Video({ localPath, ...props })),
     createLocationMessage: (target, lat, lon, _type, props) => local(target, new Location(lat, lon, props.address)),
   },
 } };
@@ -68,4 +70,17 @@ test('attachment retrieval only trusts HTTPS endpoints in the approved Easemob d
   assert.equal(easemobAttachmentUrl('http://a1.easemob.com/app/chatfiles/123'), false);
   assert.equal(easemobAttachmentUrl('https://a1.easemob.com.example.com/app/chatfiles/123'), false);
   assert.equal(easemobAttachmentUrl('https://a1.easemob.com@localhost/private'), false);
+});
+
+test('Easemob short video and text preserve the share label independently of quiet delivery', () => {
+  const silent = buildPeerMessage(connection, 'friend', { kind: 'text', text: '到了', silent: true });
+  assert.equal(readPeerMessage(connection, silent, 'me', 'friend').noReply, undefined);
+  const video = buildPeerMessage(connection, 'friend', { kind: 'video', uri: '/app/clip.mp4', bytes: 1024, duration: 2, noReply: true, silent: true }, 'file:///app/clip.mp4');
+  assert.equal(video.body.localPath, '/app/clip.mp4');
+  const read = readPeerMessage(connection, { ...video, from: 'friend', to: 'me' }, 'me', 'friend');
+  assert.equal(read.noReply, true);
+  assert.equal(read.silent, true);
+  assert.equal(summaryOf(read), '[视频]');
+  const quietIndependent = buildPeerMessage(connection, 'friend', { kind: 'text', text: '只是分享', noReply: true });
+  assert.equal(readPeerMessage(connection, quietIndependent, 'me', 'friend').silent, undefined);
 });

@@ -14,7 +14,7 @@ import { nativePhotoUri, useLocalPhotoUri } from '../space/media';
 export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4' };
 export type LocalMedia =
   | { id: string; mime: 'image/jpeg'; photoId: string }
-  | { id: string; mime: 'video/mp4'; uri: string };
+  | { id: string; mime: 'video/mp4'; uri: string; bytes: number; duration?: number };
 const maxVideo = 4 * 1024 * 1024;
 
 export async function chooseMomentPhotos(owner: string, limit: number) {
@@ -27,7 +27,7 @@ export async function chooseMomentPhotos(owner: string, limit: number) {
   return assets;
 }
 
-export async function chooseMomentVideo(): Promise<LocalMedia | undefined> {
+export async function chooseMomentVideo(): Promise<Extract<LocalMedia,{mime:'video/mp4'}> | undefined> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['videos'],
     selectionLimit: 1,
@@ -49,7 +49,7 @@ export async function chooseMomentVideo(): Promise<LocalMedia | undefined> {
   ) {
     throw new Error('请选择 4 MB、30 秒以内的 MP4 视频。');
   }
-  return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri };
+  return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri, bytes:size, duration:asset.duration?asset.duration/1000:undefined };
 }
 
 export async function encodeMomentMedia(media: LocalMedia) {
@@ -187,7 +187,7 @@ export function MomentMediaTile({ item, context = 'moment' }: { item: Media; con
   );
 }
 
-function MomentVideo({ source }: { source: { uri: string; headers?: Record<string, string> } }) {
+export function MomentVideo({ source }: { source: { uri: string; headers?: Record<string, string> } }) {
   const videoSource = useMemo(() => source, [source.uri, source.headers?.Authorization]);
   const player = useVideoPlayer(videoSource, (controller) => {
     controller.play();

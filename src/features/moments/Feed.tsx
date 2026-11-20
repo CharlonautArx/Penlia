@@ -17,6 +17,7 @@ export const scopes: Record<Audience, string> = {
 };
 export type Moment = {
   id: string;
+  collaborationId?: string | null;
   authorId: string;
   author: string;
   body: string;
@@ -93,7 +94,7 @@ export function PrivateFeed({ mine, author }: { mine?: string; author?: string }
         </>
       }
     >
-      <View style={styles.row}>
+      <View style={[styles.row,{flexWrap:'wrap'}]}>
         <Button
           label="好友动态"
           variant={!selection ? 'primary' : 'soft'}
@@ -104,6 +105,7 @@ export function PrivateFeed({ mine, author }: { mine?: string; author?: string }
           variant={mine === '1' ? 'primary' : 'soft'}
           onPress={() => router.setParams({ mine: '1', author: '' })}
         />
+        <Button label="共创动态" variant="soft" onPress={() => router.push({pathname:'/collection/new',params:{kind:'collaboration'}})} />
         {author && mine !== '1' && <Text style={styles.small}>查看好友</Text>}
       </View>
       {!!error && (
@@ -133,6 +135,8 @@ export function PrivateFeed({ mine, author }: { mine?: string; author?: string }
             )}
           </View>
           {!!item.body && <Text style={styles.body}>{item.body}</Text>}
+          {item.collaborationId && <Button label="查看共同创作" variant="soft"
+            onPress={() => router.push({pathname:'/collection/[id]',params:{id:item.collaborationId!}})} />}
           {!!item.media.length && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {item.media.map((media) => (

@@ -32,6 +32,15 @@ function AppNavigation() {
                 <Stack.Screen name="playground" />
                 <Stack.Screen name="space" />
               </Stack.Protected>
+              <Stack.Protected guard={!!session && !isUiDemo}>
+                <Stack.Screen name="social" />
+                <Stack.Screen name="gathering/[id]" />
+                <Stack.Screen name="collection/[id]" />
+                <Stack.Screen name="journal-entry/[id]" />
+                <Stack.Screen name="contributions" />
+                <Stack.Screen name="boundary" />
+                <Stack.Screen name="review/[id]" />
+              </Stack.Protected>
               <Stack.Protected guard={!!session && isUiDemo}>
                 <Stack.Screen name="pet/[id]" />
               </Stack.Protected>

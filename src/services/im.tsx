@@ -9,7 +9,7 @@ import { useSession } from './session';
 type Sdk = typeof import('react-native-chat-sdk');
 type Client = ReturnType<Sdk['ChatClient']['getInstance']>;
 export type ImConnection = { sdk: Sdk; client: Client };
-export type TextMessage = { id: string; mine: boolean; text: string; timestamp: number; silent?: boolean };
+export type TextMessage = { id: string; mine: boolean; text: string; timestamp: number; silent?: boolean; noReply?: boolean };
 
 export function imUserId(id: string) {
   return 'penlia_' + id.replaceAll('-', '');

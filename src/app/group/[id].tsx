@@ -1,17 +1,21 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Empty, IconButton, ListRow, Notice, Section, Sheet, TopBar } from '../../components/ui';
 import {
   chooseMomentPhotos,
+  chooseMomentVideo,
   DraftMediaTile,
   encodeMomentMedia,
   MomentMediaTile,
   type LocalMedia,
   type Media,
 } from '../../features/moments/media';
+import { GroupCallScreen } from '../../features/calls/GroupCallScreen';
+import { NoReply } from '../../features/media/NoReply';
+import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { QRImage } from '../../features/privacy/CodeSheet';
 import type { ChatGroup } from '../../features/privacy/types';
@@ -26,12 +30,13 @@ type Line = {
   name: string;
   content: string;
   silent: boolean;
+  noReply: boolean;
   sentAt: string;
   media: Media[];
 };
 
 export default function GroupConversation() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, call: requestedCall } = useLocalSearchParams<{ id: string; call?: string }>();
   const { request, session } = useSession();
   const { relationships, refresh } = useFriends();
   const [group, setGroup] = useState<ChatGroup>();
@@ -45,6 +50,10 @@ export default function GroupConversation() {
   const [progress, setProgress] = useState('');
   const uploaded = useRef(new Map<string, string>());
   const [quiet, setQuiet] = useState(false);
+  const [noReply,setNoReply]=useState(false);
+  const [tools,setTools]=useState(false);
+  const [call,setCall]=useState(requestedCall==='1');
+  const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [busy, setBusy] = useState(false);
   const [details, setDetails] = useState(false);
   const [invite, setInvite] = useState<{ name: string; code: string }>();
@@ -127,7 +136,7 @@ export default function GroupConversation() {
   async function send() {
     const content = draft.trim();
     if (!content && !photos.length) return;
-    const signature = JSON.stringify([content, quiet, photos.map((photo) => photo.id)]);
+    const signature = JSON.stringify([content, quiet, noReply, photos.map((photo) => photo.id)]);
     if (pending.current?.signature !== signature) pending.current = { id: randomUUID(), signature };
     const mediaIds: string[] = [];
     for (let index = 0; index < photos.length; index++) {
@@ -146,13 +155,14 @@ export default function GroupConversation() {
     }
     await request(groupPath + '/messages', {
       method: 'POST',
-      body: { clientId: pending.current.id, content, silent: quiet, mediaIds },
+      body: { clientId: pending.current.id, content, silent: quiet, noReply, mediaIds },
     });
     pending.current = undefined;
     uploaded.current.clear();
     setPhotos([]);
     setDraft('');
     setQuiet(false);
+    setNoReply(false);
     await load();
   }
   return (
@@ -207,13 +217,21 @@ export default function GroupConversation() {
               />
             ) : undefined
           }
-          renderItem={({ item }) => (
+          renderItem={({ item,index }) => (
             <View style={{ alignSelf: item.senderId === own ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
               <Text style={styles.small}>
                 {item.senderId === own ? '我' : item.name} ·{' '}
                 {new Date(item.sentAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
               </Text>
-              <View
+              <Pressable
+                onLongPress={item.senderId!==own?()=>{
+                  const lines=messages.slice(Math.max(0,index-3),index+4).map((line)=>({
+                    id:line.id, author:line.name,mine:line.senderId===own,
+                    content:line.content+(line.media.length?' [附件 '+line.media.length+']':''),
+                  }));
+                  const anchor=lines.find((line)=>line.id===item.id);
+                  if(anchor)setReport({anchor,lines});
+                }:undefined}
                 style={[
                   styles.card,
                   { backgroundColor: item.senderId === own ? colors.lavender : colors.panel, paddingVertical: 9 },
@@ -227,14 +245,17 @@ export default function GroupConversation() {
                     ))}
                   </View>
                 )}
+                {item.noReply && <NoReply/>}
                 {item.silent && <Moon words />}
-              </View>
+              </Pressable>
             </View>
           )}
         />
         {!!error && !!group && !details && <Notice>{error}</Notice>}
+        {noReply&&<View style={{paddingHorizontal:14}}><NoReply/></View>}
         {!!group && (
           <View style={[styles.row, { padding: 9, backgroundColor: colors.panel, gap: 5 }]}>
+            <IconButton label="更多群消息选项" icon="add-circle-outline" disabled={busy} onPress={()=>setTools(true)}/>
             <IconButton
               label="从图库选择群图片"
               icon="image-outline"
@@ -269,9 +290,19 @@ export default function GroupConversation() {
           </View>
         )}
       </KeyboardAvoidingView>
+      {tools&&<Sheet title="更多群消息选项" onClose={()=>setTools(false)}>
+        <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'} onPress={()=>{setNoReply(!noReply);setTools(false);}}/>
+        <Text style={styles.muted}>可以与安静送达同时使用。</Text>
+        <Button label="选择短视频" icon="videocam-outline" variant="soft" onPress={()=>{
+          setTools(false);
+          void run(async()=>{const chosen=await chooseMomentVideo();if(chosen)setPhotos([chosen]);});
+        }}/>
+      </Sheet>}
+      {report&&<ReportSheet groupId={id} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
+      {call&&<GroupCallScreen groupId={id} onClose={()=>setCall(false)}/>}
       {!!photos.length && (
         <Sheet
-          title="发送群图片"
+          title={photos[0]?.mime==='video/mp4'?'发送群视频':'发送群图片'}
           onClose={() => {
             if (!busy) setPhotos([]);
           }}
@@ -281,10 +312,11 @@ export default function GroupConversation() {
               <DraftMediaTile key={item.id} item={item} />
             ))}
           </View>
+          {noReply && <NoReply/>}
           {quiet && <Moon words />}
           {!!error && <Notice>{error}</Notice>}
           <Button
-            label={progress || '发送 ' + photos.length + ' 张图片'}
+            label={progress || (photos[0]?.mime==='video/mp4'?'发送视频':'发送 '+photos.length+' 张图片')}
             disabled={busy}
             variant="gradient"
             onPress={() => void run(send)}
@@ -301,6 +333,7 @@ export default function GroupConversation() {
           }}
         >
           {!!error && <Notice>{error}</Notice>}
+          <Button label="群视频通话" icon="videocam-outline" variant="soft" onPress={()=>{setDetails(false);setCall(true);}}/>
           <Section title="群成员" detail={members.length + ' 位'} />
           {members.map((member) => (
             <ListRow key={member.id} title={member.name} detail={member.id === group.ownerId ? '群主' : undefined} />

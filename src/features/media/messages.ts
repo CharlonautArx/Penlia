@@ -23,6 +23,7 @@ function safeFile(candidate?: string) {
 }
 
 export function cachedAttachment(connection: ImConnection, message: ChatMessage | undefined, thumbnail = false) {
+  if (message?.body instanceof connection.sdk.ChatVideoMessageBody) return safeFile(message.body.localPath);
   if (!(message?.body instanceof connection.sdk.ChatImageMessageBody)) return undefined;
   const { localPath, thumbnailLocalPath } = message.body;
   return safeFile(localPath) ?? (thumbnail ? safeFile(thumbnailLocalPath) : undefined);
@@ -36,10 +37,11 @@ export class SendRejected extends Error {
 export async function deliverPeerMessage(connection: ImConnection, peer: string, value: PendingMessage,
   previous?: ChatMessage, onProgress?: (value: number) => void) {
   const { client } = connection;
-  const message = previous ?? buildPeerMessage(connection, peer, value, value.kind === 'image' ? nativePhotoUri(value.photoId) : undefined);
+  const local = value.kind==='image'?nativePhotoUri(value.photoId):value.kind==='video'?safeFile(value.uri):undefined;
+  const message = previous ?? buildPeerMessage(connection, peer, value, local);
   const submitted = message;
   return new Promise<ChatMessage>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new UnknownDelivery('暂未确认送达，请先查看会话，以免重复发送。')), value.kind === 'image' ? 50_000 : 20_000);
+    const timeout = setTimeout(() => reject(new UnknownDelivery('暂未确认送达，请先查看会话，以免重复发送。')), (value.kind === 'image' || value.kind === 'video') ? 50_000 : 20_000);
     const callbacks = {
       onSuccess: (confirmed: ChatMessage) => { clearTimeout(timeout); resolve(confirmed); },
       onError: () => { clearTimeout(timeout); reject(new SendRejected(submitted)); },
@@ -53,11 +55,13 @@ export async function deliverPeerMessage(connection: ImConnection, peer: string,
 export async function fetchAttachment(connection: ImConnection, message: ChatMessage) {
   const have = cachedAttachment(connection, message);
   if (have) return have;
-  if (!(message.body instanceof connection.sdk.ChatImageMessageBody) || !easemobAttachmentUrl(message.body.remotePath)) {
-    throw new Error('图片附件地址无法校验。');
+  const {sdk}=connection;
+  if (!(message.body instanceof sdk.ChatImageMessageBody || message.body instanceof sdk.ChatVideoMessageBody)
+    || !easemobAttachmentUrl(message.body.remotePath)) {
+    throw new Error('媒体附件地址无法校验。');
   }
   return new Promise<string>((resolve, reject) => {
-    const fail = () => { clearTimeout(timeout); reject(new Error('暂时无法下载图片，请检查网络后重试。')); };
+    const fail = () => { clearTimeout(timeout); reject(new Error('暂时无法下载附件，请检查网络后重试。')); };
     const timeout = setTimeout(fail, 30_000);
     void connection.client.chatManager.downloadAttachment(message, {
       onError: fail,

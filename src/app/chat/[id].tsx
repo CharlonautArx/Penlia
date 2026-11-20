@@ -13,6 +13,10 @@ import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
+import { NoReply } from '../../features/media/NoReply';
+import { PeerVideo } from '../../features/media/PeerVideo';
+import { chooseMomentVideo,MomentVideo } from '../../features/moments/media';
+import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { ImageBubble } from '../../features/media/ImageBubble';
 import { LocationBubble, LocationComposer } from '../../features/media/LocationCard';
@@ -42,6 +46,9 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
   const photo=photos[0];
   const [quiet,setQuiet]=useState(false);
+  const [noReply,setNoReply]=useState(false);
+  const [video,setVideo]=useState<Awaited<ReturnType<typeof chooseMomentVideo>>>();
+  const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const batch=useRef(false);
   const [prepareBusy, setPrepareBusy] = useState(false);
   const [transferProgress, setTransferProgress] = useState<number>();
@@ -157,7 +164,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     try {
       if (demo) {
         if (value.kind === 'text') demo.send(person.userId, value.text);
-        else demo.addMedia(person.userId, value);
+        else if(value.kind!=='video') demo.addMedia(person.userId, value);
       } else if (connection) {
         await request('/im/contact', { method: 'POST', body: { userId: person.userId } });
         if (await connection.client.getCurrentUsername() !== ownUsername) throw new Error('聊天已断开，请重新连接。');
@@ -168,7 +175,10 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       pending.current = undefined;
       if (value.kind === 'text') setDraft('');
       if (value.kind === 'image') setPhotos((current)=>current.filter((item)=>item.id!==value.photoId));
-      else setQuiet(false);
+      else {
+        setQuiet(false);setNoReply(false);
+        if (value.kind==='video')setVideo(undefined);
+      }
       return true;
     } catch (failure) {
       const uncertain = failure instanceof UnknownDelivery;
@@ -188,7 +198,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     const previous = pending.current;
     if (previous?.value.kind === 'text' && previous.value.text === text) {
       if (!previous.uncertain) void transmit(previous.value, previous.original);
-    } else void transmit({ kind: 'text', text, silent:quiet });
+    } else void transmit({ kind: 'text', text, silent:quiet,noReply });
   }
 
   async function sendImages() {
@@ -199,9 +209,9 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         const retry=pending.current;
         if(retry?.value.kind==='image'&&retry.value.photoId===item.id){
           if(retry.uncertain||!await transmit(retry.value,retry.original))return;
-        }else if(!await transmit({kind:'image',photoId:item.id,width:item.width,height:item.height,bytes:item.bytes,silent:quiet}))return;
+        }else if(!await transmit({kind:'image',photoId:item.id,width:item.width,height:item.height,bytes:item.bytes,silent:quiet,noReply}))return;
       }
-      setQuiet(false);
+      setQuiet(false);setNoReply(false);
     }finally{batch.current=false;}
   }
 
@@ -228,14 +238,23 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
               {!message.mine && (standalone
                 ? <Avatar name={person.name} source={demoPortrait(person.username)} size={30} />
                 : <View style={local.avatarSpace} />)}
-              <View style={[local.bubble, message.mine ? local.mine : local.theirs]}>
+              <Pressable style={[local.bubble, message.mine ? local.mine : local.theirs]}
+                onLongPress={!demo&&!message.mine?()=>{
+                  const context=items.slice(Math.max(0,index-3),index+4).map((line)=>({
+                    id:line.id,mine:line.mine,content:'text' in line?line.text:line.kind==='image'?'[图片]':line.kind==='video'?'[视频]':'[位置]',
+                  }));
+                  const anchor=context.find((line)=>line.id===message.id);
+                  if(anchor)setReport({anchor,lines:context});
+                }:undefined}>
+
                 {
                   'text' in message ? <Text style={styles.body}>{message.text}</Text>
                     : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
-                    : <LocationBubble value={message} />
+                    : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />
                 }
+                {message.noReply && <NoReply />}
                 {message.silent && <Moon />}
-              </View>
+              </Pressable>
             </View>
           </View>;
         }}
@@ -244,6 +263,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
+      {noReply&&!demo&&<View style={{paddingHorizontal:14}}><NoReply/></View>}
       <View style={local.composer}>
         {!demo&&<IconButton label={quiet?'关闭安静送达':'安静送达'} icon={quiet?'moon':'moon-outline'}
           tinted={quiet} disabled={sending} onPress={()=>setQuiet(!quiet)}/>}
@@ -271,10 +291,32 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
               setPicker(undefined);
             }} />)}
         </View> : <>
+          {!demo&&<>
+            <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'}
+              disabled={sending} onPress={()=>{setNoReply(!noReply);setPicker(undefined);}}/>
+            <Text style={styles.muted}>可与安静送达同时使用。</Text>
+            <Button label="短视频" icon="videocam-outline" variant="soft" disabled={!online||sending} onPress={()=>{
+              setPicker(undefined);
+              void chooseMomentVideo().then(setVideo).catch((failure)=>setActionError(errorMessage(failure)));
+            }}/>
+          </>}
           <Button label="位置" icon="location-outline" variant="soft" disabled={(!demo && !online) || sending}
             onPress={() => setPicker('location')} />
           {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
+      </Sheet>}
+      {report&&<ReportSheet peerId={person.userId} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
+      {video&&<Sheet title="发送短视频" onClose={()=>{if(!sending)setVideo(undefined);}}>
+        <MomentVideo source={{uri:video.uri}}/>
+        {noReply&&<NoReply/>}
+        {quiet&&<Moon words/>}
+        {!!actionError&&<Notice>{actionError}</Notice>}
+        <Button label={sending?'发送中…':'发送视频'} variant="gradient" disabled={sending||!online||pending.current?.uncertain}
+          onPress={()=>{
+            const queued=pending.current;
+            if(queued?.value.kind==='video'&&queued.value.uri===video.uri)void transmit(queued.value,queued.original);
+            else void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply});
+          }}/>
       </Sheet>}
       {photo && <Sheet title={demo ? '图片预览 · 本机演示' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>
         {photoUri ? <Image source={{ uri: photoUri }} style={local.imagePreview} resizeMode="contain" accessibilityLabel="待发送图片" />
@@ -283,6 +325,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           {photos.map((item,index)=><QueuePreview key={item.id} item={item} index={index}/>)}
         </View>}
         {quiet&&<Moon words/>}
+        {noReply&&<NoReply/>}
         <Text style={styles.small}>{photo.width} × {photo.height} · {Math.max(1, Math.round(photo.bytes / 1024))} KB</Text>
         {!!actionError && <Notice>{actionError}</Notice>}
         {!demo && !online && <Notice>聊天连接已断开，恢复后可以继续发送。</Notice>}
