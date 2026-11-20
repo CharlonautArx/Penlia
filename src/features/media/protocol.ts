@@ -3,13 +3,14 @@ import type { ImConnection, TextMessage } from '../../services/im';
 
 export type LocationValue = { latitude: number; longitude: number; name: string; address: string };
 export type ImageItem = { id: string; timestamp: number; mine: boolean; kind: 'image'; width: number; height: number;
-  photoId?: string; source?: ChatMessage };
-export type LocationItem = LocationValue & { id: string; timestamp: number; mine: boolean; kind: 'location' };
+  photoId?: string; source?: ChatMessage; silent?: boolean };
+export type LocationItem = LocationValue & { id: string; timestamp: number; mine: boolean; kind: 'location'; silent?: boolean };
 export type RichMessage = TextMessage | ImageItem | LocationItem;
-export type PendingMessage =
+export type PendingMessage = (
   | { kind: 'text'; text: string }
   | { kind: 'image'; photoId: string; width: number; height: number; bytes: number }
-  | ({ kind: 'location' } & LocationValue);
+  | ({ kind: 'location' } & LocationValue)
+) & { silent?: boolean };
 
 export function summaryOf(message: RichMessage) {
   if ('text' in message) return message.text;
@@ -39,7 +40,8 @@ export function readPeerMessage(connection: ImConnection, message: ChatMessage |
   const mine = message.from === own && message.to === peer;
   const fromPeer = message.from === peer && message.to === own;
   if ((!mine && !fromPeer) || (mine && message.status !== sdk.ChatMessageStatus.SUCCESS)) return null;
-  const metadata = { id: message.msgId, timestamp: message.serverTime || message.localTime, mine };
+  const metadata = { id: message.msgId, timestamp: message.serverTime || message.localTime, mine,
+    ...(message.attributes?.penlia_quiet === true ? { silent:true } : {}) };
   if (message.body instanceof sdk.ChatTextMessageBody) return { ...metadata, text: message.body.content };
   if (message.body instanceof sdk.ChatImageMessageBody) {
     const body = message.body;
@@ -55,6 +57,15 @@ export function readPeerMessage(connection: ImConnection, message: ChatMessage |
 
 
 export function buildPeerMessage(connection: ImConnection, peer: string, value: PendingMessage, photoUri?: string) {
+  const message=buildContent(connection,peer,value,photoUri);
+  if(value.silent) {
+    message.attributes.penlia_quiet=true;
+    message.attributes.em_ignore_notification=true;
+  }
+  return message;
+}
+
+function buildContent(connection: ImConnection, peer: string, value: PendingMessage, photoUri?: string) {
   const { sdk } = connection;
   const peerType = sdk.ChatMessageChatType.PeerChat;
   if (value.kind === 'image') {

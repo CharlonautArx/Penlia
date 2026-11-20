@@ -8,7 +8,7 @@
       "android",
       "ios"
     ],
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#F7F8FA",
     "icon": "./assets/icon.png",
     "ios": {
@@ -26,6 +26,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-penlia-colors",
       [
         "expo-splash-screen",
         {
@@ -35,6 +36,7 @@
         }
       ],
       "expo-secure-store",
+      "expo-video",
       [
         "expo-build-properties",
         {
@@ -47,7 +49,7 @@
         "expo-image-picker",
         {
           "photosPermission": "允许选择用于头像、聊天、动态、日志和相册的照片。",
-          "cameraPermission": false,
+          "cameraPermission": "允许朋聊扫描好友或群邀请二维码。",
           "microphonePermission": false
         }
       ],

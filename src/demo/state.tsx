@@ -16,7 +16,7 @@ const DemoContext = createContext<{
   markRead: (peerId: string) => void;
   send: (peerId: string, text: string) => void;
   receive: (peerId: string, text: string) => void;
-  request: <T>(path: string, options?: { method?: string; body?: Record<string, string> }) => Promise<T>;
+  request: <T>(path: string, options?: { method?: string; body?: Record<string, unknown> }) => Promise<T>;
 } | null>(null);
 
 export function DemoProvider({ children }: { children: ReactNode }) {
@@ -54,7 +54,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   const request = useCallback(async <T,>(path: string, { method = 'GET', body }: {
     method?: string;
-    body?: Record<string, string>;
+    body?: Record<string, unknown>;
   } = {}) => {
     if (method === 'GET' && path === '/friends') return { relationships: relationships.current } as T;
     if (method === 'GET' && path.startsWith('/people?username=')) {

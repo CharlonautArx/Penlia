@@ -8,6 +8,7 @@ export type Relationship = {
   status: 'pending' | 'accepted';
   outgoing: boolean;
   chatReady: boolean;
+  verificationMessage?: string | null;
 };
 export type Session = { token: string; user: User };
 
@@ -17,15 +18,20 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, { token, method = 'GET', body }: {
-  token?: string; method?: string; body?: Record<string, string>;
-} = {}): Promise<T> {
+export function apiOrigin() {
   const base = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
   // React Native's URL polyfill accepts several malformed strings.
   const validBase = base && /^https?:\/\/[^/?#@\s\\]+(?:\/[^?#\s\\]*)?$/.test(base);
   if (!validBase || (!base.startsWith('https://') && !__DEV__) || !new URL(base).hostname) {
     throw new Error('请配置朋聊服务地址。');
   }
+  return base;
+}
+
+export async function api<T>(path: string, { token, method = 'GET', body }: {
+  token?: string; method?: string; body?: Record<string, unknown>;
+} = {}): Promise<T> {
+  const base = apiOrigin();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   let response: Response;

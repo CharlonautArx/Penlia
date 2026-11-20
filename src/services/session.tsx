@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { AppState } from 'react-native';
 import {
   createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
@@ -10,7 +11,7 @@ import { DemoProvider, useDemo } from '../demo/state';
 import { api, ApiError, errorMessage, type Session, type User } from './api';
 
 const key = 'penlia.session.v1';
-type ApiOptions = { method?: string; body?: Record<string, string> };
+type ApiOptions = { method?: string; body?: Record<string, unknown> };
 
 const SessionContext = createContext<{
   session: Session | null;
@@ -151,6 +152,20 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   }, [session?.token]);
+
+  useEffect(() => {
+    if (!session?.token) return;
+    let pending = false;
+    async function verify() {
+      if (pending || AppState.currentState === 'background') return;
+      pending = true;
+      try { await request('/me'); } catch { /* Request handles session revocation. */ }
+      finally { pending = false; }
+    }
+    const timer = setInterval(() => void verify(), 45_000);
+    const lifecycle = AppState.addEventListener('change', (status) => { if (status === 'active') void verify(); });
+    return () => { clearInterval(timer); lifecycle.remove(); };
+  }, [request, session?.token]);
 
   const updateProfile = async (name: string, bio: string) => {
     const { user } = await request<{ user: User }>('/me', { method: 'PATCH', body: { name, bio } });

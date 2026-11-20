@@ -3,6 +3,8 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Screen, SearchField, Section, Sheet } from '../../components/ui';
+import { isUiDemo } from '../../demo/mode';
+import { QRImage, ScanCode } from '../../features/privacy/CodeSheet';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage, type User } from '../../services/api';
 import { useFriends } from '../../services/friends';
@@ -12,6 +14,10 @@ import { colors, styles } from '../../theme';
 export default function FriendsScreen() {
   const { request } = useSession();
   const { relationships, refresh, error: listError } = useFriends();
+  const [lookup,setLookup]=useState<'handle'|'phone'>('handle');
+  const [codeSheet,setCodeSheet]=useState<'mine'|'scan'>();
+  const [ownCode,setOwnCode]=useState<{code:string;expiresAt:string}>();
+  const [note,setNote]=useState('');
   const [username, setUsername] = useState('');
   const [filter, setFilter] = useState('');
   const [sheet, setSheet] = useState<'add' | 'requests'>();
@@ -38,7 +44,9 @@ export default function FriendsScreen() {
   function search() {
     setResult(undefined);
     void run(async () => {
-      const { person } = await request<{ person: User | null }>('/people?username=' + encodeURIComponent(username.trim()));
+      const { person } = lookup === 'phone'
+        ? await request<{person:User|null}>('/people/phone',{method:'POST',body:{phone:username.trim()}})
+        : await request<{person:User|null}>('/people?username=' + encodeURIComponent(username.trim()));
       setResult(person);
     });
   }
@@ -94,29 +102,48 @@ export default function FriendsScreen() {
       {sheet && <Sheet title={sheet === 'add' ? '添加好友' : '新的朋友'} onClose={() => setSheet(undefined)}>
         {!!error && <Notice>{error}</Notice>}
         {sheet === 'add' ? <>
-          <SearchField label="好友账号" placeholder="输入完整朋聊号" value={username}
+          {!isUiDemo && <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+            <Button label="按朋聊号" variant={lookup==='handle'?'primary':'soft'} onPress={()=>{setLookup('handle');setUsername('');setResult(undefined);}} />
+            <Button label="按手机号" variant={lookup==='phone'?'primary':'soft'} onPress={()=>{setLookup('phone');setUsername('');setResult(undefined);}} />
+            <Button label="扫码添加" icon="scan-outline" variant="soft" onPress={()=>{setSheet(undefined);setCodeSheet('scan');}} />
+            <Button label="我的二维码" icon="qr-code-outline" variant="soft" onPress={()=>{setSheet(undefined);setCodeSheet('mine');void run(async()=>{
+              setOwnCode(await request('/friends/code',{method:'POST'}));
+            });}} />
+          </View>}
+          <SearchField label={lookup==='phone'?'好友手机号':'好友账号'} placeholder={lookup==='phone'?'输入完整手机号':'输入完整朋聊号'} value={username}
             autoCapitalize="none" autoCorrect={false} editable={!busy} maxLength={24}
             onChangeText={(value) => { setUsername(value); setResult(undefined); }}
             onSubmitEditing={() => { if (!busy && username.trim()) search(); }} returnKeyType="search" />
           <Button label={busy ? '查找中…' : '查找'} disabled={busy || !username.trim()} onPress={search} />
-          {result === null && <Empty>找不到这个朋聊号。</Empty>}
+          {result === null && <Empty>找不到可添加的账号。</Empty>}
+          {result && !foundRelationship && !isUiDemo && <SearchField label="好友申请验证消息" placeholder="选填・说说你是谁" value={note} maxLength={100} onChangeText={setNote}/> }
           {result && <ListRow title={result.name} detail={'@' + result.username}
             left={<Avatar name={result.name} source={demoPortrait(result.username)} />} trailing={foundRelationship
               ? <Text style={styles.small}>{foundRelationship.status === 'accepted' ? '已是好友' : '已有好友申请'}</Text>
-              : <Button label="发送申请" variant="soft" disabled={busy} onPress={() => change('/friends', { userId: result.id })} />} />}
+              : <Button label="发送申请" variant="soft" disabled={busy} onPress={() => change('/friends', { userId: result.id, note })} />} />}
         </> : <>
-          {incoming.map((friend) => <ListRow key={friend.id} title={friend.name} detail={'@' + friend.username}
+          {incoming.map((friend) => <ListRow key={friend.id} title={friend.name} detail={'@' + friend.username + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
             left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={36} />}
             trailing={<View style={local.requestActions}>
               <Button label="拒绝" variant="quiet" disabled={busy} onPress={() => change('/friends/decline', { id: friend.id })} />
               <Button label="接受" variant="soft" disabled={busy} onPress={() => change('/friends/accept', { id: friend.id })} />
             </View>} />)}
-          {outgoing.map((friend) => <ListRow key={friend.id} title={friend.name} detail={'@' + friend.username}
+          {outgoing.map((friend) => <ListRow key={friend.id} title={friend.name} detail={'@' + friend.username + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
             left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={36} />}
             trailing={<Text style={styles.small}>等待接受</Text>} />)}
           {!incoming.length && !outgoing.length && <Empty icon="people-outline">目前没有待处理的好友申请。</Empty>}
         </>}
       </Sheet>}
+      {codeSheet==='mine' && <Sheet title="我的好友二维码" onClose={()=>setCodeSheet(undefined)}>
+        {!!error && <Notice>{error}</Notice>}
+        {ownCode?<><QRImage value={ownCode.code}/><Text selectable style={styles.small}>{ownCode.code}</Text>
+          <Text style={styles.muted}>有效至 {new Date(ownCode.expiresAt).toLocaleString('zh-CN')}。生成新码会使旧码失效。</Text></>
+          : !error&&<Empty busy>正在生成二维码…</Empty>}
+      </Sheet>}
+      {codeSheet==='scan' && <ScanCode mode="add" onClose={()=>setCodeSheet(undefined)} onResult={(code)=>{
+        setCodeSheet(undefined);setSheet('add');setResult(undefined);
+        void run(async()=>{const {person}=await request<{person:User|null}>('/people/code',{method:'POST',body:{code}});setResult(person);});
+      }}/>}
     </Screen>
   );
 }

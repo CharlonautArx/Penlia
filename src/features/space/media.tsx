@@ -111,3 +111,9 @@ export function SpacePhoto({ photo, style, label = '照片' }: {
   return source ? <Image accessibilityLabel={label} accessible source={source} style={style} resizeMode="cover" />
     : <View style={[{ backgroundColor: colors.lavender }, style as StyleProp<ViewStyle>]} />;
 }
+
+export async function readLocalPhoto(id: string): Promise<Blob | undefined> {
+  if (Platform.OS !== 'web' || !/^[a-z\d_-]+\.[a-z]+$/i.test(id)) return undefined;
+  const value = await mediaStore<Blob | undefined>('readonly', (store) => store.get(id));
+  return value instanceof Blob ? value : undefined;
+}

@@ -14,8 +14,8 @@ import { brandGradient, colors, styles } from '../theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
-export function Icon({ name, size = 21, color = colors.ink }: { name: IconName; size?: number; color?: string }) {
-  return <Ionicons accessible={false} name={name} size={size} color={color} />;
+export function Icon({ name, size = 21, color = colors.ink }: { name: IconName; size?: number; color?: ComponentProps<typeof Ionicons>['color'] }) {
+  return <Ionicons accessible={false} name={name} size={size} color={color ?? undefined} />;
 }
 
 export function IconButton({ label, icon, onPress, tinted = false, disabled = false }: {
@@ -87,7 +87,7 @@ export function Button({ label, icon, onPress, disabled, variant = 'primary' }: 
   label: string; icon?: IconName; onPress: () => void; disabled?: boolean;
   variant?: 'primary' | 'soft' | 'danger' | 'gradient' | 'quiet';
 }) {
-  const foreground = variant === 'primary' ? '#FFFFFF' : variant === 'danger' ? colors.danger : colors.ink;
+  const foreground = variant === 'primary' ? '#FFFFFF' : variant === 'danger' ? colors.danger : variant === 'gradient' ? '#2C2835' : colors.ink;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }}
       disabled={disabled} onPress={onPress}
@@ -144,7 +144,7 @@ export function ListRow({ title, detail, left, trailing, onPress }: {
     {left}
     <View style={styles.grow}>
       <Text style={styles.strong} numberOfLines={1}>{title}</Text>
-      {!!detail && <Text numberOfLines={2} style={styles.small}>{detail}</Text>}
+      {!!detail && <Text numberOfLines={3} style={styles.small}>{detail}</Text>}
     </View>
     {trailing ?? (onPress && <Icon name="chevron-forward" size={17} color={colors.quiet} />)}
   </>;
@@ -189,13 +189,13 @@ const ui = StyleSheet.create({
   tinted: { backgroundColor: colors.pink },
   button: { minHeight: 44, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 8, gap: 6,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  primary: { backgroundColor: colors.ink },
+  primary: { backgroundColor: colors.action },
   soft: { backgroundColor: colors.lavender },
   danger: { backgroundColor: colors.pink },
   pressed: { opacity: 0.73 },
   disabled: { opacity: 0.43 },
   buttonText: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  search: { minHeight: 43, borderRadius: 12, backgroundColor: '#F2F3F5', flexDirection: 'row',
+  search: { minHeight: 43, borderRadius: 12, backgroundColor: colors.search, flexDirection: 'row',
     alignItems: 'center', paddingLeft: 12, gap: 8 },
   searchInput: { flex: 1, minWidth: 0, minHeight: 43, paddingVertical: 7, paddingRight: 10, fontSize: 14, color: colors.text },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.pink, borderRadius: 12,

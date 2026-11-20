@@ -1,20 +1,13 @@
-import { StyleSheet } from 'react-native';
+import { DynamicColorIOS, Platform, PlatformColor, StyleSheet, type ColorValue } from 'react-native';
+import palette from './palette.json';
 
+export { palette };
 export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
-export const colors = {
-  backdrop: '#F7F8FA',
-  panel: '#FFFFFF',
-  border: '#EAECEF',
-  text: '#111111',
-  muted: '#666666',
-  quiet: '#6B6F78',
-  accent: '#A22D50',
-  pink: '#FDF0F3',
-  ice: '#EDF9F8',
-  ink: '#2C2835',
-  lavender: '#F2EFF8',
-  danger: '#AA2E44',
-};
+type ColorName = keyof typeof palette.light;
+export const colors = Object.fromEntries((Object.keys(palette.light) as ColorName[]).map((name) => [
+  name, Platform.OS === 'ios' ? DynamicColorIOS({ light: palette.light[name], dark: palette.dark[name] })
+    : Platform.OS === 'android' ? PlatformColor('@color/penlia_' + name) : palette.light[name],
+])) as Record<ColorName, Exclude<ColorValue, number | null | undefined>>;
 
 export const styles = StyleSheet.create({
   card: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, gap: 12 },

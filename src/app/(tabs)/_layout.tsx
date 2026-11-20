@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router/js-tabs';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { Glint } from '../../components/Glint';
 import type { IconName } from '../../components/ui';
-import { brandGradient, colors } from '../../theme';
+import { brandGradient, colors, palette } from '../../theme';
 
 const tabs: { name: string; title: string; icon?: IconName; activeIcon?: IconName }[] = [
   { name: 'index', title: '聊天', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles' },
@@ -16,14 +16,15 @@ const tabs: { name: string; title: string; icon?: IconName; activeIcon?: IconNam
 ];
 
 export default function TabLayout() {
+  const sign = useColorScheme() === 'dark' && Platform.OS !== 'web' ? palette.dark : palette.light;
   return (
     <Tabs
       backBehavior="initialRoute"
       screenOptions={{
         headerShown: false,
         animation: Platform.OS === 'web' ? 'none' : 'fade',
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: sign.accent,
+        tabBarInactiveTintColor: sign.muted,
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel],
         tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar],

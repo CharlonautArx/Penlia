@@ -12,26 +12,33 @@ const maxChatBytes = 2 * 1024 * 1024;
 export type SelectedImage = ImagePicker.ImagePickerAsset;
 export type PreparedPhoto = { id: string; width: number; height: number; bytes: number };
 
-export async function pickOnePhoto(): Promise<SelectedImage | undefined> {
+export async function pickPhotos(selectionLimit = 1): Promise<SelectedImage[]> {
   try {
-    const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], selectionLimit: 1, exif: false });
-    if (picked.canceled) return;
-    const item = picked.assets[0];
-    if (!item) return;
-    const bytes = item.fileSize ?? item.file?.size ?? (Platform.OS !== 'web' ? new File(item.uri).size : 0);
-    if (bytes > maxInputBytes || item.width * item.height > maxInputPixels) {
-      throw new Error('图片过大，请选择 15 MB、2800 万像素以内的图片。');
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'], selectionLimit, allowsMultipleSelection: selectionLimit > 1, exif: false,
+    });
+    if (picked.canceled) return [];
+    if (picked.assets.length > selectionLimit) throw new Error('每次最多选择 ' + selectionLimit + ' 张照片。');
+    for (const item of picked.assets) {
+      const bytes = item.fileSize ?? item.file?.size ?? (Platform.OS !== 'web' ? new File(item.uri).size : 0);
+      if (bytes > maxInputBytes || item.width * item.height > maxInputPixels) {
+        throw new Error('图片过大，请选择 15 MB、2800 万像素以内的图片。');
+      }
+      if (!item.width || !item.height || (item.mimeType && !item.mimeType.startsWith('image/'))) {
+        throw new Error('暂时无法读取这张图片，请试试 JPEG 或 PNG。');
+      }
     }
-    if (!item.width || !item.height || (item.mimeType && !item.mimeType.startsWith('image/'))) {
-      throw new Error('暂时无法读取这张图片，请试试 JPEG 或 PNG。');
-    }
-    return item;
+    return picked.assets;
   } catch (failure) {
     const code = (failure as { code?: string })?.code ?? '';
     if (/permission|denied/i.test(code)) throw new Error('系统未允许选择照片。你可以在设置中调整权限后再试。');
     if (failure instanceof Error && !code) throw failure;
     throw new Error('暂时无法打开图库，请重试。');
   }
+}
+
+export async function pickOnePhoto(): Promise<SelectedImage | undefined> {
+  return (await pickPhotos())[0];
 }
 
 export function squareCrop(width: number, height: number, zoom: number) {

@@ -66,7 +66,7 @@ export default function ChatsScreen() {
       const last = lastMedia && (!lastText || lastMedia.timestamp >= lastText.timestamp) ? lastMedia : lastText;
       return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
     }).sort((a, b) => b.last.timestamp - a.last.timestamp)
-    : threads;
+    : threads.filter(({ person }) => relationships?.some((contact) => contact.userId === person.userId && contact.status === 'accepted'));
 
   const term = query.trim().toLowerCase();
   const filtered = visibleThreads.filter(({ person, last }) =>
@@ -85,7 +85,10 @@ export default function ChatsScreen() {
 
   return (
     <Screen title="聊天" solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} actions={
-      <IconButton label="发起会话" icon="add-outline" tinted onPress={() => setCompose(true)} />
+      <>
+        {!demo && <IconButton label="群聊" icon="people-outline" onPress={() => router.push('/groups')} />}
+        <IconButton label="发起会话" icon="add-outline" tinted onPress={() => setCompose(true)} />
+      </>
     }>
       <View style={local.controls}>
         <SearchField label="搜索会话" placeholder="搜索联系人或消息" value={query} onChangeText={setQuery} returnKeyType="search" />

@@ -1,0 +1,14 @@
+{
+  "light": {
+    "backdrop": "#F7F8FA", "panel": "#FFFFFF", "border": "#EAECEF", "text": "#111111",
+    "muted": "#666666", "quiet": "#6B6F78", "accent": "#A22D50", "pink": "#FDF0F3",
+    "ice": "#EDF9F8", "ink": "#2C2835", "lavender": "#F2EFF8", "danger": "#AA2E44",
+    "action": "#2C2835", "search": "#F2F3F5", "moon": "#283C71"
+  },
+  "dark": {
+    "backdrop": "#17161C", "panel": "#222129", "border": "#393640", "text": "#F5F2F7",
+    "muted": "#C2BDCB", "quiet": "#ABA6B4", "accent": "#FFA5BB", "pink": "#382730",
+    "ice": "#223435", "ink": "#F2EEF7", "lavender": "#332B43", "danger": "#FF9EB2",
+    "action": "#55486A", "search": "#292730", "moon": "#ADBFFF"
+  }
+}

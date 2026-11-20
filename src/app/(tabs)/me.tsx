@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Screen, Sheet, type IconName } from '../../components/ui';
 import { AvatarEditor } from '../../features/media/AvatarEditor';
@@ -12,7 +12,8 @@ import { colors, styles } from '../../theme';
 
 export default function MeScreen() {
   const { session, updateProfile, logout, enterDemo, demoAvatarKey, localAvatar, avatarNotice, changeLocalAvatar } = useSession();
-  const [sheet, setSheet] = useState<'资料' | '通知与隐私' | '主题与外观' | '通用设置'>();
+  const dark=useColorScheme()==='dark'&&Platform.OS!=='web';
+  const [sheet, setSheet] = useState<'资料' | '主题与外观' | '通用设置'>();
   const [avatarDraft, setAvatarDraft] = useState<string | null>();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
@@ -43,7 +44,7 @@ export default function MeScreen() {
   }
 
   return <Screen title="我的" actions={<IconButton label="通用设置" icon="settings-outline" onPress={() => setSheet('通用设置')} />}>
-    <LinearGradient colors={['#FDE7ED', '#F5F1F8', '#E1F8F5']} start={{ x: 0.02, y: 0.08 }} end={{ x: 1, y: 0.85 }} style={local.profile}>
+    <LinearGradient colors={dark?['#422B3A','#332D42','#22393B']:['#FDE7ED','#F5F1F8','#E1F8F5']} start={{ x: 0.02, y: 0.08 }} end={{ x: 1, y: 0.85 }} style={local.profile}>
       <View style={styles.row}>
         <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={64} />
         <View style={styles.grow}>
@@ -55,15 +56,19 @@ export default function MeScreen() {
       <Text style={styles.body}>{user.bio || '还没有个性签名'}</Text>
     </LinearGradient>
     <View style={local.group}>
+      <ListRow title="隐私与安全" detail="好友权限、安静时间、登录设备" left={<Tile icon="shield-checkmark-outline" />}
+        onPress={() => router.push('/privacy')} />
+    </View>
+    <View style={local.group}>
       <ListRow title="我的空间" detail="动态、日志和相册" left={<Tile icon="person-circle-outline" />}
         onPress={() => router.push({ pathname: '/space/[id]', params: { id: user.id } })} />
-      <ListRow title="我的动态" detail="查看本机发布的动态" left={<Tile icon="albums-outline" />}
+      <ListRow title="我的动态" detail="查看你发布的动态" left={<Tile icon="albums-outline" />}
         onPress={() => router.navigate({ pathname: '/moments', params: { mine: '1' } })} />
       <ListRow title="想去的地方" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
         onPress={() => router.push('/playground/saved')} />
     </View>
     <View style={local.group}>
-      <ListRow title="通知与隐私" left={<Tile icon="shield-checkmark-outline" />} onPress={() => setSheet('通知与隐私')} />
+      <ListRow title="本机空间隐私" left={<Tile icon="eye-outline" />} onPress={() => router.push('/space/privacy')} />
       <ListRow title="主题与外观" left={<Tile icon="color-palette-outline" />} onPress={() => setSheet('主题与外观')} />
       <ListRow title="通用设置" left={<Tile icon="settings-outline" />} onPress={() => setSheet('通用设置')} />
     </View>
@@ -85,13 +90,7 @@ export default function MeScreen() {
             if ((avatarDraft ?? undefined) !== localAvatar) await changeLocalAvatar(avatarDraft ?? null);
           })} />
       </>}
-      {sheet === '通知与隐私' && <>
-        <ListRow title="位置" detail="选择城市和活动类别无需授予定位权限。" left={<Tile icon="location-outline" />} />
-        <ListRow title="通知偏好" detail="应用内通知偏好待开放。" left={<Tile icon="notifications-outline" />} />
-        <ListRow title="空间隐私" detail="访问范围、历史和互动" left={<Tile icon="eye-outline" />}
-          onPress={() => { setSheet(undefined); router.push('/space/privacy'); }} />
-      </>}
-      {sheet === '主题与外观' && <ListRow title="浅色主题" detail="当前使用 · 深色主题待开放" left={<Tile icon="sunny-outline" />} />}
+      {sheet === '主题与外观' && <ListRow title="跟随系统主题" detail={dark?'当前为深色模式':'当前为浅色模式'} left={<Tile icon="sunny-outline" />} />}
       {sheet === '通用设置' && <ListRow title="朋聊" detail={enterDemo ? '0.1.0 · 离线演示' : '0.1.0'} left={<Tile icon="chatbubbles-outline" />} />}
     </Sheet>}
   </Screen>;

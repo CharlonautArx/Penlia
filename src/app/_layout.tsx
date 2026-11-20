@@ -24,6 +24,10 @@ function AppNavigation() {
               <Stack.Protected guard={!!session}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="chat/[id]" />
+                <Stack.Screen name="privacy" />
+                <Stack.Screen name="groups" />
+                <Stack.Screen name="group/[id]" />
+                <Stack.Screen name="private-moment" />
                 <Stack.Screen name="person/[id]" />
                 <Stack.Screen name="playground" />
                 <Stack.Screen name="space" />
@@ -42,7 +46,7 @@ function AppNavigation() {
 export default function RootLayout() {
   return (
     <SessionProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <AppNavigation />
     </SessionProvider>
   );

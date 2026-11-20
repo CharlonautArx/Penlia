@@ -1,5 +1,9 @@
 module.exports = ({ config }) => {
-  if (process.env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1') return config;
+  if (process.env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1') {
+    return { ...config, plugins: [...config.plugins, ['expo-camera', {
+      cameraPermission: '允许朋聊扫描好友或群邀请二维码。', microphonePermission: false, recordAudioAndroid: false,
+    }]] };
+  }
   if (process.env.EAS_BUILD_PROFILE && process.env.EAS_BUILD_PROFILE !== 'ui-demo') {
     throw new Error('Use the ui-demo build profile for the UI demo.');
   }
