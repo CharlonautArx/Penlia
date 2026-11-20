@@ -27,6 +27,8 @@
 
 ## 阿里云与环信接入顺序
 
+本节在四阶段代码开发结束、获批进入隔离联调时使用。配置项、费用和真机验证统一维护在 [最终配置与联调清单](../FINAL_INTEGRATION_CHECKLIST.md)。
+
 1. 使用隔离的测试应用和有备份的测试数据库，确认初始迁移存在。经批准后，运行独立 DMS 增量脚本，业务账号使用脚本内的独立授权。已有数据库初始迁移不需要重跑。
 2. 本机执行 `server/deploy/package-fc.sh` 生成 FC Web ZIP 和两个 DMS 文件。用现有 `Penlia-api` 的 Web 运行时和 HTTPS 地址验收。应用构建仍需要 `EXPO_PUBLIC_API_URL` 与公开客户端 `EXPO_PUBLIC_EASEMOB_APP_KEY`。
 3. 在环信设置好友关系检查和单聊的发送前回调，涵盖 App 支持的所有消息类型，默认失败策略设为拒绝。回调必须使用 HTTPS。把供应商签发的回调 Secret 和随机高熵路径密钥分别放在 FC 的 `PENLIA_IM_CALLBACK_SECRET` 与 `PENLIA_IM_CALLBACK_PATH_KEY`。路径密钥同样应避免写入日志。在隔离测试应用确认回调默认拒绝后，在测试 FC 设置 `PENLIA_IM_PRIVACY_READY=1`，使用测试账号验证接受、拒绝、删除、拉黑和回调超时。生产启用需要审批及这套验收结果。 [环信发送前回调](https://doc.easemob.com/document/server-side/callback_presending.html) [环信好友关系检查](https://doc.easemob.com/document/react-native/user_relationship.html)
