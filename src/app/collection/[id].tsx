@@ -183,6 +183,8 @@ function Details({ id }: { id: string }) {
           onPress={() => router.push({ pathname: '/private-moment', params: { id: coll.momentId! } })}
         />
       )}
+      {coll.kind==='journal'&&<Button label="保存为共同回忆" variant="quiet"
+        onPress={()=>router.push({pathname:'/life/memories',params:{from:coll.id,sourceKind:'journal',title:coll.title}})}/>}
       {!data.entries.length && <Empty icon="book-outline">还没有符合条件的记录。</Empty>}
       {[...data.entries, ...more].map((entry) => (
         <ListRow

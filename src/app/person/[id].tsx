@@ -6,6 +6,8 @@ import { Avatar, Button, Empty, Notice, Screen, Sheet } from '../../components/u
 import { isUiDemo } from '../../demo/mode';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage, type User } from '../../services/api';
+import { StatusBlock,type LifeStatus } from '../life/status';
+import { useRecord } from '../../features/social/ui';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, styles } from '../../theme';
@@ -45,6 +47,7 @@ export default function PersonScreen() {
         {!!(profile?.bio || friend.bio)&&<Text style={styles.body}>{profile?.bio ?? friend.bio}</Text>}
         {profile?.resting&&<Text style={styles.muted}>正在休息</Text>}
       </View>
+      {!isUiDemo&&<FriendLifeStatus id={id}/>}
       <Button label="发消息" icon="chatbubble-outline" variant="gradient"
         onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />
       {isUiDemo?<View style={local.shortcuts}>
@@ -65,6 +68,11 @@ export default function PersonScreen() {
       <Button label={confirm==='block'?'确认拉黑':confirm==='restrict'?'确认限制':'确认删除好友'} variant="danger" disabled={busy} onPress={()=>void manage()}/>
     </Sheet>}
   </Screen>;
+}
+
+function FriendLifeStatus({id}:{id:string}){
+  const {data}=useRecord<{status:LifeStatus|null}>('/p2/status/'+id,20000);
+  return data?.status?<StatusBlock status={data.status}/>:null;
 }
 
 const local = StyleSheet.create({

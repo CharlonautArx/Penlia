@@ -1,0 +1,651 @@
+import { randomUUID } from 'expo-crypto';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Linking, Pressable, Text, View } from 'react-native';
+import { Button, ListRow, Notice, Section, Sheet } from '../../components/ui';
+import { MemberChoices } from '../privacy/MemberChoices';
+import { LocationBubble, LocationComposer } from '../media/LocationCard';
+import { type LocalMedia, type Media } from '../moments/media';
+import { Choices, Field, useRecord } from '../social/ui';
+import { useFriends } from '../../services/friends';
+import { useSession } from '../../services/session';
+import { colors, styles } from '../../theme';
+import { AssetPicker, DataEmpty, MediaStrip, uploadAssets, type Project } from './ui';
+
+const categories = {
+  food: '美食',
+  film: '电影',
+  music: '音乐',
+  travel: '旅行',
+  leisure: '休闲',
+  other: '其他',
+};
+type Category = keyof typeof categories;
+const marks = { want: '想去', visited: '去过', done: '一起完成', recommended: '朋友推荐' };
+const scopes = { private: '仅自己', space: '共同成员', selected: '指定好友', group: '关系组' };
+type Scope = keyof typeof scopes;
+type Kind = 'saved' | 'place';
+type Item = {
+  id: string;
+  ownerId: string;
+  kind: Kind;
+  title: string;
+  category: Category;
+  notes: string;
+  location: string;
+  tags: string[];
+  state: keyof typeof marks;
+  scope: Scope | null;
+  groupId: string | null;
+  memberIds: string[] | null;
+  sourceUrl: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  spaceId: string | null;
+  revision: number;
+  author: string;
+  media: Media[];
+  wishId?: string | null;
+  tripId?: string | null;
+  memoryId?: string | null;
+};
+type ItemPage = { items: Item[]; next: number | null };
+const tabs = { mine: '我的收藏', friends: '好友推荐' };
+const mapTabs = { mine: '我的地点', friends: '朋友分享' };
+
+export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string; itemId?: string }) {
+  const { session } = useSession();
+  const [tab, setTab] = useState<'mine' | 'friends'>('mine');
+  const [category, setCategory] = useState<Category>();
+  const [editor, setEditor] = useState<Item | 'new'>();
+  const [expanded, setExpanded] = useState<Item>();
+  const [removing, setRemoving] = useState<Item>();
+  const [copying, setCopying] = useState<{ id: string; clientId: string }>();
+  const [notice, setNotice] = useState('');
+  const [fetched, setFetched] = useState<{ path: string; rows: Item[]; next: number | null }>();
+  const path =
+    '/p2/items?' +
+    new URLSearchParams({
+      kind,
+      tab: space ? 'space' : tab,
+      ...(space ? { space } : {}),
+      ...(category ? { category } : {}),
+    });
+  const { data, error, busy, run, request, load } = useRecord<ItemPage>(path);
+  const entries = [...(data?.items ?? []), ...(fetched?.path === path ? fetched.rows : [])].filter(
+    (item, index, all) => all.findIndex((x) => x.id === item.id) === index,
+  );
+  const next = fetched?.path === path ? fetched.next : data?.next;
+  const me = session?.user.id;
+  async function refresh() {
+    setFetched(undefined);
+    await load();
+  }
+  const card = (item: Item) => (
+    <ItemCard
+      key={item.id}
+      item={item}
+      me={me || ''}
+      open={() => setExpanded(item)}
+      edit={() => setEditor(item)}
+      remove={() => setRemoving(item)}
+    />
+  );
+  return (
+    <>
+      {!space && <Choices labels={kind === 'place' ? mapTabs : tabs} value={tab} set={setTab} />}
+      <Choices
+        labels={{ all: '全部', ...categories }}
+        value={category ?? 'all'}
+        set={(value) => setCategory(value === 'all' ? undefined : value)}
+      />
+      {!itemId && (tab === 'mine' || space) && (
+        <Button
+          label={kind === 'place' ? '标记地点' : '添加收藏'}
+          variant="gradient"
+          icon="add"
+          onPress={() => setEditor('new')}
+        />
+      )}
+      {itemId && <LinkedItem id={itemId} />}
+      {!!error && (
+        <Notice action="重试" onAction={() => void refresh()}>
+          {error}
+        </Notice>
+      )}
+      {!!notice && <Notice>{notice}</Notice>}
+      {kind === 'place' && !!entries.length && <PlacePlot items={entries} select={setExpanded} />}
+      {kind === 'place' && tab === 'mine' && !space && <Resonance />}
+      {!itemId && !entries.length && !error && (
+        <DataEmpty loading={!data}>
+          {kind === 'place' ? '这里还没有可查看的地点。' : '这里还没有可查看的收藏。'}
+        </DataEmpty>
+      )}
+      {!itemId && entries.map(card)}
+      {!itemId && next !== undefined && next !== null && (
+        <Button
+          label="查看更多"
+          variant="soft"
+          disabled={busy}
+          onPress={() =>
+            void run(async () => {
+              const page = await request<ItemPage>(path + '&offset=' + next);
+              setFetched({
+                path,
+                rows: [...(fetched?.path === path ? fetched.rows : []), ...page.items],
+                next: page.next,
+              });
+            }, false)
+          }
+        />
+      )}
+      {editor && (
+        <ItemEditor
+          kind={kind}
+          initial={editor === 'new' ? undefined : editor}
+          space={space}
+          onClose={() => {
+            setEditor(undefined);
+            void refresh();
+          }}
+        />
+      )}
+      {expanded && (
+        <Sheet title={expanded.title} onClose={() => setExpanded(undefined)}>
+          <ItemInformation item={expanded} />
+          {expanded.ownerId !== me && (
+            <Button
+              label="加入我的收藏"
+              variant="gradient"
+              disabled={busy}
+              onPress={() => {
+                const client = copying?.id === expanded.id ? copying.clientId : randomUUID();
+                setCopying({ id: expanded.id, clientId: client });
+                void run(async () => {
+                  await request('/p2/items/' + expanded.id + '/copy', {
+                    method: 'POST',
+                    body: { clientId: client },
+                  });
+                  setExpanded(undefined);
+                  setNotice(kind === 'place' ? '已添加到我的地点。' : '已添加到我的收藏。');
+                }, false);
+              }}
+            />
+          )}
+          <Button
+            label="从这里发起约局"
+            variant="soft"
+            onPress={() => {
+              setExpanded(undefined);
+              router.push({
+                pathname: '/gathering/new',
+                params: {
+                  title: expanded.title,
+                  place: expanded.location || expanded.title,
+                  category:
+                    expanded.category === 'food'
+                      ? 'food'
+                      : expanded.category === 'film'
+                        ? 'film'
+                        : expanded.category === 'travel'
+                          ? 'travel'
+                          : 'other',
+                },
+              });
+            }}
+          />
+          {kind === 'place' && (
+            <Button
+              label="从地点记录新心愿"
+              variant="quiet"
+              onPress={() => {
+                setExpanded(undefined);
+                router.push({
+                  pathname: '/social',
+                  params: {
+                    section: 'wishes',
+                    wishTitle: expanded.title,
+                    wishPlace: expanded.location || expanded.title,
+                  },
+                });
+              }}
+            />
+          )}
+          {expanded.tripId && (
+            <Button
+              label="查看关联旅行"
+              variant="quiet"
+              onPress={() =>
+                router.push({
+                  pathname: '/life/project/[id]',
+                  params: { id: expanded.tripId!, kind: 'trip' },
+                })
+              }
+            />
+          )}
+          {expanded.memoryId && (
+            <Button
+              label="查看关联回忆"
+              variant="quiet"
+              onPress={() => router.push({ pathname: '/life/memories', params: { id: expanded.memoryId! } })}
+            />
+          )}
+          {!!error && <Notice>{error}</Notice>}
+        </Sheet>
+      )}
+      {removing && (
+        <Sheet title="删除这条记录" onClose={() => setRemoving(undefined)}>
+          <Text style={styles.muted}>已分享的读者将失去原记录和附件权限。</Text>
+          {!!error && <Notice>{error}</Notice>}
+          <Button
+            label="确认删除"
+            variant="danger"
+            disabled={busy}
+            onPress={() =>
+              void run(async () => {
+                await request('/p2/items/' + removing.id, { method: 'DELETE' });
+                setRemoving(undefined);
+                await refresh();
+              }, false)
+            }
+          />
+        </Sheet>
+      )}
+    </>
+  );
+}
+
+function ItemCard({
+  item,
+  me,
+  open,
+  edit,
+  remove,
+}: {
+  item: Item;
+  me: string;
+  open: () => void;
+  edit: () => void;
+  remove: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Section title={item.title} detail={categories[item.category] + ' · ' + marks[item.state]} />
+      {item.ownerId !== me && <Text style={styles.small}>{item.author} 分享</Text>}
+      {!!item.location && <Text style={styles.muted}>{item.location}</Text>}
+      {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
+      <MediaStrip media={item.media} />
+      {!!item.tags.length && <Text style={styles.small}>{item.tags.map((tag) => '#' + tag).join('  ')}</Text>}
+      <View style={[styles.row, { flexWrap: 'wrap' }]}>
+        <Button label="查看与使用" variant="soft" onPress={open} />
+        {item.ownerId === me && (
+          <>
+            <Button label="编辑" variant="quiet" onPress={edit} />
+            <Button label="删除" variant="quiet" onPress={remove} />
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+function ItemInformation({ item }: { item: Item }) {
+  const [notice, setNotice] = useState('');
+  return (
+    <>
+      <Text style={styles.muted}>
+        {categories[item.category]} · {marks[item.state]} · {item.author}
+      </Text>
+      {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
+      {!!item.location && <Text style={styles.muted}>{item.location}</Text>}
+      {item.kind === 'place' && item.latitude !== null && item.longitude !== null && (
+        <LocationBubble
+          value={{
+            latitude: item.latitude,
+            longitude: item.longitude,
+            name: item.title,
+            address: item.location,
+          }}
+        />
+      )}
+      <MediaStrip media={item.media} />
+      {item.sourceUrl && (
+        <Button
+          label="打开用户保存的链接"
+          icon="open-outline"
+          variant="soft"
+          onPress={() => void Linking.openURL(item.sourceUrl!).catch(() => setNotice('当前无法打开链接。'))}
+        />
+      )}
+      {!!notice && <Notice>{notice}</Notice>}
+    </>
+  );
+}
+function LinkedItem({ id }: { id: string }) {
+  const { data, error } = useRecord<{ item: Item }>('/p2/items/' + id);
+  return data ? (
+    <ItemInformation item={data.item} />
+  ) : error ? (
+    <Notice>{error}</Notice>
+  ) : (
+    <DataEmpty loading>正在读取收藏。</DataEmpty>
+  );
+}
+function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => void }) {
+  const points = items.filter((item) => item.latitude !== null && item.longitude !== null);
+  if (!points.length) return null;
+  const xs = points.map((p) => p.longitude!),
+    ys = points.map((p) => p.latitude!);
+  const xmin = Math.min(...xs),
+    xmax = Math.max(...xs),
+    ymin = Math.min(...ys),
+    ymax = Math.max(...ys);
+  const project = (n: number, min: number, max: number) =>
+    min === max ? 50 : 10 + ((n - min) / (max - min)) * 80;
+  const pinColors = { want: '#AE3E63', visited: '#1B7767', done: '#6653A4', recommended: '#98602A' };
+  return (
+    <View style={styles.card}>
+      <Section title="地点示意图" />
+      <Text style={styles.small}>按已授权点位的经纬度绘制。点按标记查看地点。</Text>
+      <View style={{ height: 205, backgroundColor: colors.ice, borderRadius: 13, overflow: 'hidden' }}>
+        <View
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: 0,
+            right: 0,
+            borderTopWidth: 1,
+            borderColor: colors.border,
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: 0,
+            bottom: 0,
+            borderLeftWidth: 1,
+            borderColor: colors.border,
+          }}
+        />
+        {points.map((point, index) => (
+          <Pressable
+            key={point.id}
+            accessibilityRole="button"
+            accessibilityLabel={point.title + '，' + marks[point.state]}
+            onPress={() => select(point)}
+            style={{
+              position: 'absolute',
+              top: 100 - project(point.latitude!, ymin, ymax) + '%',
+              left: project(point.longitude!, xmin, xmax) + '%',
+              transform: [{ translateX: -18 }, { translateY: -18 }],
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: pinColors[point.state],
+              borderWidth: 2,
+              borderColor: 'white',
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: '700' }}>{index + 1}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Resonance() {
+  const { data } = useRecord<{ matches: { id: string; title: string; friend: string; friendId: string }[] }>(
+    '/p2/place-resonance',
+  );
+  return data?.matches.length ? (
+    <View style={styles.card}>
+      <Section title="你们都想去" />
+      {data.matches.map((item) => (
+        <ListRow
+          key={item.id + item.friendId}
+          title={item.title}
+          detail={item.friend + '也想去'}
+          onPress={() =>
+            router.push({
+              pathname: '/gathering/new',
+              params: { title: item.title, place: item.title, friend: item.friendId, category: 'travel' },
+            })
+          }
+        />
+      ))}
+    </View>
+  ) : null;
+}
+
+function ItemEditor({
+  kind,
+  initial,
+  space,
+  onClose,
+}: {
+  kind: Kind;
+  initial?: Item;
+  space?: string;
+  onClose: () => void;
+}) {
+  const { relationships } = useFriends();
+  const { session } = useSession();
+  const { request, error, busy, run } = useRecord('/p2/items?kind=' + kind);
+  const { data: groups } = useRecord<{ groups: { id: string; label: string }[] }>('/relationship-groups');
+  const { data: projects } = useRecord<{ spaces: (Project & { state: string })[] }>(
+    '/p2/spaces?kind=' + (kind === 'place' ? 'map' : 'list'),
+  );
+  const { data: trips } = useRecord<{ spaces: (Project & { state: string })[] }>('/p2/spaces?kind=trip');
+  const { data: wishes } = useRecord<{ wishes: { id: string; description: string }[] }>('/p1/wishes');
+  const { data: memories } = useRecord<{ memories: { id: string; ownerId: string; title: string }[] }>(
+    '/p2/memories',
+  );
+  const isPlace = kind === 'place';
+  const [clientId] = useState(randomUUID);
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [category, setCategory] = useState<Category>(initial?.category ?? 'other');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [location, setLocation] = useState(initial?.location ?? '');
+  const [tags, setTags] = useState(initial?.tags.join('、') ?? '');
+  const [link, setLink] = useState(initial?.sourceUrl ?? '');
+  const [mark, setMark] = useState<keyof typeof marks>(initial?.state ?? 'want');
+  const [scope, setScope] = useState<Scope>(initial?.scope ?? 'private');
+  const [ids, setIds] = useState(initial?.memberIds ?? []);
+  const [group, setGroup] = useState(initial?.groupId ?? '');
+  const [project, setProject] = useState(space ?? initial?.spaceId ?? '');
+  const [lat, setLat] = useState(initial?.latitude == null ? '' : String(initial.latitude));
+  const [lon, setLon] = useState(initial?.longitude == null ? '' : String(initial.longitude));
+  const [locating, setLocating] = useState(false);
+  const [wish, setWish] = useState(initial?.wishId ?? '');
+  const [trip, setTrip] = useState(initial?.tripId ?? '');
+  const [memory, setMemory] = useState(initial?.memoryId ?? '');
+  const [relations, setRelations] = useState(false);
+  const [media, setMedia] = useState<Media[]>(initial?.media ?? []);
+  const [drafts, setDrafts] = useState<LocalMedia[]>([]);
+  if (locating)
+    return (
+      <LocationComposer
+        online
+        purpose="map"
+        onClose={() => setLocating(false)}
+        onConfirm={(value) => {
+          setLat(String(value.latitude));
+          setLon(String(value.longitude));
+          if (!title) setTitle(value.name);
+          if (value.address) setLocation(value.address);
+          setLocating(false);
+        }}
+      />
+    );
+  const scopesHere = project
+    ? scopes
+    : { private: scopes.private, selected: scopes.selected, group: scopes.group };
+  return (
+    <Sheet title={initial ? '编辑记录' : isPlace ? '标记地点' : '添加收藏'} onClose={onClose}>
+      <Field title={isPlace ? '地点名称' : '名称'} value={title} onChangeText={setTitle} />
+      <Choices labels={categories} value={category} set={setCategory} />
+      <Choices
+        labels={
+          isPlace ? marks : { want: '想体验', visited: '已体验', done: '已完成', recommended: '推荐给朋友' }
+        }
+        value={mark}
+        set={setMark}
+      />
+      <Field title="地点或地址（选填）" value={location} onChangeText={setLocation} />
+      {isPlace && (
+        <>
+          <Text style={styles.muted}>手动输入 WGS‑84 经纬度，或主动获取一次位置。</Text>
+          <View style={styles.row}>
+            <View style={styles.grow}>
+              <Field title="纬度" value={lat} onChangeText={setLat} keyboardType="numbers-and-punctuation" />
+            </View>
+            <View style={styles.grow}>
+              <Field title="经度" value={lon} onChangeText={setLon} keyboardType="numbers-and-punctuation" />
+            </View>
+          </View>
+          <Button
+            label="从当前位置填写"
+            variant="quiet"
+            icon="locate-outline"
+            onPress={() => setLocating(true)}
+          />
+        </>
+      )}
+      <Field title="备注或推荐理由（选填）" multiline value={notes} onChangeText={setNotes} />
+      <Field title="标签（用顿号分开，选填）" value={tags} onChangeText={setTags} />
+      <Field title="网页链接（选填）" value={link} keyboardType="url" onChangeText={setLink} />
+      <AssetPicker drafts={drafts} change={setDrafts} limit={1} existing={media} updateExisting={setMedia} />
+      {!space && !!projects?.spaces.some((p) => p.state === 'active') && (
+        <>
+          <Section title={isPlace ? '归入共同地图' : '归入共同清单'} />
+          <Button
+            label="个人记录"
+            variant={!project ? 'primary' : 'soft'}
+            onPress={() => {
+              setProject('');
+              if (scope === 'space') setScope('private');
+            }}
+          />
+          {projects.spaces
+            .filter((p) => p.state === 'active')
+            .map((p) => (
+              <Button
+                key={p.id}
+                label={p.title}
+                variant={project === p.id ? 'primary' : 'soft'}
+                onPress={() => setProject(p.id)}
+              />
+            ))}
+        </>
+      )}
+      <Section title="谁可以看" />
+      <Choices labels={scopesHere as Record<Scope, string>} value={scope} set={setScope} />
+      {scope === 'selected' && (
+        <MemberChoices
+          friends={relationships?.filter((p) => p.status === 'accepted') ?? []}
+          ids={ids}
+          update={setIds}
+        />
+      )}
+      {scope === 'group' &&
+        groups?.groups.map((p) => (
+          <Button
+            key={p.id}
+            label={p.label}
+            variant={group === p.id ? 'primary' : 'soft'}
+            onPress={() => setGroup(p.id)}
+          />
+        ))}
+      {isPlace && (
+        <>
+          <Button
+            label="关联心愿、旅行或回忆（选填）"
+            variant="quiet"
+            onPress={() => setRelations(!relations)}
+          />
+          {relations && (
+            <>
+              {wishes?.wishes.map((p) => (
+                <Button
+                  key={p.id}
+                  label={p.description}
+                  variant={wish === p.id ? 'primary' : 'soft'}
+                  onPress={() => setWish(wish === p.id ? '' : p.id)}
+                />
+              ))}
+              {trips?.spaces
+                .filter((p) => p.state === 'active')
+                .map((p) => (
+                  <Button
+                    key={p.id}
+                    label={p.title}
+                    variant={trip === p.id ? 'primary' : 'soft'}
+                    onPress={() => setTrip(trip === p.id ? '' : p.id)}
+                  />
+                ))}
+              {memories?.memories
+                .filter((p) => p.ownerId === session?.user.id)
+                .map((p) => (
+                  <Button
+                    key={p.id}
+                    label={p.title}
+                    variant={memory === p.id ? 'primary' : 'soft'}
+                    onPress={() => setMemory(memory === p.id ? '' : p.id)}
+                  />
+                ))}
+            </>
+          )}
+        </>
+      )}
+      {!!error && <Notice>{error}</Notice>}
+      <Button
+        label="保存"
+        variant="gradient"
+        disabled={
+          busy ||
+          !title.trim() ||
+          (isPlace && (!lat.trim() || !lon.trim())) ||
+          (scope === 'selected' && !ids.length) ||
+          (scope === 'group' && !group)
+        }
+        onPress={() =>
+          void run(async () => {
+            const mediaIds = await uploadAssets(request, media, drafts);
+            await request('/p2/items' + (initial ? '/' + initial.id : ''), {
+              method: initial ? 'PATCH' : 'POST',
+              body: {
+                kind,
+                clientId,
+                title,
+                category,
+                notes,
+                location,
+                tags: tags
+                  .split(/[、，,]/)
+                  .map((tag) => tag.trim())
+                  .filter(Boolean),
+                sourceUrl: link,
+                state: mark,
+                scope,
+                memberIds: ids,
+                groupId: group || undefined,
+                mediaIds,
+                spaceId: project || undefined,
+                latitude: isPlace ? Number(lat) : undefined,
+                longitude: isPlace ? Number(lon) : undefined,
+                wishId: wish || undefined,
+                tripId: trip || undefined,
+                memoryId: memory || undefined,
+                revision: initial?.revision,
+              },
+            });
+            onClose();
+          }, false)
+        }
+      />
+    </Sheet>
+  );
+}

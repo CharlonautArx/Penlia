@@ -36,6 +36,7 @@ type Detail = {
     id: string;
     ownerId: string;
     title: string;
+    category: Category;
     mode: Mode;
     minimum: number;
     state: keyof typeof stateNames;
@@ -186,6 +187,7 @@ function GatheringDetail({ id }: { id: string }) {
   const [intent, setIntent] = useState<Intention>('undecided');
   const [votes, setVotes] = useState<string[]>([]);
   const [choice, setChoice] = useState('');
+  const [availability,setAvailability]=useState(false);
   const [panel, setPanel] = useState<'reschedule' | 'cancel'>();
   const [options, setOptions] = useState([blank()]);
   const g = data?.gathering;
@@ -231,6 +233,13 @@ function GatheringDetail({ id }: { id: string }) {
           </Text>
         )}
       </View>
+      {['interest','confirming','formed'].includes(g.state)&&<Button label={availability?'隐藏共享空闲':'查看共享空闲'}
+        icon="calendar-outline" variant="soft" onPress={()=>setAvailability(!availability)}/>}
+      {availability&&<Availability id={id} options={data.options}/>}
+      {host&&g.category==='travel'&&['formed','completed'].includes(g.state)&&<Button label="转为共同旅行" variant="soft"
+        onPress={()=>router.push({pathname:'/life/projects',params:{kind:'trip',from:g.id,title:g.title}})}/>}
+      {g.state==='completed'&&g.confirmed&&<Button label="保存为共同回忆" variant="soft"
+        onPress={()=>router.push({pathname:'/life/memories',params:{from:g.id,sourceKind:'gathering',title:g.title}})}/>}
       {g.state === 'interest' && (
         <>
           <Section title={g.directProposal ? '直接提议时间' : '匿名意向'} />
@@ -386,4 +395,19 @@ function GatheringDetail({ id }: { id: string }) {
       )}
     </Screen>
   );
+}
+
+function Availability({id,options}:{id:string;options:Option[]}){
+  const {data,error}=useRecord<{options:{id:string;includedCalendars:number;allFree:boolean}[]}>('/p2/availability/'+id);
+  return <View style={styles.card}>
+    <Section title="已共享的空闲时间"/>
+    <Text style={styles.muted}>按候选开始后的 1 小时计算，结果只基于你和主动向你共享的日程。</Text>
+    {!!error&&<Notice>{error}</Notice>}
+    {data?.options.map((item)=>{
+      const option=options.find((candidate)=>candidate.id===item.id);
+      return option?<Text key={item.id} style={styles.body}>
+        {formatTime(option.startsAt)} · {item.allFree?'已纳入的日程均为空闲':'已纳入的日程有冲突'} · {item.includedCalendars} 份日程
+      </Text>:null;
+    })}
+  </View>;
 }

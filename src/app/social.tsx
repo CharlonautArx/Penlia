@@ -56,6 +56,12 @@ const eventLabels: Record<string, string> = {
   gathering_updated: '约局有更新',
   collection_invited: '收到共同记录邀请',
   group_call: '收到群视频邀请',
+  p2_calendar_invited:'收到日程共享邀请',
+  p2_trip_invited:'收到旅行邀请',
+  p2_list_invited:'收到共同清单邀请',
+  p2_map_invited:'收到共同地图邀请',
+  p2_capsule_invited:'收到时光胶囊邀请',
+  p2_trip_journal:'旅行已关联共同日记',
 };
 type Gathering = { id: string; title: string; mode: 'all' | 'open'; state: string; directProposal:boolean };
 type Collection = {
@@ -74,32 +80,32 @@ const states: Record<string, string> = {
 };
 
 export default function SocialScreen() {
-  const { section } = useLocalSearchParams<{ section?: Tab }>();
+  const { section,wishTitle,wishPlace } = useLocalSearchParams<{ section?: Tab;wishTitle?:string;wishPlace?:string }>();
   const tab = section && section in sections ? section : 'wishes';
   return (
     <Screen title={sections[tab]} back={back}>
       <Choices labels={sections} value={tab} set={(value) => router.setParams({ section: value })} />
-      {tab === 'wishes' && <Wishes />}
+      {tab === 'wishes' && <Wishes key={wishTitle??''} title={wishTitle} place={wishPlace}/>}
       {tab === 'gatherings' && <Gatherings />}
       {tab === 'collections' && <Collections />}
       {tab === 'events' && <Events />}
     </Screen>
   );
 }
-function Wishes() {
+function Wishes({title,place}:{title?:string;place?:string}) {
   const { data, error, busy, run, request } = useRecord<{ wishes: Wish[]; matches: Match[] }>('/p1/wishes');
-  const [editor, setEditor] = useState<Wish>();
   const fresh = () =>
     ({
       id: '',
-      description: '',
-      place: '',
+      description: title??'',
+      place: place??'',
       category: 'food',
       scope: 'private',
       availableAt: null,
       budgetCents: null,
       active: true,
     }) as const;
+  const [editor, setEditor] = useState<Wish|undefined>(()=>title?fresh():undefined);
   return (
     <>
       {!!error && <Notice>{error}</Notice>}
@@ -359,6 +365,9 @@ function Events() {
           onPress={() => {
             void run(() => request('/p1/events/' + event.id + '/open', { method: 'POST' }), false);
             if (event.kind === 'wish_match') router.setParams({ section: 'wishes' });
+            else if(event.kind==='p2_calendar_invited')router.push({pathname:'/life/calendar',params:{sharing:'1'}});
+            else if(event.kind==='p2_trip_journal')router.push({pathname:'/life/project/[id]',params:{id:event.subjectId,kind:'trip'}});
+            else if(/^p2_(trip|list|map|capsule)_invited$/.test(event.kind))router.push({pathname:'/life/projects',params:{kind:event.kind.split('_')[1]}});
             else if (event.kind === 'group_call') {
               if (event.groupId)
                 router.push({ pathname: '/group/[id]', params: { id: event.groupId, call: '1' } });

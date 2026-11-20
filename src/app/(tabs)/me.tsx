@@ -67,8 +67,12 @@ export default function MeScreen() {
         onPress={() => router.push({ pathname: '/space/[id]', params: { id: user.id } })} />
       <ListRow title="我的动态" detail="查看你发布的动态" left={<Tile icon="albums-outline" />}
         onPress={() => router.navigate({ pathname: '/moments', params: { mine: '1' } })} />
-      <ListRow title="想去的地方" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
-        onPress={() => router.push('/playground/saved')} />
+      {isUiDemo ? <ListRow title="想去的地方" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
+        onPress={() => router.push('/playground/saved')} /> : <>
+        <ListRow title="我的生活状态" detail="图片、表情和可见范围" left={<Tile icon="happy-outline" />} onPress={()=>router.push('/life/status')}/>
+        <ListRow title="我的收藏与好友推荐" left={<Tile icon="bookmark-outline" />} onPress={()=>router.push('/life/items')}/>
+        <ListRow title="生活提醒" left={<Tile icon="notifications-outline" />} onPress={()=>router.push('/life/reminders')}/>
+      </>}
     </View>
     <View style={local.group}>
       <ListRow title="本机空间隐私" left={<Tile icon="eye-outline" />} onPress={() => router.push('/space/privacy')} />

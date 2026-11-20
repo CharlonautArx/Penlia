@@ -6,8 +6,8 @@ import { Button, Icon, Notice, Sheet } from '../../components/ui';
 import { colors, styles } from '../../theme';
 import { locationValue, type LocationValue } from './messages';
 
-export function LocationComposer({ online, onClose, onConfirm }: {
-  online: boolean; onClose: () => void; onConfirm: (value: LocationValue) => void;
+export function LocationComposer({ online, onClose, onConfirm, purpose = 'chat' }: {
+  online: boolean; onClose: () => void; onConfirm: (value: LocationValue) => void; purpose?: 'chat' | 'map';
 }) {
   const [point, setPoint] = useState<LocationValue>();
   const [name, setName] = useState('当前位置');
@@ -35,14 +35,14 @@ export function LocationComposer({ online, onClose, onConfirm }: {
     finally { clearTimeout(timer); setBusy(false); }
   }
 
-  return <Sheet title="发送位置" onClose={onClose}>
-    <Text style={styles.muted}>仅获取这一次位置。确认发送后，好友才能看到。</Text>
+  return <Sheet title={purpose==='map'?'填写地点':'发送位置'} onClose={onClose}>
+    <Text style={styles.muted}>{purpose==='map'?'仅获取这一次位置。它将填写到地点表单，由你选择保存和分享范围。':'仅获取这一次位置。确认发送后，好友才能看到。'}</Text>
     {point ? <>
       <LocationFace value={{ ...point, name, address }} />
       <TextInput accessibilityLabel="地点名称" maxLength={48} value={name} onChangeText={setName} style={styles.input} />
       <TextInput accessibilityLabel="地点地址" placeholder="可填写街道或地标（选填）" placeholderTextColor={colors.quiet}
         maxLength={160} value={address} onChangeText={setAddress} style={styles.input} />
-      <Button label="确认发送位置" variant="gradient" disabled={!online} onPress={() => {
+      <Button label={purpose==='map'?'填入地点表单':'确认发送位置'} variant="gradient" disabled={!online} onPress={() => {
         const value = locationValue(point.latitude, point.longitude, name, address);
         if (value) onConfirm(value);
       }} />

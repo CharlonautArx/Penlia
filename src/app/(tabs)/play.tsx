@@ -72,7 +72,10 @@ export default function PlayScreen() {
       </View>
       <View style={local.invite}>
         <Section title="朋友一起去" />
-        {!isUiDemo && <ListRow title="约朋友一起玩" detail="心愿共振、约局、共同日记" onPress={() => router.push('/social')} />}
+        {!isUiDemo && <>
+          <ListRow title="约朋友一起玩" detail="心愿共振、约局、共同日记" onPress={() => router.push('/social')} />
+          <ListRow title="一起生活" detail="共享日程、共同旅行、收藏和愿望地图" onPress={() => router.push('/life')} />
+        </>}
         <InviteButton label="发起聚会提议" message="这周找一天一起出去走走？你想喝咖啡、看电影，还是试个新活动？" />
       </View>
     </>}
