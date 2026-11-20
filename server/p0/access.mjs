@@ -1,3 +1,4 @@
+import { revokeLifeContactGrants } from '../p2/contact-cleanup.mjs';
 import { activePenalty } from '../p1/enforcement-access.mjs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cleanText, hash, HttpError, inTransaction, readId } from '../core.mjs';
@@ -264,6 +265,7 @@ export async function manageContact(userId, target, action) {
         ((approved.viewer_id=$2 AND (c.owner_id=$1 OR k.author_id=$1)) OR
          (approved.viewer_id=$1 AND (c.owner_id=$2 OR k.author_id=$2)))`,[userId,target]);
     }
+    await revokeLifeContactGrants(db,userId,target,action);
     await db.query(`DELETE FROM priority_contacts WHERE (user_id=$1 AND other_id=$2) OR (user_id=$2 AND other_id=$1)`, [
       userId,
       target,

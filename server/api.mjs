@@ -7,6 +7,8 @@ import { cleanText, hash, HttpError, inTransaction, readId } from './core.mjs';
 import { areFriends, beforeImSend, blocked, lockUsers, preferences, restricted, searchPerson } from './p0/access.mjs';
 import { p0Routes } from './p0/routes.mjs';
 import { p1Routes } from './p1/routes.mjs';
+import { p2Routes } from './p2/routes.mjs';
+import { lifeWorkerAuthorized, runLifeReminders } from './p2/memories.mjs';
 import { assertAllowed } from './p1/enforcement-access.mjs';
 import { runEnforcement, workerAuthorized } from './p1/moderation.mjs';
 
@@ -253,6 +255,10 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
       if (!workerAuthorized(authorization)) return json(404, { error: '接口不存在。' });
       return json(200, await runEnforcement());
     }
+    if (route === 'POST /ops/p2/reminders/run') {
+      if (!lifeWorkerAuthorized(authorization)) return json(404, { error:'接口不存在。' });
+      return json(200,await runLifeReminders());
+    }
     if (route === 'GET /ops/phone-usage') {
       if (!diagnosticAllowed(authorization)) return json(404, { error: '接口不存在。' });
       return json(200, phoneAuth ? await phoneAuth.usage() : { enabled: false });
@@ -265,6 +271,8 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
     const { user, tokenHash } = await requireSession(authorization);
     const p1 = await p1Routes(method,path,{ user,query,readBody,rateLimit,headers,rtc,moderationEvidence,reviewAdvisor });
     if (p1 !== undefined) return Buffer.isBuffer(p1.binary) ? p1 : json(200,p1);
+    const p2 = await p2Routes(method,path,{user,query,readBody,headers,rateLimit});
+    if(p2!==undefined)return Buffer.isBuffer(p2.binary)?p2:json(200,p2);
     switch (route) {
       case 'POST /v1/logout':
         await pool.query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);

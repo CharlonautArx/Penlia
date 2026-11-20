@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { cleanText, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
 import { areFriends, blocked, idsOf, lockUsers, restricted } from '../p0/access.mjs';
@@ -48,13 +49,13 @@ export async function listCollections(user) {
   return { collections: rows };
 }
 
-export async function createCollection(user, body) {
-  const clientId = readId(body.clientId);
+export async function createCollection(user, body, transaction) {
+  const clientId = transaction ? randomUUID() : readId(body.clientId);
   const kind = choose(body.kind, ['journal', 'collaboration']);
   const title = cleanText(body.title, 80, true);
   const gathering = body.gatheringId ? readId(body.gatheringId) : null;
   if (gathering && kind !== 'journal') throw invalid();
-  return inTransaction(pool, async (db) => {
+  const save = async (db) => {
     await lockUsers(db, user);
     const {
       rows: [existing],
@@ -102,7 +103,8 @@ export async function createCollection(user, body) {
     }
     await addMembers(db, user, record.id, members);
     return record;
-  });
+  };
+  return transaction ? save(transaction) : inTransaction(pool, save);
 }
 
 async function addMembers(db, owner, id, members) {
@@ -213,9 +215,9 @@ export async function getCollection(user, id, query) {
   });
 }
 
-export async function createEntry(user, id, body) {
+export async function createEntry(user, id, body, transaction) {
   const clientId = readId(body.clientId);
-  return inTransaction(pool, async (db) => {
+  const save = async (db) => {
     const collection = await access(db, id, user, { lock: true, write: true });
     if (collection.kind !== 'journal') throw conflict('共创动态使用现有条目。');
     const {
@@ -245,7 +247,8 @@ export async function createEntry(user, id, body) {
       ],
     );
     return row;
-  });
+  };
+  return transaction ? save(transaction) : inTransaction(pool, save);
 }
 
 async function entryAccess(db, id, user, write) {

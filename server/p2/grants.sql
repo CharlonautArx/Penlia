@@ -1,0 +1,1 @@
+GRANT SELECT,INSERT,UPDATE,DELETE ON p2_calendar_shares,p2_calendar_events,p2_spaces,p2_members,p2_trips,p2_trip_agreements,p2_itinerary,p2_itinerary_votes,p2_items,p2_item_viewers,p2_capsules,p2_capsule_entries,p2_capsule_audio,p2_status,p2_status_viewers,p2_assets,p2_memories,p2_memory_viewers,p2_memory_settings,p2_reminders TO penlia_app;

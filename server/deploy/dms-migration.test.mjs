@@ -71,3 +71,17 @@ test('P1 follow-up migration gates the one-time schedule correction and creates 
     'GRANT SELECT, INSERT ON p1_report_media TO penlia_app');
   assert.match(statements.at(-2), /005_p1_privacy_followup\.sql/);
 });
+
+test('P2 flat increment checks the accepted P1 follow-up and preserves earlier scripts', () => {
+  const generated = execFileSync(process.execPath, [fileURLToPath(file('dms-migration.mjs')), '--p2'], { encoding: 'utf8' });
+  assert.equal(generated, readFileSync(file('penlia-p2-dms.sql'), 'utf8'));
+  assert.doesNotMatch(generated, /\$(?:[a-zA-Z_][a-zA-Z_0-9]*)?\$/);
+  const statements = generated.trim().split(';').map((s) => s.trim()).filter(Boolean);
+  assert.equal(statements[0], 'BEGIN');
+  assert.equal(statements.at(-1), 'COMMIT');
+  assert.match(statements.find((step) => step.endsWith('AS p1_followup_check')), /005_p1_privacy_followup\.sql/);
+  const creates=statements.filter((step)=>step.startsWith('CREATE'));
+  assert(creates.length>20);
+  for(const create of creates)assert.match(create,/^CREATE (?:TABLE|(?:UNIQUE )?INDEX) IF NOT EXISTS /);
+  assert.match(statements.at(-2), /006_life_p2\.sql/);
+});

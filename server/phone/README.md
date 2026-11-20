@@ -54,4 +54,4 @@ OTP 由 Node.js 加密随机数生成，五分钟有效，错误五次失效。�
 3. 通过服务器密钥管理部署，明确 FC 入口可信源 IP、密钥限制、告警和审计清理。管理员在持有手机号模块事务锁的管理事务中配置共享硬上限及开关，应用账号没有修改开关的权限。白名单通过后再扩大流量。
 4. 旧用户先在原账号登录后绑定。正式环境验证现有账号、好友、聊天 UID、会话恢复及失去手机号后的恢复流程。单独验证运营商回执和月度通知链。
 
-本地测试使用独立的 penlia_phone_test 和临时 PostgreSQL 用户。先应用基础 SQL、P0 增量 `server/migrations/003_privacy_p0.sql`、P1 增量 `server/migrations/004_social_p1.sql`、收尾增量 `server/migrations/005_p1_privacy_followup.sql` 和对应业务授权，测试数据库名替换基础授权脚本中的 penlia_dev。设置 PGHOST 为 127.0.0.1、PGDATABASE 为 penlia_phone_test、PGUSER 为 penlia_app、PG_TLS 为 disable，并注入临时 PGPASSWORD 和 PENLIA_PHONE_TEST_ADMIN_PASSWORD。执行 node server/phone/phone.test.mjs。测试仅允许指定的回环测试数据库，会清理手机号测试表。模拟票据和验证码不写入日志。
+本地测试使用独立的 penlia_phone_test 和临时 PostgreSQL 用户。先应用基础 SQL、P0 增量 `server/migrations/003_privacy_p0.sql`、P1 增量 `server/migrations/004_social_p1.sql`、收尾增量 `server/migrations/005_p1_privacy_followup.sql` 、P2 增量 `server/migrations/006_life_p2.sql` 和对应业务授权，测试数据库名替换基础授权脚本中的 penlia_dev。设置 PGHOST 为 127.0.0.1、PGDATABASE 为 penlia_phone_test、PGUSER 为 penlia_app、PG_TLS 为 disable，并注入临时 PGPASSWORD 和 PENLIA_PHONE_TEST_ADMIN_PASSWORD。执行 node server/phone/phone.test.mjs。测试仅允许指定的回环测试数据库，会清理手机号测试表。模拟票据和验证码不写入日志。
