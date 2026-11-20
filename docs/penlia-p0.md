@@ -29,7 +29,7 @@
 
 1. 使用隔离的测试应用和有备份的测试数据库，确认初始迁移存在。经批准后，运行独立 DMS 增量脚本，业务账号使用脚本内的独立授权。已有数据库初始迁移不需要重跑。
 2. 本机执行 `server/deploy/package-fc.sh` 生成 FC Web ZIP 和两个 DMS 文件。用现有 `Penlia-api` 的 Web 运行时和 HTTPS 地址验收。应用构建仍需要 `EXPO_PUBLIC_API_URL` 与公开客户端 `EXPO_PUBLIC_EASEMOB_APP_KEY`。
-3. 在环信设置好友关系检查和单聊的发送前回调，涵盖 App 支持的所有消息类型，默认失败策略设为拒绝。回调必须使用 HTTPS。把供应商签发的回调 Secret 和随机高熵路径密钥分别放在 FC 的 `PENLIA_IM_CALLBACK_SECRET` 与 `PENLIA_IM_CALLBACK_PATH_KEY`。路径密钥同样应避免写入日志。凭真实账号测试同意、拒绝、删除、拉黑、断网失败策略通过后，再设置 `PENLIA_IM_PRIVACY_READY=1` 签发 IM Token。 [环信发送前回调](https://doc.easemob.com/document/server-side/callback_presending.html) [环信好友关系检查](https://doc.easemob.com/document/react-native/user_relationship.html)
+3. 在环信设置好友关系检查和单聊的发送前回调，涵盖 App 支持的所有消息类型，默认失败策略设为拒绝。回调必须使用 HTTPS。把供应商签发的回调 Secret 和随机高熵路径密钥分别放在 FC 的 `PENLIA_IM_CALLBACK_SECRET` 与 `PENLIA_IM_CALLBACK_PATH_KEY`。路径密钥同样应避免写入日志。在隔离测试应用确认回调默认拒绝后，在测试 FC 设置 `PENLIA_IM_PRIVACY_READY=1`，使用测试账号验证接受、拒绝、删除、拉黑和回调超时。生产启用需要审批及这套验收结果。 [环信发送前回调](https://doc.easemob.com/document/server-side/callback_presending.html) [环信好友关系检查](https://doc.easemob.com/document/react-native/user_relationship.html)
 4. 确认账号有离线推送权限，安装实际 Android/iOS 通道凭证，检查 OS 权限、后台、跨时区和安静送达。文字回调仅在供应商负载大小允许时改写，媒体回调改写需供应商确认后显式启用 `PENLIA_IM_REWRITE_MEDIA=1`。未完成全链路验收时，勿在发布说明中承诺厂商系统通知静默。 [环信静默推送扩展](https://doc.easemob.com/document/react-native/push/push_extension.html) [环信免打扰配置](https://doc.easemob.com/document/react-native/push/push_notification_mode_dnd.html)
 5. 若需要手机号查找，对应手机号必须经身份验证并写入 002 的身份表。`PENLIA_PHONE_LOOKUP_SECRET` 与手机号验证服务使用完全一致的 HMAC 密钥及编码，保持在 FC。真实短信、滑块及其费用控制继续沿用上一轮方案。
 6. 保持原有数据库 TLS 和安全组配置。生产环境的静默、会话设备撤销、短信和附件权限须用测试账号在两部手机复核。完整注销和完整数据交付上线前要确定人工核验、保留与审计流程。
@@ -40,7 +40,7 @@
 
 - TypeScript、Expo SDK 依赖版本检查、Android ARM64 Release 构建及 APK 签名校验。
 - P0 的八个测试通过。使用临时 PostgreSQL 17、现有 `penlia_app` 最小权限及真实 HTTP。覆盖两次执行增量、好友双向确认、防越权、群邀请和多图同步、时区、静默策略、设备撤销、媒体超时长及撤销访问。环信回调通过本机签名夹具验证。
-- 既有消息协议与空间模型共九个测试通过，手机号认证八个回归测试通过，原始 DMS 脚本回归通过。FC ZIP 本机构建通过，校验生成的 P0 SQL 和 ZIP 压缩内容。
+- 既有消息协议与空间模型共九个测试通过，手机号认证八个回归测试通过，原始 DMS 脚本回归通过。FC ZIP 本机构建通过。校验了生成的 P0 SQL、ZIP 压缩内容和解压启动后的回环 `/health`。
 - 实际运行界面完成两个账号的登录、好友和群邀请、文字和多图群聊、私密动态发布、视频播放和撤权。[12 张运行截图](../demo-preview/p0/README.md)
 
 运行集成测试时使用名称为 `penlia_p0_test` 的独立回环 PostgreSQL，准备现有初始迁移、002 手机身份、003 P0 增量和对应业务授权。测试进程使用 `penlia_app` 及随机测试凭证，设置 `PGHOST=127.0.0.1`、`PGPORT` 为单独的 55xxx 端口、`PGDATABASE=penlia_p0_test`。准备不超过 30 秒的测试 MP4，设置 `PENLIA_P0_VIDEO_FIXTURE`，以及临时的 `PENLIA_P0_TEST_ADMIN_PASSWORD`、手机号摘要密钥和环信回调密钥，再运行 `node server/p0/p0.test.mjs`。真实短信、付费 RTC、华为/FCM/APNs 及生产数据均不参与此验收。
