@@ -1,0 +1,12 @@
+GRANT SELECT, INSERT ON p1_group_shares TO penlia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON p1_wishes TO penlia_app;
+GRANT SELECT, INSERT, DELETE ON p1_wish_audience, p1_wish_matches TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON p1_gatherings, p1_gathering_members TO penlia_app;
+GRANT SELECT, INSERT, DELETE ON p1_gathering_options TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON p1_events TO penlia_app;
+GRANT SELECT ON p1_reviewers TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON p1_reports, p1_enforcement, p1_appeals TO penlia_app;
+GRANT SELECT, INSERT ON p1_review_audit TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON p1_calls, p1_call_participants, p1_collections, p1_collection_members, p1_contributions TO penlia_app;
+GRANT SELECT, INSERT ON p1_entries, p1_contribution_media TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON p1_contribution_history TO penlia_app;

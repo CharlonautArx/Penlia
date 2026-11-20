@@ -1,18 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import { cleanText, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
-import { blocked, idsOf, lockUsers, related, restricted, verifyFriends } from './access.mjs';
+import { blocked, idsOf, lockUsers, verifyFriends } from './access.mjs';
+import { collectionReadable, contributionReadable, momentVisible, unusedMedia } from '../p1/collection-access.mjs';
 
 export const mediaLimit = 4 * 1024 * 1024;
 const notFound = () => new HttpError(404, '找不到可查看的内容。');
-const canRead = `(p.author_id=$1 OR (${related('$1::uuid', 'p.author_id')} AND NOT ${restricted('p.author_id', '$1::uuid')} AND (
-  p.scope='friends'
-  OR p.scope='selected' AND EXISTS(SELECT 1 FROM private_moment_viewers r WHERE r.moment_id=p.id AND r.user_id=$1)
-  OR p.scope IN ('circle','group') AND EXISTS(SELECT 1 FROM relationship_groups gr
-    JOIN relationship_group_members gm ON gm.group_id=gr.id WHERE gr.id=p.audience_group
-    AND gr.owner_id=p.author_id AND gm.user_id=$1 AND gr.circle=(p.scope='circle'))
-)))`;
+const canRead = momentVisible('p', '$1::uuid');
 const projection = `p.id,p.author_id AS "authorId",u.name AS author,p.body,p.revision,p.created_at AS "createdAt",
   CASE WHEN p.author_id=$1 THEN p.scope END AS scope,
+  (SELECT c.id FROM p1_collections c WHERE c.moment_id=p.id) AS "collaborationId",
   CASE WHEN p.author_id=$1 THEN p.audience_group END AS "groupId",
   CASE WHEN p.author_id=$1 THEN ARRAY(SELECT v.user_id FROM private_moment_viewers v WHERE v.moment_id=p.id) END AS "memberIds",
   coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime) ORDER BY b.position)
@@ -83,12 +80,12 @@ async function audience(db, userId, body) {
   return { scope, group: null, ids };
 }
 
-export async function publishMoment(userId, body) {
-  const clientId = readId(body.clientId);
+export async function publishMoment(userId, body, transaction) {
+  const clientId = transaction ? randomUUID() : readId(body.clientId);
   const text = cleanText(body.body, 2000);
   const media = idsOf(body.mediaIds, 6);
   if (!text && !media.length) throw new HttpError(400, '写点文字，或选择照片和视频。');
-  return inTransaction(pool, async (db) => {
+  const save = async (db) => {
     await lockUsers(db, userId);
     const done = await db.query('SELECT id FROM private_moments WHERE author_id=$1 AND client_id=$2', [
       userId,
@@ -97,8 +94,8 @@ export async function publishMoment(userId, body) {
     if (done.rowCount) return { id: done.rows[0].id };
     const value = await audience(db, userId, body);
     const uploaded = await db.query(
-      `SELECT id,mime FROM private_media WHERE owner_id=$1 AND id=ANY($2::uuid[])
-      AND moment_id IS NULL AND group_message_id IS NULL AND created_at>now()-interval '1 day'`,
+      `SELECT id,mime FROM private_media b WHERE owner_id=$1 AND id=ANY($2::uuid[])
+      AND ${unusedMedia('b')} AND created_at>now()-interval '1 day'`,
       [userId, media],
     );
     if (uploaded.rowCount !== media.length) throw new HttpError(404, '图片或视频已失效，请重新选择。');
@@ -121,7 +118,8 @@ export async function publishMoment(userId, body) {
       value.ids,
     ]);
     return saved;
-  });
+  };
+  return transaction ? save(transaction) : inTransaction(pool, save);
 }
 
 export async function updateMoment(userId, id, body) {
@@ -218,7 +216,7 @@ export async function postMedia(userId, input) {
   return inTransaction(pool, async (db) => {
     await lockUsers(db, userId);
     await db.query(
-      "DELETE FROM private_media WHERE owner_id=$1 AND moment_id IS NULL AND group_message_id IS NULL AND created_at<=now()-interval '1 day'",
+      `DELETE FROM private_media b WHERE owner_id=$1 AND ${unusedMedia('b')} AND created_at<=now()-interval '1 day'`,
       [userId],
     );
     const {
@@ -229,7 +227,7 @@ export async function postMedia(userId, input) {
       rows: [usage],
     } = await db.query(
       `SELECT coalesce(sum(octet_length(data)),0)::integer AS bytes,
-      count(*) FILTER(WHERE moment_id IS NULL AND group_message_id IS NULL)::integer AS drafts FROM private_media WHERE owner_id=$1`,
+      count(*) FILTER(WHERE ${unusedMedia('b')})::integer AS drafts FROM private_media b WHERE owner_id=$1`,
       [userId],
     );
     if (usage.bytes + data.length > 32 * 1024 * 1024 || usage.drafts >= 18)
@@ -248,7 +246,7 @@ export async function discardMedia(userId, id) {
   return inTransaction(pool, async (db) => {
     await lockUsers(db, userId);
     await db.query(
-      'DELETE FROM private_media WHERE id=$1 AND owner_id=$2 AND moment_id IS NULL AND group_message_id IS NULL',
+      `DELETE FROM private_media b WHERE id=$1 AND owner_id=$2 AND ${unusedMedia('b')}`,
       [id, userId],
     );
     return {};
@@ -260,7 +258,11 @@ export async function getMedia(userId, id, range, head) {
     LEFT JOIN chat_group_messages c ON c.id=b.group_message_id WHERE b.id=$2 AND
     ((p.id IS NOT NULL AND ${canRead}) OR
       (c.id IS NOT NULL AND NOT ${blocked('$1::uuid', 'c.sender_id')} AND EXISTS
-        (SELECT 1 FROM chat_group_members gm WHERE gm.group_id=c.group_id AND gm.user_id=$1 AND gm.joined_at<=c.sent_at)))`;
+        (SELECT 1 FROM chat_group_members gm WHERE gm.group_id=c.group_id AND gm.user_id=$1 AND gm.joined_at<=c.sent_at)) OR
+      EXISTS(SELECT 1 FROM p1_contribution_media link JOIN p1_contributions pc ON pc.id=link.contribution_id
+        JOIN p1_entries pe ON pe.id=pc.entry_id JOIN p1_collections coll ON coll.id=pe.collection_id
+        WHERE link.media_id=b.id AND ${collectionReadable('coll','$1::uuid')} AND
+        ${contributionReadable('pc','$1::uuid')} AND NOT ${blocked('pe.author_id','$1::uuid')}))`;
   const {
     rows: [metadata],
   } = await pool.query('SELECT b.mime,octet_length(b.data) AS bytes ' + acl, [userId, id]);

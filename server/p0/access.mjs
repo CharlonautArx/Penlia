@@ -1,3 +1,4 @@
+import { activePenalty } from '../p1/enforcement-access.mjs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cleanText, hash, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
@@ -410,6 +411,8 @@ export async function beforeImSend(body, pathKey) {
   const from = vendorId(body.from);
   const to = vendorId(body.to);
   if (!from || !to || !(await areFriends(pool, from, to))) return { valid: false };
+  const { rows: [sender] } = await pool.query(`SELECT ${activePenalty('$1', ['limit_sending','limit_account'])} AS restricted`, [from]);
+  if (sender.restricted) return { valid: false };
   const payload = body.payload;
   if (
     !payload ||

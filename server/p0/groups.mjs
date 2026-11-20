@@ -1,3 +1,5 @@
+import { assertAllowed } from '../p1/enforcement-access.mjs';
+import { unusedMedia } from '../p1/collection-access.mjs';
 import { randomBytes } from 'node:crypto';
 import { cleanText, hash, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
@@ -25,6 +27,7 @@ export async function createGroup(user, body) {
   const name = cleanText(body.name, 32, true);
   const membersCanInvite = body.membersCanInvite === true;
   return inTransaction(pool, async (db) => {
+    await assertAllowed(db, user, ['limit_contact','limit_account']);
     await lockUsers(db, user);
     const {
       rows: [count],
@@ -71,6 +74,7 @@ export async function inviteToGroup(user, group, target) {
   readId(target);
   if (target === user) throw new HttpError(400, '不能邀请自己。');
   return inTransaction(pool, async (db) => {
+    await assertAllowed(db, user, ['limit_contact','limit_account']);
     await lockUsers(db, user, target);
     const value = await groupMember(db, group, user, true);
     if (value.ownerId !== user && !value.membersCanInvite) throw new HttpError(403, '此群只允许群主邀请成员。');
@@ -169,6 +173,7 @@ export async function listGroupMessages(user, group, before = null) {
     const value = await groupMember(db, group, user, true);
     const { rows } = await db.query(
       `SELECT c.id,c.sender_id AS "senderId",u.name,c.content,c.silent,c.sent_at AS "sentAt",
+      EXISTS(SELECT 1 FROM p1_group_shares s WHERE s.message_id=c.id) AS "noReply",
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime) ORDER BY b.position)
         FROM private_media b WHERE b.group_message_id=c.id),'[]'::jsonb) AS media
       FROM chat_group_messages c JOIN users u ON u.id=c.sender_id WHERE c.group_id=$1 AND c.sent_at >= $3
@@ -185,7 +190,7 @@ export async function sendGroupMessage(user, group, body) {
   const clientId = readId(body.clientId);
   const content = cleanText(body.content ?? '', 1000);
   const media = idsOf(body.mediaIds ?? [], 6);
-  if (!content && !media.length) throw new HttpError(400, '请填写消息或选择图片。');
+  if (!content && !media.length) throw new HttpError(400, '请填写消息或选择图片、视频。');
   return inTransaction(pool, async (db) => {
     await lockUsers(db, user);
     await groupMember(db, group, user, true);
@@ -197,13 +202,15 @@ export async function sendGroupMessage(user, group, body) {
       clientId,
     ]);
     if (existing) return existing;
+    await assertAllowed(db, user, ['limit_sending','limit_account']);
     const uploaded = await db.query(
-      `SELECT id FROM private_media WHERE owner_id=$1 AND id=ANY($2::uuid[])
-      AND moment_id IS NULL AND group_message_id IS NULL AND mime IN ('image/jpeg','image/png')
+      `SELECT id,mime FROM private_media b WHERE owner_id=$1 AND id=ANY($2::uuid[])
+      AND ${unusedMedia('b')}
       AND created_at>now()-interval '1 day'`,
       [user, media],
     );
-    if (uploaded.rowCount !== media.length) throw new HttpError(404, '图片已失效或不属于当前账号。');
+    if (uploaded.rowCount !== media.length) throw new HttpError(404, '媒体已失效或不属于当前账号。');
+    if (media.length > 1 && uploaded.rows.some((row) => row.mime === 'video/mp4')) throw new HttpError(400, '请单独发送视频。');
     const {
       rows: [saved],
     } = await db.query(
@@ -216,6 +223,7 @@ export async function sendGroupMessage(user, group, body) {
       FROM unnest($2::uuid[]) WITH ORDINALITY AS media(id,position) WHERE b.id=media.id`,
       [saved.id, media],
     );
+    if (body.noReply === true) await db.query('INSERT INTO p1_group_shares(message_id) VALUES ($1)', [saved.id]);
     return saved;
   });
 }

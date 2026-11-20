@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { readMigrations } from '../migration-files.mjs';
 
+const p1 = process.argv.includes('--p1');
 const p0 = process.argv.includes('--p0');
-const migrations = (await readMigrations()).filter(({ name }) => name === (p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
+const migrations = (await readMigrations()).filter(({ name }) => name === (p1 ? '004_social_p1.sql' : p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
 if (migrations.length !== 1) throw new Error('Expected one DMS migration');
-const grants = (await readFile(new URL(p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
+const grants = (await readFile(new URL(p1 ? '../p1/grants.sql' : p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
 const schemaCheck = (await readFile(new URL('./dms-schema-check.sql', import.meta.url), 'utf8')).trim();
 
 function repeatableCreates({ name, sql }) {
@@ -34,8 +35,9 @@ const steps = [
   'SELECT pg_advisory_xact_lock(182129779);',
   'CREATE TABLE IF NOT EXISTS public.schema_migrations (name text PRIMARY KEY);',
   ...(p0 ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '001_initial.sql') THEN '1' ELSE 'Apply the original Penlia migration first' END::integer AS baseline_check;"] : []),
+  ...(p1 ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '003_privacy_p0.sql') THEN '1' ELSE 'Apply the Penlia P0 migration first' END::integer AS p0_check;"] : []),
   ...migrations.flatMap(repeatableCreates),
-  ...(!p0 ? [schemaCheck] : []),
+  ...(!p0 && !p1 ? [schemaCheck] : []),
   grants,
   ...migrations.map(({ name }) =>
     `INSERT INTO public.schema_migrations (name) VALUES ('${name}') ON CONFLICT (name) DO NOTHING;`),

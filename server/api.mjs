@@ -6,6 +6,9 @@ import { PhoneError, unavailable as phoneUnavailable } from './phone/policy.mjs'
 import { cleanText, hash, HttpError, inTransaction, readId } from './core.mjs';
 import { areFriends, beforeImSend, blocked, lockUsers, preferences, restricted, searchPerson } from './p0/access.mjs';
 import { p0Routes } from './p0/routes.mjs';
+import { p1Routes } from './p1/routes.mjs';
+import { assertAllowed } from './p1/enforcement-access.mjs';
+import { runEnforcement, workerAuthorized } from './p1/moderation.mjs';
 
 export { HttpError } from './core.mjs';
 
@@ -169,6 +172,7 @@ async function imOperation(operation) {
 }
 
 async function prepareChat(userId,other) {
+  await assertAllowed(pool,userId,['limit_sending','limit_account']);
   readId(other);
   if (!await areFriends(pool,userId,other)) throw new HttpError(403,'只能与已接受请求的好友聊天。');
   const {rows:[row]}=await pool.query(`SELECT id,im_synced FROM friendships
@@ -236,7 +240,7 @@ async function runPhone({ purpose, action }, request, phoneAuth) {
   return phoneAuth[action](body, { sourceIp, purpose, userId: user?.id });
 }
 
-export async function handle({ method, path, headers, query, sourceIp, readBody }, { phoneAuth } = {}) {
+export async function handle({ method, path, headers, query, sourceIp, readBody }, { phoneAuth, rtc, moderationEvidence, reviewAdvisor } = {}) {
   const route = method + ' ' + path;
   const { authorization } = headers;
   try {
@@ -245,6 +249,10 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
     }
     if (route === 'GET /health') return json(200, { ok: true });
     if (route === 'GET /ops/readiness') return await readiness(authorization);
+    if (route === 'POST /ops/p1/moderation/run') {
+      if (!workerAuthorized(authorization)) return json(404, { error: '接口不存在。' });
+      return json(200, await runEnforcement());
+    }
     if (route === 'GET /ops/phone-usage') {
       if (!diagnosticAllowed(authorization)) return json(404, { error: '接口不存在。' });
       return json(200, phoneAuth ? await phoneAuth.usage() : { enabled: false });
@@ -255,6 +263,8 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
     if (phoneRoute) return json(200, await runPhone(phoneRoute, { authorization, sourceIp, readBody }, phoneAuth));
 
     const { user, tokenHash } = await requireSession(authorization);
+    const p1 = await p1Routes(method,path,{ user,query,readBody,rateLimit,rtc,moderationEvidence,reviewAdvisor });
+    if (p1 !== undefined) return json(200,p1);
     switch (route) {
       case 'POST /v1/logout':
         await pool.query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);
@@ -288,6 +298,7 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
       case 'GET /v1/friends':
         return json(200, await friendships(user.id));
       case 'POST /v1/friends':
+        await assertAllowed(pool,user.id,['limit_contact','limit_account']);
         return json(200, await requestFriend(user.id, await readBody(), sourceIp));
       case 'POST /v1/friends/accept':
         return json(200, await respondToFriend(user.id, (await readBody()).id, 'accept'));

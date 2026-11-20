@@ -24,7 +24,7 @@ async function readBody(request, maxBytes = MAX_BODY_BYTES) {
   }
 }
 
-export function createApiServer({ phoneAuth } = {}) {
+export function createApiServer(options = {}) {
   return createServer(async (request, response) => {
     let url;
     try {
@@ -42,7 +42,7 @@ export function createApiServer({ phoneAuth } = {}) {
       sourceIp: request.socket.remoteAddress ?? 'unknown',
       readBody: () => readBody(request, request.method === 'POST' && url.pathname === '/v1/moment-media'
         ? Math.ceil(mediaLimit / 3) * 4 + 1024 : MAX_BODY_BYTES),
-    }, { phoneAuth });
+    }, options);
     if (response.destroyed) return;
     if (Buffer.isBuffer(result.binary)) {
       response.writeHead(result.statusCode, { 'Cache-Control':'private, no-store', ...result.headers }).end(result.binary);
