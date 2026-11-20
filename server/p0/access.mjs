@@ -226,6 +226,11 @@ export async function manageContact(userId, target, action) {
         userId,
         target,
       ]);
+      await db.query(`DELETE FROM p1_contribution_public_readers approved USING private_moments p,p1_contributions k
+        WHERE p.id=approved.moment_id AND k.id=approved.contribution_id
+        AND (p.author_id=$1 OR k.author_id=$1) AND approved.viewer_id=$2`,[userId,target]);
+      await db.query(`DELETE FROM p1_contribution_workspace_readers approved USING p1_contributions k
+        WHERE k.id=approved.contribution_id AND k.author_id=$1 AND approved.viewer_id=$2`,[userId,target]);
       return;
     }
     if (action === 'unrestrict') {
@@ -249,6 +254,16 @@ export async function manageContact(userId, target, action) {
       WHERE first_user=least($1::uuid,$2::uuid) AND second_user=greatest($1::uuid,$2::uuid) AND status<>'declined'`,
       [userId, target],
     );
+    await db.query(`DELETE FROM p1_contribution_public_readers approved USING private_moments p,p1_contributions k
+      WHERE p.id=approved.moment_id AND k.id=approved.contribution_id AND
+      ((approved.viewer_id=$2 AND (p.author_id=$1 OR k.author_id=$1)) OR
+       (approved.viewer_id=$1 AND (p.author_id=$2 OR k.author_id=$2)))`,[userId,target]);
+    if(action==='block'){
+      await db.query(`DELETE FROM p1_contribution_workspace_readers approved USING p1_contributions k,p1_entries e,p1_collections c
+        WHERE k.id=approved.contribution_id AND e.id=k.entry_id AND c.id=e.collection_id AND
+        ((approved.viewer_id=$2 AND (c.owner_id=$1 OR k.author_id=$1)) OR
+         (approved.viewer_id=$1 AND (c.owner_id=$2 OR k.author_id=$2)))`,[userId,target]);
+    }
     await db.query(`DELETE FROM priority_contacts WHERE (user_id=$1 AND other_id=$2) OR (user_id=$2 AND other_id=$1)`, [
       userId,
       target,
@@ -343,6 +358,9 @@ export async function saveRelationshipGroup(userId, input, groupId) {
       value.id,
       memberIds,
     ]);
+    await db.query(`DELETE FROM p1_contribution_public_readers approved USING private_moments p
+      WHERE p.id=approved.moment_id AND p.audience_group=$1 AND NOT(approved.viewer_id=ANY($2::uuid[]))`,
+    [value.id,memberIds]);
     return { ...value, memberIds };
   });
 }

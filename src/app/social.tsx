@@ -57,7 +57,7 @@ const eventLabels: Record<string, string> = {
   collection_invited: '收到共同记录邀请',
   group_call: '收到群视频邀请',
 };
-type Gathering = { id: string; title: string; mode: 'all' | 'open'; state: string };
+type Gathering = { id: string; title: string; mode: 'all' | 'open'; state: string; directProposal:boolean };
 type Collection = {
   id: string;
   title: string;
@@ -285,7 +285,7 @@ function Gatherings() {
         <ListRow
           key={item.id}
           title={item.title}
-          detail={(item.mode === 'all' ? '全员局' : '自由局') + ' · ' + states[item.state]}
+          detail={(item.mode === 'all' ? '全员局' : '自由局') + ' · ' + (item.state==='interest'&&item.directProposal?'直接提议时间':states[item.state])}
           onPress={() => router.push({ pathname: '/gathering/[id]', params: { id: item.id } })}
         />
       ))}

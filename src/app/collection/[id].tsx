@@ -141,7 +141,7 @@ function Details({ id }: { id: string }) {
         <Text style={styles.muted}>
           {coll.kind === 'journal'
             ? '仅已加入的成员可读写。'
-            : '发布后的读者由发起者选择，只有已加入的成员可补充。'}
+            : '发起者设置共创动态范围，各作者为自己的内容单独授权。'}
         </Text>
       </View>
       <View style={[styles.row, { flexWrap: 'wrap' }]}>
@@ -259,7 +259,7 @@ function Details({ id }: { id: string }) {
           )}
           {panel === 'publish' && (
             <>
-              <Text style={styles.muted}>请确认发布范围。编辑和撤回权限按共同记录规则执行。</Text>
+              <Text style={styles.muted}>这项设置决定谁能打开共创动态。每条内容还需要作者授权给对应读者。</Text>
               <Choices
                 labels={scopes}
                 value={scope}

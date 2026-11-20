@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes, randomInt, timingSafeEqu
 import { cleanText, hash, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
 import { blocked, idsOf, lockUsers } from '../p0/access.mjs';
+import { invalidMediaRange, mediaResponse, parseMediaRange } from '../p0/moments.mjs';
 import { groupMember } from '../p0/groups.mjs';
 import { choose, conflict, invalid, missing } from './common.mjs';
 
@@ -13,21 +14,24 @@ function evidenceKey() {
   return key;
 }
 
-function seal(id, snapshot) {
+function sealBytes(id, bytes) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', evidenceKey(), iv);
   cipher.setAAD(Buffer.from('penlia-evidence-v1:' + id));
-  const data = Buffer.concat([cipher.update(JSON.stringify(snapshot), 'utf8'), cipher.final()]);
+  const data = Buffer.concat([cipher.update(bytes), cipher.final()]);
   return Buffer.concat([Buffer.from([1]), iv, cipher.getAuthTag(), data]);
 }
 
-function unseal(id, bytes) {
+function unsealBytes(id, bytes) {
   if (bytes[0] !== 1 || bytes.length < 30) throw new Error('Unsupported evidence format');
   const decoder = createDecipheriv('aes-256-gcm', evidenceKey(), bytes.subarray(1, 13));
   decoder.setAAD(Buffer.from('penlia-evidence-v1:' + id));
   decoder.setAuthTag(bytes.subarray(13, 29));
-  return JSON.parse(Buffer.concat([decoder.update(bytes.subarray(29)), decoder.final()]).toString('utf8'));
+  return Buffer.concat([decoder.update(bytes.subarray(29)), decoder.final()]);
 }
+
+const seal = (id, snapshot) => sealBytes(id, Buffer.from(JSON.stringify(snapshot)));
+const unseal = (id, bytes) => JSON.parse(unsealBytes(id, bytes).toString('utf8'));
 
 async function role(db, actor) {
   if (!(await db.query('SELECT 1 FROM p1_reviewers WHERE user_id=$1 AND enabled', [actor])).rowCount)
@@ -60,18 +64,39 @@ async function groupEvidence(db, reporter, body) {
   const anchor = readId(body.anchorId);
   const ids = idsOf(body.messageIds, 5);
   if (!ids.includes(anchor)) throw invalid('请包含被举报消息。');
-  const membership = await groupMember(db, group, reporter);
+  const membership = await groupMember(db, group, reporter, true);
   const { rows } = await db.query(
-    `SELECT m.id,m.sender_id AS "senderId",m.content,m.sent_at AS "sentAt",
-    (SELECT count(*)::int FROM private_media a WHERE a.group_message_id=m.id) AS "attachmentCount"
+    `SELECT m.id,m.sender_id AS "senderId",m.content,m.sent_at AS "sentAt"
     FROM chat_group_messages m WHERE m.group_id=$1 AND m.id=ANY($2::uuid[]) AND m.sent_at>=$3
     AND NOT ${blocked('$4::uuid', 'm.sender_id')} ORDER BY m.sent_at,m.id`,
     [group, ids, membership.joinedAt, reporter],
   );
   if (rows.length !== ids.length) throw missing();
+  const {
+    rows: [usage],
+  } = await db.query(
+    `SELECT coalesce(sum(octet_length(data)),0)::int AS bytes
+    FROM private_media WHERE group_message_id=ANY($1::uuid[])`,
+    [ids],
+  );
+  if (usage.bytes > 24 * 1024 * 1024)
+    throw new HttpError(413, '所选消息的证据附件超过 24 MB，请减少上下文消息。');
+  const { rows: media } = await db.query(
+    `SELECT id,mime,data,group_message_id AS message_id FROM private_media
+    WHERE group_message_id=ANY($1::uuid[]) ORDER BY group_message_id,position,id`,
+    [ids],
+  );
+  for (const attachment of media) attachment.sha256 = hash(attachment.data);
+  for (const message of rows) {
+    message.attachments = media
+      .filter((attachment) => attachment.message_id === message.id)
+      .map(({ id, mime, data, sha256 }) => ({ id, mime, bytes: data.length, sha256 }));
+    message.attachmentCount = message.attachments.length;
+  }
   return {
     subject: rows.find((line) => line.id === anchor).senderId,
     provenance: 'group',
+    media,
     snapshot: { groupId: group, anchorId: anchor, messages: rows },
   };
 }
@@ -139,12 +164,27 @@ export async function submitReport(reporter, body) {
     const sealed = seal(row.id, {
       ...evidence.snapshot,
       explanation: cleanText(body.explanation ?? '', 500),
+      allowsAssistance: body.allowAssistance === true,
     });
     await db.query(
       `INSERT INTO p1_reports(id,reporter_id,subject_id,client_id,kind,provenance,evidence)
       VALUES($1,$2,$3,$4,$5,$6,$7)`,
       [row.id, reporter, evidence.subject, clientId, kind, evidence.provenance, sealed],
     );
+    for (const attachment of evidence.media ?? []) {
+      await db.query(
+        `INSERT INTO p1_report_media(report_id,media_id,mime,bytes,sha256,sealed_data)
+        VALUES($1,$2,$3,$4,$5,$6)`,
+        [
+          row.id,
+          attachment.id,
+          attachment.mime,
+          attachment.data.length,
+          attachment.sha256,
+          sealBytes(row.id + ':' + attachment.id, attachment.data),
+        ],
+      );
+    }
     return row;
   });
 }
@@ -288,22 +328,14 @@ export async function decideReport(actor, id, body) {
     )
       throw new HttpError(503, '审核保护窗口配置无效。');
     const seconds = urgent ? 0 : randomInt(min, max + 1);
-    await db.query("UPDATE p1_reports SET status='confirmed',decided_at=now() WHERE id=$1", [id]);
     await db.query(
-      `INSERT INTO p1_enforcement(report_id,subject_id,reviewer_id,kind,reason,duration_hours,execute_at,applied_at,expires_at)
-      VALUES($1,$2,$3,$4,$5,$6,greatest(now(),$7::timestamptz+make_interval(secs=>$8)),
-        CASE WHEN $9 THEN now() END,CASE WHEN $9 THEN now()+make_interval(hours=>$6) END)`,
-      [
-        id,
-        report.subject_id,
-        actor,
-        kind,
-        reason,
-        duration,
-        urgent ? new Date(0) : report.submitted_at,
-        seconds,
-        urgent,
-      ],
+      `WITH confirmed AS (
+        UPDATE p1_reports SET status='confirmed',decided_at=clock_timestamp() WHERE id=$1 RETURNING decided_at
+      )
+      INSERT INTO p1_enforcement(report_id,subject_id,reviewer_id,kind,reason,duration_hours,execute_at,applied_at,expires_at)
+      SELECT $1,$2,$3,$4,$5,$6,decided_at+make_interval(secs=>$7),
+        CASE WHEN $8 THEN decided_at END,CASE WHEN $8 THEN decided_at+make_interval(hours=>$6) END FROM confirmed`,
+      [id, report.subject_id, actor, kind, reason, duration, seconds, urgent],
     );
     await audit(db, id, actor, urgent ? 'urgent_applied' : 'confirmed_and_scheduled', note);
     return {};
@@ -394,18 +426,105 @@ export async function finishAppeal(actor, id, body) {
   });
 }
 
-// The optional provider receives policy and case classifications only.
-// A suggestion cannot make a decision or create an enforcement action.
-export async function suggestReview(actor, id, adapter) {
+export async function readReportMedia(actor, id, mediaId, range, head) {
+  return inTransaction(pool, async (db) => {
+    await reviewable(db, actor, id);
+    const {
+      rows: [value],
+    } = await db.query(
+      `SELECT mime,bytes,sha256${head ? '' : ',sealed_data'}
+      FROM p1_report_media WHERE report_id=$1 AND media_id=$2`,
+      [id, mediaId],
+    );
+    if (!value) throw missing();
+    const bounds = parseMediaRange(range, value.bytes);
+    if (!bounds) return invalidMediaRange(value.bytes);
+    let binary = Buffer.alloc(0);
+    if (!head) {
+      let original;
+      try {
+        original = unsealBytes(id + ':' + mediaId, value.sealed_data);
+      } catch (error) {
+        if (error instanceof HttpError) throw error;
+        throw conflict('证据校验失败。');
+      }
+      if (original.length !== value.bytes || hash(original) !== value.sha256)
+        throw conflict('证据校验失败。');
+      binary = original.subarray(bounds.first, bounds.last + 1);
+      await audit(db, id, actor, 'evidence_media_accessed');
+    }
+    const response = mediaResponse(value.mime, value.bytes, range, bounds, binary);
+    response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox";
+    return response;
+  });
+}
+
+function redactText(text, ranges) {
+  if (!Array.isArray(ranges) || ranges.length > 30) throw invalid('请核对脱敏区间。');
+  const characters = Array.from(text);
+  let cursor = 0;
+  let safe = '';
+  for (const range of ranges) {
+    if (
+      !range ||
+      !Number.isInteger(range.start) ||
+      !Number.isInteger(range.end) ||
+      range.start < cursor ||
+      range.end <= range.start ||
+      range.end > characters.length
+    )
+      throw invalid('请核对脱敏区间。');
+    safe += characters.slice(cursor, range.start).join('') + '[已遮盖]';
+    cursor = range.end;
+  }
+  safe += characters.slice(cursor).join('');
+  return safe.replace(
+    /https?:\/\/[^\s，。；、！？]+|[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?:\+?86[ \-]?)?1[3-9]\d{9}|[0-9]{6,}|@[\p{L}\p{N}_-]+/giu,
+    '[已遮盖]',
+  );
+}
+
+// Only an explicitly installed advisor can receive the reviewer's redacted evidence selection.
+export async function suggestReview(actor, id, adapter, body) {
   const report = await reviewable(pool, actor, id);
   if (typeof adapter?.suggest !== 'function') throw new HttpError(503, '辅助审核尚未配置。');
+  const source = unseal(id, report.evidence);
+  if (source.allowsAssistance !== true || report.provenance === 'private_pending')
+    throw new HttpError(403, '该工单缺少辅助审核授权或已核验证据。');
+  if (
+    body.redactionConfirmed !== true ||
+    !Array.isArray(body.selection) ||
+    !body.selection.length ||
+    body.selection.length > 5
+  )
+    throw invalid('请先选取证据片段并确认必要脱敏。');
+  const unique = new Set();
+  const messages = body.selection.map((slice) => {
+    if (!slice || typeof slice !== 'object') throw invalid();
+    const line = source.messages.find((candidate) => candidate.id === slice.id);
+    if (!line || unique.has(line.id)) throw invalid('只能选取本工单已提交的消息。');
+    unique.add(line.id);
+    return {
+      speaker:
+        line.senderId === report.subject_id
+          ? 'subject'
+          : line.senderId === report.reporter_id
+            ? 'reporter'
+            : 'context',
+      text: Array.from(redactText(line.content, slice.redactions)).slice(0, 1000).join(''),
+      mediaKinds: [
+        ...new Set((line.attachments ?? []).map((file) => (file.mime === 'video/mp4' ? 'video' : 'image'))),
+      ],
+    };
+  });
+  await audit(pool, id, actor, 'assistant_requested');
   const suggestion = await adapter.suggest({
     kind: report.kind,
     provenance: report.provenance,
-    policyVersion: 'p1-v1',
+    policyVersion: 'p1-v2',
+    evidence: { messages },
     signal: AbortSignal.timeout(4000),
   });
   const focus = choose(suggestion?.focus, ['context', 'authenticity', 'urgency', 'insufficient']);
-  await audit(pool, id, actor, 'assistant_requested');
   return { focus };
 }

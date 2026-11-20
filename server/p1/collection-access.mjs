@@ -21,3 +21,24 @@ export const contributionReadable = (contribution, viewer) => `(${contribution}.
 
 export const unusedMedia = (alias) => `(${alias}.moment_id IS NULL AND ${alias}.group_message_id IS NULL
  AND NOT EXISTS(SELECT 1 FROM p1_contribution_media link WHERE link.media_id=${alias}.id))`;
+
+// A collaboration member and a feed viewer need separate, author-issued grants.
+export const workspaceGrant = (
+  contribution,
+  viewer,
+) => `EXISTS(SELECT 1 FROM p1_contribution_workspace_readers cw
+  WHERE cw.contribution_id=${contribution}.id AND cw.viewer_id=${viewer})`;
+
+export const contributionScope = (contribution, collection, viewer) => `(${collection}.kind='journal' OR
+  ${contribution}.author_id=${viewer} OR
+  (${activeMember(collection, viewer)} AND ${workspaceGrant(contribution, viewer)}) OR
+  EXISTS(SELECT 1 FROM p1_contribution_public_readers cp JOIN private_moments pm ON pm.id=cp.moment_id
+    WHERE cp.contribution_id=${contribution}.id AND cp.viewer_id=${viewer} AND pm.id=${collection}.moment_id
+    AND ${momentVisible('pm', viewer)}))`;
+
+// Only enumerate personas already eligible for a moment through the owner's accepted friendships.
+export const momentReaders = (moment, owner) => `SELECT u.id,u.name FROM private_moments pm
+  JOIN friendships fr ON fr.status='accepted' AND ${owner} IN (fr.first_user,fr.second_user)
+  JOIN users u ON u.id=CASE WHEN fr.first_user=${owner} THEN fr.second_user ELSE fr.first_user END
+  WHERE pm.id=${moment} AND pm.author_id=${owner} AND ${momentVisible('pm', 'u.id')}
+  ORDER BY u.id`;

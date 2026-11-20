@@ -2,7 +2,14 @@ import { cleanText, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
 import { areFriends, blocked, idsOf, lockUsers, restricted } from '../p0/access.mjs';
 import { publishMoment } from '../p0/moments.mjs';
-import { activeMember, collectionReadable, contributionReadable, unusedMedia } from './collection-access.mjs';
+import {
+  activeMember,
+  collectionReadable,
+  contributionReadable,
+  contributionScope,
+  unusedMedia,
+  workspaceGrant,
+} from './collection-access.mjs';
 import {
   assertAllowed,
   categoryOf,
@@ -155,6 +162,13 @@ export async function changeMembership(user, id, body) {
       [id, target, next, prior],
     );
     if (!result.rowCount) throw missing();
+    if (action === 'leave' || action === 'remove') {
+      await db.query(
+        `DELETE FROM p1_contribution_workspace_readers approved USING p1_contributions k,p1_entries e
+        WHERE approved.contribution_id=k.id AND k.entry_id=e.id AND e.collection_id=$1 AND approved.viewer_id=$2`,
+        [id, target],
+      );
+    }
     return {};
   });
 }
@@ -254,7 +268,9 @@ export async function getEntry(user, id) {
       `SELECT k.id,k.author_id AS "authorId",u.name AS author,k.body,k.revision,k.created_at AS "createdAt",
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',p.id,'mime',p.mime) ORDER BY m.position)
         FROM p1_contribution_media m JOIN private_media p ON p.id=m.media_id WHERE m.contribution_id=k.id),'[]'::jsonb) AS media
-      FROM p1_contributions k JOIN users u ON u.id=k.author_id WHERE k.entry_id=$1 AND ${contributionReadable('k', '$2::uuid')}
+      FROM p1_contributions k JOIN users u ON u.id=k.author_id JOIN p1_entries e ON e.id=k.entry_id
+      JOIN p1_collections c ON c.id=e.collection_id WHERE k.entry_id=$1 AND ${contributionReadable('k', '$2::uuid')}
+      AND ${contributionScope('k', 'c', '$2::uuid')}
       ORDER BY k.created_at,k.id LIMIT 100`,
       [id, user],
     );
@@ -268,8 +284,8 @@ export async function getAlbum(user, id) {
     const { rows } = await db.query(
       `SELECT p.id,p.mime,e.id AS "entryId",e.title,e.event_date::text AS "eventDate",u.name author
       FROM p1_entries e JOIN p1_contributions k ON k.entry_id=e.id JOIN p1_contribution_media m ON m.contribution_id=k.id
-      JOIN private_media p ON p.id=m.media_id JOIN users u ON u.id=k.author_id
-      WHERE e.collection_id=$1 AND ${contributionReadable('k', '$2::uuid')} AND NOT ${blocked('$2::uuid', 'e.author_id')}
+      JOIN private_media p ON p.id=m.media_id JOIN users u ON u.id=k.author_id JOIN p1_collections c ON c.id=e.collection_id
+      WHERE e.collection_id=$1 AND ${contributionScope('k', 'c', '$2::uuid')} AND ${contributionReadable('k', '$2::uuid')} AND NOT ${blocked('$2::uuid', 'e.author_id')}
       ORDER BY e.event_date DESC,k.created_at DESC,m.position LIMIT 100`,
       [id, user],
     );
@@ -391,7 +407,20 @@ export async function contributionHistory(user, id) {
     } = await db.query('SELECT entry_id,author_id,removed_at FROM p1_contributions WHERE id=$1', [id]);
     if (!row) throw missing();
     const { collection } = await entryAccess(db, row.entry_id, user, true);
-    if (row.author_id !== user && collection.ownerId !== user) throw missing();
+    if (row.author_id !== user) {
+      if (collection.ownerId !== user) throw missing();
+      if (
+        collection.kind === 'collaboration' &&
+        !(
+          await db.query(
+            `SELECT 1 FROM p1_contributions k
+        WHERE k.id=$1 AND ${workspaceGrant('k', '$2::uuid')}`,
+            [id, user],
+          )
+        ).rowCount
+      )
+        throw missing();
+    }
     if (
       (
         await db.query(
@@ -438,8 +467,8 @@ export async function publishCollaboration(user, id, body) {
 
 export async function ownContributions(user) {
   const { rows } = await pool.query(
-    `SELECT k.id,k.revision,k.body,k.removed_at AS "removedAt",e.title FROM p1_contributions k
-    JOIN p1_entries e ON e.id=k.entry_id WHERE k.author_id=$1 ORDER BY k.created_at DESC,k.id LIMIT 50`,
+    `SELECT k.id,k.revision,k.body,k.removed_at AS "removedAt",e.title,c.kind FROM p1_contributions k
+    JOIN p1_entries e ON e.id=k.entry_id JOIN p1_collections c ON c.id=e.collection_id WHERE k.author_id=$1 ORDER BY k.created_at DESC,k.id LIMIT 50`,
     [user],
   );
   return { contributions: rows };

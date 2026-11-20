@@ -12,6 +12,7 @@ import {
   type LocalMedia,
   type Media,
 } from '../../features/moments/media';
+import { ContributionAudienceSheet } from '../../features/social/ContributionAudienceSheet';
 import { back, Field, formatTime, useRecord } from '../../features/social/ui';
 import { useSession } from '../../services/session';
 import { styles } from '../../theme';
@@ -44,6 +45,7 @@ export default function JournalEntry() {
   const { session } = useSession();
   const { data, error, busy, run, request, load } = useRecord<Detail>('/p1/entries/' + id);
   const [panel, setPanel] = useState<'add' | 'edit' | 'withdraw' | 'history'>();
+  const [audienceId, setAudienceId] = useState<string>();
   const [item, setItem] = useState<Contribution>();
   const [body, setBody] = useState('');
   const [clientId, setClientId] = useState(randomUUID);
@@ -87,6 +89,9 @@ export default function JournalEntry() {
               <MomentMediaTile key={image.id} item={image} />
             ))}
           </View>
+          {data.collection.kind === 'collaboration' && line.authorId === me && (
+            <Button label="管理这条贡献的读者" variant="soft" onPress={() => setAudienceId(line.id)} />
+          )}
           {data.collection.canWrite && (line.authorId === me || data.collection.ownerId === me) && (
             <View style={[styles.row, { flexWrap: 'wrap' }]}>
               {line.authorId === me && (
@@ -114,6 +119,15 @@ export default function JournalEntry() {
           )}
         </View>
       ))}
+      {audienceId && (
+        <ContributionAudienceSheet
+          id={audienceId}
+          onClose={() => {
+            setAudienceId(undefined);
+            void load();
+          }}
+        />
+      )}
       {panel && (
         <Sheet
           title={{ add: '补充共同记录', edit: '编辑内容', withdraw: '移除内容', history: '版本记录' }[panel]}
@@ -126,6 +140,9 @@ export default function JournalEntry() {
           )}
           {panel === 'add' && (
             <>
+              {data?.collection.kind === 'collaboration' && (
+                <Text style={styles.muted}>这条贡献起初仅自己可见，保存后可以选定共创成员或动态读者。</Text>
+              )}
               <View style={styles.row}>
                 <Button
                   label="图库选照片"
@@ -201,10 +218,11 @@ export default function JournalEntry() {
                         }
                         ids.push(id);
                       }
-                      await request('/p1/entries/' + id + '/contributions', {
+                      const added = await request<{ id: string }>('/p1/entries/' + id + '/contributions', {
                         method: 'POST',
                         body: { clientId, body, mediaIds: ids },
                       });
+                      if (data?.collection.kind === 'collaboration') setAudienceId(added.id);
                     }
                     if (item && panel === 'edit')
                       await request('/p1/contributions/' + item.id, {

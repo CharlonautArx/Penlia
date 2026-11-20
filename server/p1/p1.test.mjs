@@ -31,8 +31,15 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
       closed.push(roomId);
     },
   };
+  const advisorCalls = [];
+  const reviewAdvisor = {
+    suggest: async (input) => {
+      advisorCalls.push(input);
+      return { focus: 'context' };
+    },
+  };
   const off = createApiServer().listen(0, '127.0.0.1');
-  const server = createApiServer({ rtc }).listen(0, '127.0.0.1');
+  const server = createApiServer({ rtc, reviewAdvisor }).listen(0, '127.0.0.1');
   await Promise.all([once(server, 'listening'), once(off, 'listening')]);
   t.after(async () => {
     await Promise.all([server, off].map((http) => new Promise((resolve) => http.close(resolve))));
@@ -49,9 +56,12 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
       },
       body: body && JSON.stringify(body),
     });
-    const data = response.headers.get('content-type')?.includes('json')
-      ? await response.json()
-      : Buffer.from(await response.arrayBuffer());
+    const data =
+      method === 'HEAD'
+        ? undefined
+        : response.headers.get('content-type')?.includes('json')
+          ? await response.json()
+          : Buffer.from(await response.arrayBuffer());
     return { status: response.status, data, headers: response.headers };
   }
   const api = (who, path, method, body, options) => ask(who, '/v1' + path, method, body, options);
@@ -237,6 +247,7 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
     const address = await create('open', [b, c, d]);
     const initial = ok(await p1(a, address));
     const option = initial.options[0].id;
+    assert.equal(initial.gathering.directProposal, false);
     assert.equal((await p1(outside, address)).status, 404);
     assert.equal((await post(b, address + '/organize', { action: 'seal' })).status, 404);
     for (const who of [b, c, d])
@@ -264,8 +275,13 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
     const all = await create('all', [b, c]);
     const row = ok(await p1(a, all));
     const allOption = row.options[0].id;
-    ok(await post(b, all + '/intention', { intention: 'interested', optionIds: [allOption] }));
-    ok(await post(c, all + '/intention', { intention: 'unavailable' }));
+    assert.equal(row.gathering.directProposal, true);
+    assert.equal((await post(a, all + '/organize', { action: 'seal' })).status, 409);
+    assert.equal(
+      (await post(b, all + '/intention', { intention: 'interested', optionIds: [allOption] })).status,
+      409,
+    );
+    assert.equal((await post(c, all + '/intention', { intention: 'unavailable' })).status, 409);
     ok(await post(a, all + '/organize', { action: 'choose', optionId: allOption }));
     assert.equal(ok(await p1(a, all)).suggestion, undefined);
     ok(await post(b, all + '/confirm', { attend: true }));
@@ -277,6 +293,18 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
     assert.equal(ok(await p1(a, all)).gathering.state, 'interest');
     ok(await post(a, all + '/organize', { action: 'cancel' }));
     assert.equal(ok(await p1(c, all)).gathering.state, 'cancelled');
+    const pair = await create('open', [c]);
+    const pairDetail = ok(await p1(a, pair));
+    assert.equal(pairDetail.gathering.directProposal, true);
+    ok(await post(a, pair + '/organize', { action: 'choose', optionId: pairDetail.options[0].id }));
+    ok(await post(c, pair + '/confirm', { attend: true }));
+    assert.equal(ok(await p1(a, pair)).gathering.state, 'formed');
+    const sparse = await create('open', [b, c, d]);
+    const sparseOption = ok(await p1(a, sparse)).options[0].id;
+    for (const who of [b, c])
+      ok(await post(who, sparse + '/intention', { intention: 'interested', optionIds: [sparseOption] }));
+    ok(await post(a, sparse + '/organize', { action: 'seal' }));
+    assert.equal(ok(await p1(a, sparse)).suggestion, undefined);
     assert.equal((await post(a, address + '/organize', { action: 'complete' })).status, 409);
     await admin.query("UPDATE p1_gathering_options SET starts_at=now()-interval '1 hour' WHERE id=$1", [
       option,
@@ -307,7 +335,14 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
         ok(await p1(re1, '/reviews/' + report.id + '/evidence')).evidence.messages[0].senderId,
         userId(b),
       );
-      assert.equal((await post(re1, '/reviews/' + report.id + '/suggestion', {})).status, 503);
+      assert.equal(
+        (await p1(re1, '/reviews/' + report.id + '/suggestion', 'POST', {}, { off: true })).status,
+        503,
+      );
+      assert.equal((await post(re1, '/reviews/' + report.id + '/suggestion', {})).status, 403);
+      await admin.query("UPDATE p1_reports SET submitted_at=now()-interval '12 days' WHERE id=$1", [
+        report.id,
+      ]);
       const decision = {
         decision: 'confirm',
         penalty: 'limit_sending',
@@ -323,12 +358,14 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
       assert.deepEqual(ok(await p1(b, '/boundary')).actions, []);
       const outcome = (
         await admin.query(
-          `SELECT e.id,extract(epoch FROM e.execute_at-r.submitted_at)::int seconds
+          `SELECT e.id,r.submitted_at,r.decided_at,e.execute_at,extract(epoch FROM e.execute_at-r.decided_at)::int seconds
       FROM p1_enforcement e JOIN p1_reports r ON r.id=e.report_id WHERE e.report_id=$1`,
           [report.id],
         )
       ).rows[0];
       assert.ok(outcome.seconds >= 86400 && outcome.seconds <= 604800, outcome.seconds);
+      assert.ok(outcome.decided_at - outcome.submitted_at >= 12 * 86400e3);
+      assert.equal((await runEnforcement(new Date(+outcome.execute_at - 1000))).applied, 0);
       assert.equal((await ask(a, '/ops/p1/moderation/run', 'POST')).status, 404);
       assert.equal(
         ok(
@@ -381,7 +418,7 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
         await post(re1, '/reviews/' + urgent.id + '/decision', {
           ...decision,
           penalty: 'warning',
-          urgent: true,
+          urgent: false,
         }),
       );
       assert.equal(
@@ -431,6 +468,135 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
       assert.equal((await post(b, url + '/renew', {})).status, 404);
       ok(await post(a, url + '/end', {}));
       assert.deepEqual(closed, [active.id]);
+    },
+  );
+
+  await t.test(
+    '13: authority-scoped photo/video snapshots survive source removal, and an advisor gets only consented redacted excerpts',
+    async () => {
+      const image = await upload(a, photo, 'image/jpeg');
+      const clip = await upload(a, video, 'video/mp4');
+      const unselected = await upload(a, photo, 'image/jpeg');
+      const line = async (file, content) =>
+        ok(
+          await api(a, room + '/messages', 'POST', {
+            clientId: randomUUID(),
+            content,
+            mediaIds: [file.id],
+          }),
+          201,
+        ).id;
+      const key = await line(
+        image,
+        '王小明 13912345678 user@example.com https://example.com/secret 需要确认',
+      );
+      const context = await line(clip, '提供的短视频');
+      const other = await line(unselected, '未选择的内容');
+      const request = {
+        clientId: randomUUID(),
+        kind: 'boundary',
+        groupId: group,
+        anchorId: key,
+        messageIds: [key, context],
+        allowAssistance: true,
+        explanation: '不得传出的举报说明',
+        attachments: [unselected.id],
+      };
+      const { id } = ok(await post(c, '/reports', request));
+      const path = '/review-media/' + id + '/';
+      const reviewPath = '/reviews/' + id;
+      const evidence = ok(await p1(re1, reviewPath + '/evidence')).evidence;
+      assert.deepEqual(
+        evidence.messages.map((m) => m.id),
+        [key, context],
+      );
+      assert.deepEqual(
+        evidence.messages.flatMap((m) => m.attachments.map((p) => p.id)),
+        [image.id, clip.id],
+      );
+      assert.equal(
+        evidence.messages[0].attachments[0].sha256,
+        createHash('sha256').update(photo).digest('hex'),
+      );
+      for (const who of [a, b, c, outside]) assert.equal((await p1(who, path + image.id)).status, 404);
+      assert.equal((await p1(re1, path + unselected.id)).status, 404);
+      assert.equal((await p1(re1, '/review-media/' + randomUUID() + '/' + image.id)).status, 404);
+      const archived = (
+        await admin.query('SELECT sealed_data FROM p1_report_media WHERE report_id=$1 AND media_id=$2', [
+          id,
+          image.id,
+        ])
+      ).rows[0].sealed_data;
+      assert.ok(!archived.includes(photo.subarray(0, 64)));
+      await admin.query('DELETE FROM private_media WHERE id=ANY($1::uuid[])', [[image.id, clip.id]]);
+      assert.equal((await api(c, '/moment-media/' + image.id)).status, 404);
+      const persisted = await p1(re1, path + image.id);
+      assert.equal(persisted.headers.get('cache-control'), 'private, no-store');
+      assert.deepEqual(ok(persisted), photo);
+      const movie = await p1(re2, path + clip.id, 'GET', undefined, { headers: { range: 'bytes=1-10' } });
+      assert.equal(movie.headers.get('content-range'), 'bytes 1-10/' + video.length);
+      assert.deepEqual(ok(movie, 206), video.subarray(1, 11));
+      assert.equal(
+        (await p1(re1, path + clip.id, 'HEAD')).headers.get('content-length'),
+        String(video.length),
+      );
+      assert.equal(
+        (await p1(re1, path + clip.id, 'GET', undefined, { headers: { range: 'bytes=99999999-' } })).status,
+        416,
+      );
+      assert.ok(
+        ok(await p1(re2, reviewPath + '/audit')).audit.some(
+          (row) => row.action === 'evidence_media_accessed',
+        ),
+      );
+
+      assert.equal(
+        (
+          await post(c, reviewPath + '/suggestion', {
+            redactionConfirmed: true,
+            selection: [{ id: key, redactions: [] }],
+          })
+        ).status,
+        404,
+      );
+      assert.equal(
+        (
+          await post(re1, reviewPath + '/suggestion', {
+            redactionConfirmed: true,
+            selection: [{ id: other, redactions: [] }],
+          })
+        ).status,
+        400,
+      );
+      assert.equal(
+        (await post(re1, reviewPath + '/suggestion', { selection: [{ id: key, redactions: [] }] })).status,
+        400,
+      );
+      assert.equal(advisorCalls.length, 0);
+      assert.deepEqual(
+        ok(
+          await post(re1, reviewPath + '/suggestion', {
+            redactionConfirmed: true,
+            selection: [{ id: key, redactions: [{ start: 0, end: 3 }] }],
+          }),
+        ),
+        { focus: 'context' },
+      );
+      const { evidence: safe, ...meta } = advisorCalls[0];
+      assert.deepEqual(safe.messages, [
+        { speaker: 'subject', text: '[已遮盖] [已遮盖] [已遮盖] [已遮盖] 需要确认', mediaKinds: ['image'] },
+      ]);
+      assert.equal(meta.policyVersion, 'p1-v2');
+      for (const secret of [id, key, userId(a), other, '不得传出的举报说明', '未选择的内容', image.id])
+        assert.ok(!JSON.stringify(advisorCalls[0]).includes(secret));
+      assert.equal(
+        (await admin.query('SELECT count(*)::int n FROM p1_enforcement WHERE report_id=$1', [id])).rows[0].n,
+        0,
+      );
+      assert.equal(
+        (await admin.query('SELECT status FROM p1_reports WHERE id=$1', [id])).rows[0].status,
+        'pending',
+      );
     },
   );
 
@@ -516,23 +682,111 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
     const page = ok(await p1(a, base));
     const draft = page.entries[0];
     const picture = await upload(b, photo, 'image/jpeg');
-    ok(
+    const contribution = ok(
       await post(b, '/entries/' + draft.id + '/contributions', {
         clientId: randomUUID(),
-        body: '我的照片',
+        body: '只给我选定的人',
         mediaIds: [picture.id],
       }),
     );
+    const workspace = '/contributions/' + contribution.id + '/audience?channel=workspace';
+    const publicScope = '/contributions/' + contribution.id + '/audience?channel=publication';
+    const entryPath = '/entries/' + draft.id;
+    const media = '/moment-media/' + picture.id;
+    const album = base + '/album';
+    const history = '/contributions/' + contribution.id + '/history';
+    async function viewers(who, route, selected, version) {
+      return p1(who, route, 'PATCH', {
+        version: version ?? ok(await p1(who, route)).version,
+        viewerIds: selected.map(userId),
+      });
+    }
+    async function hidden(who) {
+      assert.deepEqual(ok(await p1(who, entryPath)).contributions, []);
+      assert.deepEqual(ok(await p1(who, album)).media, []);
+      for (const method of ['GET', 'HEAD']) assert.equal((await api(who, media, method)).status, 404);
+      assert.equal(
+        (await api(who, media, 'GET', undefined, { headers: { range: 'bytes=0-7' } })).status,
+        404,
+      );
+    }
+    await hidden(a);
+    assert.equal((await p1(a, history)).status, 404);
+    assert.equal((await p1(a, workspace)).status, 404);
+    assert.equal(
+      (await p1(a, workspace, 'PATCH', { version: 'forged', viewerIds: [userId(a)] })).status,
+      404,
+    );
+    assert.equal((await p1(a, workspace, 'DELETE')).status, 404);
     assert.equal((await p1(c, base)).status, 404);
     assert.equal((await post(b, base + '/publish', { scope: 'friends' })).status, 404);
+    ok(await viewers(b, workspace, [a]));
+    assert.equal(ok(await p1(a, entryPath)).contributions[0].body, '只给我选定的人');
+    assert.equal((await p1(a, history)).status, 200);
+    ok(await post(a, base + '/invite', { memberIds: [userId(d)] }));
+    ok(await post(d, base + '/membership', { action: 'accept' }));
+    await hidden(d);
+
     const moment = ok(await post(a, base + '/publish', { scope: 'selected', memberIds: [userId(c)] }));
+    const momentPath = '/moments/' + moment.id;
     const feed = ok(await api(c, '/moments')).moments;
     assert.equal(feed.find((item) => item.id === moment.id).collaborationId, collab.id);
-    assert.equal(ok(await p1(c, '/entries/' + draft.id)).contributions[0].body, '我的照片');
-    assert.equal((await api(c, '/moment-media/' + picture.id)).status, 200);
+    await hidden(c);
     assert.equal((await p1(outside, base)).status, 404);
-    ok(await api(a, '/moments/' + moment.id, 'PATCH', { body: '一起写晚霞', scope: 'private', revision: 1 }));
-    assert.equal((await api(c, '/moment-media/' + picture.id)).status, 404);
-    assert.equal((await p1(c, base)).status, 404);
+    assert.deepEqual(ok(await p1(b, publicScope)).viewers, []);
+    for (const friend of [c, d]) {
+      const link = ok(await api(b, '/friends', 'POST', { userId: userId(friend) }));
+      ok(await api(friend, '/friends/accept', 'POST', { id: link.id }));
+    }
+    const initialPlan = ok(await p1(b, publicScope));
+    assert.deepEqual(initialPlan.viewers, [{ id: userId(c), name: c.user.name, allowed: false }]);
+    ok(await viewers(b, publicScope, [c]));
+    assert.equal(ok(await p1(c, entryPath)).contributions[0].body, '只给我选定的人');
+    assert.equal(ok(await p1(c, album)).media[0].id, picture.id);
+    assert.equal((await api(c, media)).status, 200);
+    const oldPlan = ok(await p1(b, publicScope));
+    ok(await api(a, momentPath, 'PATCH', { scope: 'friends', revision: 1 }));
+    assert.equal((await api(c, media)).status, 200);
+    await hidden(d);
+    assert.equal((await viewers(b, publicScope, [c, d], oldPlan.version)).status, 409);
+    ok(await viewers(b, publicScope, [c, d]));
+    assert.equal((await api(d, media)).status, 200);
+    ok(await api(a, momentPath, 'PATCH', { scope: 'selected', memberIds: [userId(c)], revision: 2 }));
+    await hidden(d);
+    ok(await api(a, momentPath, 'PATCH', { scope: 'friends', revision: 3 }));
+    await hidden(d);
+    ok(await p1(b, publicScope, 'DELETE'));
+    await hidden(c);
+    assert.equal((await api(a, media)).status, 200);
+    ok(await p1(b, workspace, 'DELETE'));
+    await hidden(a);
+    assert.equal((await p1(a, history)).status, 404);
+    assert.equal((await api(b, media)).status, 200);
+    ok(await viewers(b, publicScope, [c]));
+    assert.equal((await api(c, media)).status, 200);
+    ok(await api(a, momentPath, 'DELETE'));
+    const republished = ok(await post(a, base + '/publish', { scope: 'friends' }));
+    assert.notEqual(republished.id, moment.id);
+    await hidden(c);
+    const relations = ok(
+      await api(a, '/relationship-groups', 'POST', { label: '老朋友', memberIds: [userId(c)] }),
+      201,
+    ).group;
+    ok(
+      await api(a, '/moments/' + republished.id, 'PATCH', {
+        scope: 'group',
+        groupId: relations.id,
+        revision: 1,
+      }),
+    );
+    ok(await viewers(b, publicScope, [c]));
+    assert.equal((await api(c, media)).status, 200);
+    const relPath = '/relationship-groups/' + relations.id;
+    ok(await api(a, relPath, 'PUT', { label: '老朋友', memberIds: [userId(c), userId(d)] }));
+    await hidden(d);
+    ok(await api(a, relPath, 'PUT', { label: '老朋友', memberIds: [userId(d)] }));
+    assert.equal((await api(c, media)).status, 404);
+    ok(await api(a, relPath, 'PUT', { label: '老朋友', memberIds: [userId(c), userId(d)] }));
+    await hidden(c);
   });
 });

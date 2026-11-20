@@ -78,18 +78,19 @@ function base64Of(blob: Blob): Promise<string> {
   });
 }
 
-function useProtectedSource(id: string, enabled = true) {
+function useProtectedSource(id: string, enabled = true, reviewId?:string) {
   const token = useSession().session?.token;
-  const [cached, setCached] = useState<{ id: string; token: string; uri: string }>();
+  const [cached, setCached] = useState<{ source: string; token: string; uri: string }>();
   const [problem, setProblem] = useState('');
   const uri = useMemo(() => {
     if (!enabled || !token) return undefined;
     try {
-      return apiOrigin() + '/v1/moment-media/' + encodeURIComponent(id);
+      return apiOrigin() + (reviewId ? '/v1/p1/review-media/' + encodeURIComponent(reviewId) + '/' : '/v1/moment-media/')
+        + encodeURIComponent(id);
     } catch {
       return undefined;
     }
-  }, [id, token, enabled]);
+  }, [id, token, enabled, reviewId]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !uri || !token) return;
     let active = true,
@@ -104,7 +105,7 @@ function useProtectedSource(id: string, enabled = true) {
       .then((blob) => {
         if (!active) return;
         blobUri = URL.createObjectURL(blob);
-        setCached({ id, token, uri: blobUri });
+        setCached({ source:uri, token, uri: blobUri });
       })
       .catch(() => {
         if (active) setProblem('媒体暂不可访问。');
@@ -119,7 +120,7 @@ function useProtectedSource(id: string, enabled = true) {
     problem,
     source:
       Platform.OS === 'web'
-        ? cached?.id === id && cached.token === token
+        ? cached && cached.source === uri && cached.token === token
           ? { uri: cached.uri }
           : undefined
         : uri && token
@@ -128,16 +129,16 @@ function useProtectedSource(id: string, enabled = true) {
   };
 }
 
-export function MomentMediaTile({ item, context = 'moment' }: { item: Media; context?: 'moment' | 'chat' }) {
+export function MomentMediaTile({ item, context = 'moment', reviewId }: { item: Media; context?: 'moment' | 'chat'; reviewId?:string }) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const video = item.mime === 'video/mp4';
-  const { source, problem } = useProtectedSource(item.id, !video || open);
+  const { source, problem } = useProtectedSource(item.id, !video || open, reviewId);
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={video ? '播放动态视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
+        accessibilityLabel={reviewId ? '查看举报附件' : video ? '播放动态视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
         onPress={() => setOpen(true)}
         style={{
           height: 140,
@@ -164,7 +165,7 @@ export function MomentMediaTile({ item, context = 'moment' }: { item: Media; con
         )}
       </Pressable>
       {open && (
-        <Sheet title={video ? '动态视频' : context === 'chat' ? '聊天图片' : '动态照片'} onClose={() => setOpen(false)}>
+        <Sheet title={reviewId?'举报附件':video ? '动态视频' : context === 'chat' ? '聊天图片' : '动态照片'} onClose={() => setOpen(false)}>
           {failed || problem ? (
             <Notice>{problem || '暂时无法显示该媒体。'}</Notice>
           ) : source ? (

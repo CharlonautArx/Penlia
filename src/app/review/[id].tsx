@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Switch, Text, View } from 'react-native';
 import { Button, Empty, ListRow, Notice, Screen, Section } from '../../components/ui';
+import { MomentMediaTile, type Media } from '../../features/moments/media';
 import { reportKinds } from '../../features/social/ReportSheet';
 import { back, Choices, Field, formatTime, useRecord } from '../../features/social/ui';
 import { styles } from '../../theme';
@@ -26,7 +27,14 @@ type Evidence = {
   evidence: {
     explanation?: string;
     anchorId: string;
-    messages: { id: string; content: string; senderId?: string; mine?: boolean; attachmentCount?: number }[];
+    messages: {
+      id: string;
+      content: string;
+      senderId?: string;
+      mine?: boolean;
+      attachmentCount?: number;
+      attachments?: (Media & { bytes: number; sha256: string })[];
+    }[];
   };
 };
 const sources: Record<string, string> = {
@@ -91,10 +99,23 @@ function Case({ id }: { id: string }) {
                 {line.content || '无文字'}
                 {line.attachmentCount ? ' · 附件 ' + line.attachmentCount : ''}
               </Text>
+              {!!line.attachments?.length && (
+                <View style={[styles.row, { flexWrap: 'wrap' }]}>
+                  {line.attachments.map((file) => (
+                    <MomentMediaTile key={file.id} item={file} reviewId={id} />
+                  ))}
+                </View>
+              )}
+              {!!line.attachmentCount && !line.attachments?.length && (
+                <Text style={styles.muted}>该历史工单只有附件数量记录。</Text>
+              )}
             </View>
           ))}
           {data.status === 'pending' && (
             <>
+              {data.kind === 'boundary' && (
+                <Text style={styles.muted}>确认后，普通处置将随机延迟 1–7 天生效。</Text>
+              )}
               {data.provenance === 'private_pending' && (
                 <Button
                   label="核验私聊原始证据"
@@ -112,7 +133,10 @@ function Case({ id }: { id: string }) {
               ) : (
                 <Choices labels={penaltyNames} value={penalty} set={setPenalty} />
               )}
-              {data.kind !== 'boundary' && (
+              {data.kind === 'threat' && (
+                <Text style={styles.muted}>审核确认后，严重威胁案件会立即处置。</Text>
+              )}
+              {data.kind === 'harassment' && (
                 <ListRow
                   title="紧急风险，立即生效"
                   trailing={<Switch accessibilityLabel="紧急风险" value={urgent} onValueChange={setUrgent} />}

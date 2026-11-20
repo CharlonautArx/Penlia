@@ -263,8 +263,8 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
     if (phoneRoute) return json(200, await runPhone(phoneRoute, { authorization, sourceIp, readBody }, phoneAuth));
 
     const { user, tokenHash } = await requireSession(authorization);
-    const p1 = await p1Routes(method,path,{ user,query,readBody,rateLimit,rtc,moderationEvidence,reviewAdvisor });
-    if (p1 !== undefined) return json(200,p1);
+    const p1 = await p1Routes(method,path,{ user,query,readBody,rateLimit,headers,rtc,moderationEvidence,reviewAdvisor });
+    if (p1 !== undefined) return Buffer.isBuffer(p1.binary) ? p1 : json(200,p1);
     switch (route) {
       case 'POST /v1/logout':
         await pool.query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);

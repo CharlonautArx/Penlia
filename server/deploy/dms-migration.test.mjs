@@ -51,3 +51,23 @@ test('P1 migration is flat, checks the P0 ledger, and never grants reviewer prov
     ['GRANT SELECT ON p1_reviewers TO penlia_app']);
   assert.match(statements.at(-2), /004_social_p1\.sql/);
 });
+
+test('P1 follow-up migration gates the one-time schedule correction and creates scoped evidence grants', () => {
+  const generated = execFileSync(process.execPath, [fileURLToPath(file('dms-migration.mjs')), '--p1-followup'], {
+    encoding: 'utf8',
+  });
+  assert.equal(generated, readFileSync(file('penlia-p1-followup-dms.sql'), 'utf8'));
+  assert.doesNotMatch(generated, /\$(?:[a-zA-Z_][a-zA-Z_0-9]*)?\$/);
+  const statements = generated.trim().split(';').map((statement) => statement.trim()).filter(Boolean);
+  assert.equal(statements[0], 'BEGIN');
+  assert.equal(statements.at(-1), 'COMMIT');
+  assert.match(statements.find((step) => step.endsWith('AS p1_check')), /004_social_p1\.sql/);
+  const repairs = statements.filter((step) => step.startsWith('UPDATE'));
+  assert.equal(repairs.length, 1);
+  assert.match(repairs[0], /r\.decided_at\+make_interval/);
+  assert.match(repairs[0], /e\.applied_at IS NULL AND e\.overturned_at IS NULL/);
+  assert.match(repairs[0], /NOT EXISTS\(SELECT 1 FROM schema_migrations WHERE name='005_p1_privacy_followup\.sql'\)/);
+  assert.equal(statements.find((step) => step.startsWith('GRANT') && step.includes('p1_report_media')),
+    'GRANT SELECT, INSERT ON p1_report_media TO penlia_app');
+  assert.match(statements.at(-2), /005_p1_privacy_followup\.sql/);
+});

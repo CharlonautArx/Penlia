@@ -112,7 +112,7 @@ export function ReportSheet({
             </View>
           ))}
           {!!explanation && <Text style={styles.body}>{explanation}</Text>}
-          <Text style={styles.muted}>仅授权审核人员可查阅证据。私聊原始证据需单独核验。</Text>
+          <Text style={styles.muted}>仅授权审核人员可查阅证据。群聊所选消息的原附件会一并加密提交。私聊原始证据需单独核验。</Text>
           <Button
             label={busy ? '正在提交…' : '确认举报'}
             variant="gradient"

@@ -15,6 +15,7 @@ import {
   useRecord,
   type Category,
 } from '../../features/social/ui';
+import { gatheringTimeChoices } from '../../features/social/gathering-time';
 import { useSession } from '../../services/session';
 import { styles } from '../../theme';
 
@@ -40,6 +41,7 @@ type Detail = {
     state: keyof typeof stateNames;
     choiceId: string | null;
     ballotClosed: boolean;
+    directProposal: boolean;
     intention: Intention | null;
     votes: string[];
     confirmed: boolean;
@@ -78,6 +80,16 @@ function OptionsEditor({ items, set }: { items: DraftOption[]; set: (items: Draf
             placeholder="年-月-日 时:分"
             onChangeText={(time) => set(items.map((item, i) => (i === index ? { ...item, time } : item)))}
           />
+          <View style={[styles.row, { flexWrap: 'wrap' }]}>
+            {gatheringTimeChoices().map(({ label, value }) => (
+              <Button
+                key={label}
+                label={label}
+                variant={option.time === value ? 'primary' : 'soft'}
+                onPress={() => set(items.map((item, i) => (i === index ? { ...item, time: value } : item)))}
+              />
+            ))}
+          </View>
           <Field
             title="见面地点"
             value={option.place}
@@ -205,7 +217,10 @@ function GatheringDetail({ id }: { id: string }) {
   return (
     <Screen title="约局详情" back={back} refreshing={busy} onRefresh={() => void load()}>
       <View style={styles.card}>
-        <Section title={g.title} detail={stateNames[g.state]} />
+        <Section
+          title={g.title}
+          detail={g.state === 'interest' && g.directProposal ? '直接提议时间' : stateNames[g.state]}
+        />
         <Text style={styles.body}>
           {modeNames[g.mode]}
           {g.mode === 'open' ? ' · 至少 ' + g.minimum + ' 人参加' : ''}
@@ -218,20 +233,26 @@ function GatheringDetail({ id }: { id: string }) {
       </View>
       {g.state === 'interest' && (
         <>
-          <Section title="匿名意向" />
-          <Text style={styles.muted}>
-            选择仅本人可见。封票后，票数和个人选择仍保密。小群体中仍可能被推测。
-          </Text>
-          {!g.ballotClosed ? (
-            <Choices labels={intentions} value={intent} set={setIntent} />
+          <Section title={g.directProposal ? '直接提议时间' : '匿名意向'} />
+          {g.directProposal ? (
+            <Text style={styles.muted}>
+              {host ? '选一个时间发给朋友，请他们自愿确认。' : '等发起者提议时间后，你可以自愿确认。'}
+            </Text>
           ) : (
-            <Text style={styles.muted}>本轮意向已结束。</Text>
+            <>
+              <Text style={styles.muted}>选择仅本人可见。封票后，票数和个人选择仍保密。</Text>
+              {!g.ballotClosed ? (
+                <Choices labels={intentions} value={intent} set={setIntent} />
+              ) : (
+                <Text style={styles.muted}>本轮意向已结束。</Text>
+              )}
+            </>
           )}
           {data.options.map((item) => (
             <View style={styles.card} key={item.id}>
               <Text style={styles.strong}>{formatTime(item.startsAt)}</Text>
               <Text style={styles.muted}>{item.place}</Text>
-              {!g.ballotClosed && intent !== 'unavailable' && (
+              {!g.directProposal && !g.ballotClosed && intent !== 'unavailable' && (
                 <CheckRow
                   label="这个时间方便"
                   selected={votes.includes(item.id)}
@@ -244,14 +265,14 @@ function GatheringDetail({ id }: { id: string }) {
               )}
               {host && (
                 <CheckRow
-                  label="选择为正式时间"
+                  label={g.directProposal ? '选择要提议的时间' : '选择为正式时间'}
                   selected={choice === item.id}
                   action={() => setChoice(item.id)}
                 />
               )}
             </View>
           ))}
-          {!g.ballotClosed && (
+          {!g.directProposal && !g.ballotClosed && (
             <Button
               label={g.intention ? '更新我的意向' : '提交我的意向'}
               disabled={busy}
@@ -260,7 +281,7 @@ function GatheringDetail({ id }: { id: string }) {
           )}
           {host && (
             <>
-              {!g.ballotClosed && (
+              {!g.directProposal && !g.ballotClosed && (
                 <Button
                   label="结束匿名意向并查看建议"
                   variant="soft"
@@ -268,7 +289,7 @@ function GatheringDetail({ id }: { id: string }) {
                   onPress={() => organize('seal')}
                 />
               )}
-              {g.ballotClosed && (
+              {!g.directProposal && g.ballotClosed && (
                 <Notice>
                   {suggestion
                     ? '推荐 ' + formatTime(suggestion.startsAt) + ' · ' + suggestion.place
@@ -276,7 +297,7 @@ function GatheringDetail({ id }: { id: string }) {
                 </Notice>
               )}
               <Button
-                label="公布时间并开放确认"
+                label={g.directProposal ? '提议时间并开放确认' : '公布时间并开放确认'}
                 variant="gradient"
                 disabled={!choice || busy}
                 onPress={() => organize('choose', { optionId: choice })}

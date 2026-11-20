@@ -20,7 +20,8 @@ const currentState = `CASE WHEN g.state IN ('confirming','formed') THEN
     AND ${canParticipate('g.owner_id', 'c.user_id')}),0)>=g.minimum THEN 'formed' ELSE 'confirming' END
   ELSE g.state END`;
 const viewFields = `g.id,g.owner_id AS "ownerId",g.category,g.title,g.mode,g.minimum,${currentState} AS state,
-  g.choice_id AS "choiceId",g.ballot_closed AS "ballotClosed"`;
+  g.choice_id AS "choiceId",g.ballot_closed AS "ballotClosed",
+  ((SELECT count(*) FROM p1_gathering_members roster WHERE roster.gathering_id=g.id AND roster.user_id<>g.owner_id)<3) AS "directProposal"`;
 
 async function gathering(db, id, user, lock = false) {
   const {
@@ -87,7 +88,7 @@ export async function getGathering(user, id) {
     gathering: row,
     options,
     attendees,
-    ...(row.ownerId === user && suggestion ? { suggestion } : {}),
+    ...(!row.directProposal && row.ownerId === user && suggestion ? { suggestion } : {}),
   };
 }
 
@@ -133,6 +134,7 @@ export async function createGathering(user, body) {
 export async function updateIntention(user, id, body) {
   return inTransaction(pool, async (db) => {
     const value = await gathering(db, id, user, true);
+    if (value.directProposal) throw conflict('这次约局采用直接提议时间。');
     if (value.state !== 'interest' || value.ballotClosed) throw conflict('本轮匿名意向已结束。');
     const intention = choose(body.intention, ['interested', 'undecided', 'unavailable']);
     const votes = intention === 'unavailable' ? [] : idsOf(body.optionIds ?? [], 8);
@@ -209,6 +211,7 @@ export async function organizeGathering(user, id, body) {
     if (row.ownerId !== user) throw missing();
     if (['cancelled', 'completed'].includes(row.state)) throw conflict();
     if (action === 'seal') {
+      if (row.directProposal) throw conflict('这次约局采用直接提议时间。');
       if (row.state !== 'interest') throw conflict();
       if (!row.ballotClosed) await lockBallot(db, id, user, row.mode);
       return {};
@@ -225,7 +228,7 @@ export async function organizeGathering(user, id, body) {
         ).rowCount
       )
         throw missing();
-      if (!row.ballotClosed) await lockBallot(db, id, user, row.mode);
+      if (!row.directProposal && !row.ballotClosed) await lockBallot(db, id, user, row.mode);
       await db.query("UPDATE p1_gatherings SET choice_id=$2,state='confirming' WHERE id=$1", [id, option]);
       await db.query('UPDATE p1_gathering_members SET confirmed=(user_id=$2) WHERE gathering_id=$1', [
         id,

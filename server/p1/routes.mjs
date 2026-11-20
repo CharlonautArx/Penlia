@@ -1,5 +1,6 @@
 import { readId } from '../core.mjs';
 import { pool } from '../db.mjs';
+import { getContributionAudience, setContributionAudience } from './contribution-consent.mjs';
 import * as collections from './collections.mjs';
 import { choose, invalid } from './common.mjs';
 import * as gathering from './gatherings.mjs';
@@ -10,8 +11,19 @@ import * as wishes from './wishes.mjs';
 export async function p1Routes(
   method,
   path,
-  { user, query, readBody, rateLimit, rtc, moderationEvidence, reviewAdvisor },
+  { user, query, readBody, rateLimit, headers, rtc, moderationEvidence, reviewAdvisor },
 ) {
+  const attachment = /^\/v1\/p1\/review-media\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/.exec(path);
+  if (attachment && (method === 'GET' || method === 'HEAD')) {
+    await rateLimit('p1:review-media:' + user.id, 180, 1);
+    return review.readReportMedia(
+      user.id,
+      readId(attachment[1]),
+      readId(attachment[2]),
+      headers.range,
+      method === 'HEAD',
+    );
+  }
   const match = /^\/v1\/p1\/([a-z-]+)(?:\/([a-zA-Z0-9-]+))?(?:\/([a-z-]+))?$/.exec(path);
   if (!match) return;
   const [, resource, rawId, action] = match;
@@ -90,6 +102,12 @@ export async function p1Routes(
     switch (route) {
       case 'GET:list':
         return collections.ownContributions(me);
+      case 'GET:one:audience':
+        return getContributionAudience(me, id, query.get('channel'));
+      case 'PATCH:one:audience':
+        return setContributionAudience(me, id, query.get('channel'), await body());
+      case 'DELETE:one:audience':
+        return setContributionAudience(me, id, query.get('channel'));
       case 'GET:one:history':
         return collections.contributionHistory(me, id);
       case 'PATCH:one':
@@ -112,7 +130,7 @@ export async function p1Routes(
       case 'POST:one:verify':
         return review.verifyPrivateReport(me, id, moderationEvidence);
       case 'POST:one:suggestion':
-        return review.suggestReview(me, id, reviewAdvisor);
+        return review.suggestReview(me, id, reviewAdvisor, await body());
       case 'POST:one:decision':
         return review.decideReport(me, id, await body());
     }

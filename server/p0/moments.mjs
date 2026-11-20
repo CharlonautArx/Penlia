@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { cleanText, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
 import { blocked, idsOf, lockUsers, verifyFriends } from './access.mjs';
-import { collectionReadable, contributionReadable, momentVisible, unusedMedia } from '../p1/collection-access.mjs';
+import { collectionReadable, contributionReadable, contributionScope, momentReaders, momentVisible, unusedMedia } from '../p1/collection-access.mjs';
 
 export const mediaLimit = 4 * 1024 * 1024;
 const notFound = () => new HttpError(404, '找不到可查看的内容。');
@@ -127,7 +127,7 @@ export async function updateMoment(userId, id, body) {
     await lockUsers(db, userId);
     const {
       rows: [previous],
-    } = await db.query('SELECT body,revision FROM private_moments WHERE id=$1 AND author_id=$2', [id, userId]);
+    } = await db.query('SELECT body,revision FROM private_moments WHERE id=$1 AND author_id=$2 FOR UPDATE', [id, userId]);
     if (!previous) throw notFound();
     if (body.revision !== previous.revision) throw new HttpError(409, '动态已经更新，请刷新后重试。');
     const value = await audience(db, userId, body);
@@ -147,6 +147,8 @@ export async function updateMoment(userId, id, body) {
       id,
       value.ids,
     ]);
+    await db.query(`DELETE FROM p1_contribution_public_readers grant_row WHERE moment_id=$1
+      AND NOT EXISTS(SELECT 1 FROM (${momentReaders('$1','$2::uuid')}) r WHERE r.id=grant_row.viewer_id)`,[id,userId]);
     return saved;
   });
 }
@@ -262,26 +264,14 @@ export async function getMedia(userId, id, range, head) {
       EXISTS(SELECT 1 FROM p1_contribution_media link JOIN p1_contributions pc ON pc.id=link.contribution_id
         JOIN p1_entries pe ON pe.id=pc.entry_id JOIN p1_collections coll ON coll.id=pe.collection_id
         WHERE link.media_id=b.id AND ${collectionReadable('coll','$1::uuid')} AND
-        ${contributionReadable('pc','$1::uuid')} AND NOT ${blocked('pe.author_id','$1::uuid')}))`;
+        ${contributionReadable('pc','$1::uuid')} AND ${contributionScope('pc','coll','$1::uuid')} AND NOT ${blocked('pe.author_id','$1::uuid')}))`;
   const {
     rows: [metadata],
   } = await pool.query('SELECT b.mime,octet_length(b.data) AS bytes ' + acl, [userId, id]);
   if (!metadata) throw notFound();
-  const size = metadata.bytes;
-  let first = 0,
-    last = size - 1;
-  if (range !== undefined) {
-    const match = /^bytes=(\d{0,10})-(\d{0,10})$/.exec(range);
-    if (!match || (!match[1] && !match[2]))
-      return { statusCode: 416, binary: Buffer.alloc(0), headers: { 'Content-Range': 'bytes */' + size } };
-    if (!match[1]) first = Math.max(0, size - Number(match[2]));
-    else {
-      first = Number(match[1]);
-      if (match[2]) last = Math.min(last, Number(match[2]));
-    }
-    if (last < first)
-      return { statusCode: 416, binary: Buffer.alloc(0), headers: { 'Content-Range': 'bytes */' + size } };
-  }
+  const bounds = parseMediaRange(range, metadata.bytes);
+  if (!bounds) return invalidMediaRange(metadata.bytes);
+  const { first, last } = bounds;
   const length = last - first + 1;
   let binary = Buffer.alloc(0);
   if (!head) {
@@ -291,12 +281,38 @@ export async function getMedia(userId, id, range, head) {
     if (!row) throw notFound();
     binary = row.data;
   }
+  return mediaResponse(metadata.mime, metadata.bytes, range, bounds, binary);
+}
+
+export function parseMediaRange(range, size) {
+  let first = 0,
+    last = size - 1;
+  if (range !== undefined) {
+    const match = /^bytes=(\d{0,10})-(\d{0,10})$/.exec(range);
+    if (!match || (!match[1] && !match[2]))
+      return null;
+    if (!match[1]) first = Math.max(0, size - Number(match[2]));
+    else {
+      first = Number(match[1]);
+      if (match[2]) last = Math.min(last, Number(match[2]));
+    }
+    if (last < first)
+      return null;
+  }
+  return { first, last };
+}
+
+export function invalidMediaRange(size) {
+  return { statusCode: 416, binary: Buffer.alloc(0), headers: { 'Content-Range': 'bytes */' + size } };
+}
+
+export function mediaResponse(mime, size, range, { first,last }, binary) {
   return {
     statusCode: range === undefined ? 200 : 206,
     binary,
     headers: {
-      'Content-Type': metadata.mime,
-      'Content-Length': String(length),
+      'Content-Type': mime,
+      'Content-Length': String(last-first+1),
       'Accept-Ranges': 'bytes',
       'X-Content-Type-Options': 'nosniff',
       ...(range === undefined ? {} : { 'Content-Range': `bytes ${first}-${last}/${size}` }),
