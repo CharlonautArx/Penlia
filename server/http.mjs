@@ -1,14 +1,15 @@
 import { createServer } from 'node:http';
 import { handle, HttpError } from './api.mjs';
+import { mediaLimit } from './p0/moments.mjs';
 
 const MAX_BODY_BYTES = 12000;
 
-async function readBody(request) {
+async function readBody(request, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
   let bytes = 0;
   for await (const chunk of request.iterator({ destroyOnReturn: false })) {
     bytes += chunk.length;
-    if (bytes > MAX_BODY_BYTES) {
+    if (bytes > maxBytes) {
       request.resume();
       throw new HttpError(413, '请求太大。');
     }
@@ -39,9 +40,14 @@ export function createApiServer({ phoneAuth } = {}) {
       query: url.searchParams,
       headers: request.headers,
       sourceIp: request.socket.remoteAddress ?? 'unknown',
-      readBody: () => readBody(request),
+      readBody: () => readBody(request, request.method === 'POST' && url.pathname === '/v1/moment-media'
+        ? Math.ceil(mediaLimit / 3) * 4 + 1024 : MAX_BODY_BYTES),
     }, { phoneAuth });
     if (response.destroyed) return;
+    if (Buffer.isBuffer(result.binary)) {
+      response.writeHead(result.statusCode, { 'Cache-Control':'private, no-store', ...result.headers }).end(result.binary);
+      return;
+    }
     response.writeHead(result.statusCode, {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',

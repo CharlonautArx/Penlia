@@ -1,0 +1,11 @@
+GRANT SELECT, INSERT, UPDATE ON public.privacy_preferences TO penlia_app;
+GRANT SELECT, INSERT, DELETE ON public.contact_blocks, public.contact_restrictions TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON public.friend_notes, public.friend_codes TO penlia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.relationship_groups TO penlia_app;
+GRANT SELECT, INSERT, DELETE ON public.relationship_group_members, public.priority_contacts TO penlia_app;
+GRANT SELECT, INSERT ON public.p0_devices, public.privacy_requests TO penlia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.chat_groups, public.chat_group_members TO penlia_app;
+GRANT SELECT, INSERT, UPDATE ON public.chat_group_invites TO penlia_app;
+GRANT SELECT, INSERT ON public.chat_group_messages TO penlia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.private_moments, public.private_media TO penlia_app;
+GRANT SELECT, INSERT, DELETE ON public.private_moment_viewers TO penlia_app;

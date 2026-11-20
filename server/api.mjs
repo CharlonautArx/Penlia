@@ -1,32 +1,17 @@
-import { createHash, randomBytes, scrypt as derive, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt as derive, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { checkDatabase, pool } from './db.mjs';
 import { checkEasemob, syncFriends, userToken } from './im.mjs';
 import { PhoneError, unavailable as phoneUnavailable } from './phone/policy.mjs';
+import { cleanText, hash, HttpError, inTransaction, readId } from './core.mjs';
+import { areFriends, beforeImSend, blocked, lockUsers, preferences, restricted, searchPerson } from './p0/access.mjs';
+import { p0Routes } from './p0/routes.mjs';
+
+export { HttpError } from './core.mjs';
 
 const scrypt = promisify(derive);
 const publicFields = 'id, username, name, bio';
 const usernamePattern = /^[a-z0-9_]{3,24}$/;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const hash = (value) => createHash('sha256').update(value).digest('hex');
-
-export class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
-
-function cleanText(value, limit, required = false) {
-  if (typeof value !== 'string') throw new HttpError(400, '请输入有效的文字。');
-  const text = value.trim();
-  const length = Array.from(text).length;
-  if ((required && !length) || length > limit || text.includes('\0')) {
-    throw new HttpError(400, '文字长度或内容无效。');
-  }
-  return text;
-}
-
 function readUsername(value) {
   const username = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (!usernamePattern.test(username)) throw new HttpError(400, '账号须为 3–24 位字母、数字或下划线。');
@@ -38,11 +23,6 @@ function readPassword(password) {
     throw new HttpError(400, '密码须为 10–128 个字符。');
   }
   return password;
-}
-
-function readId(id) {
-  if (typeof id !== 'string' || !uuidPattern.test(id)) throw new HttpError(400, '无效的标识。');
-  return id;
 }
 
 async function rateLimit(key, limit, minutes) {
@@ -118,56 +98,65 @@ async function requireSession(authorization) {
   return { user, tokenHash };
 }
 
-async function findPeople(userId, username) {
-  const { rows: [person] } = await pool.query(
-    `SELECT ${publicFields} FROM users WHERE username = $1 AND id <> $2`, [readUsername(username), userId]);
-  return { person: person ?? null };
-}
-
 async function friendships(userId) {
   const { rows } = await pool.query(
     `SELECT f.id, f.status, f.requested_by = $1 AS outgoing, f.im_synced AS "chatReady",
-            u.id AS "userId", u.username, u.name, u.bio
+            u.id AS "userId", u.username, u.name,
+            CASE WHEN f.status='accepted' AND p.profile_policy IS DISTINCT FROM 'private' AND NOT ${restricted('u.id','$1::uuid')} THEN u.bio ELSE '' END AS bio,
+            n.note AS "verificationMessage"
      FROM friendships f
      JOIN users u ON u.id = CASE WHEN f.first_user = $1 THEN f.second_user ELSE f.first_user END
-     WHERE (f.first_user = $1 OR f.second_user = $1) AND f.status <> 'declined'
+     LEFT JOIN privacy_preferences p ON p.user_id=u.id
+     LEFT JOIN friend_notes n ON n.friendship_id=f.id
+     WHERE (f.first_user = $1 OR f.second_user = $1) AND f.status <> 'declined' AND NOT ${blocked('$1::uuid','u.id')}
      ORDER BY f.updated_at DESC`, [userId]);
   return { relationships: rows };
 }
 
-async function requestFriend(userId, other) {
-  readId(other);
-  if (other === userId) throw new HttpError(400, '不能添加自己。');
-  await rateLimit('friend:' + userId, 30, 60);
-  const { rows: [target] } = await pool.query('SELECT id FROM users WHERE id = $1', [other]);
-  if (!target) throw new HttpError(404, '找不到此账号。');
-  const { rows: [row] } = await pool.query(
-    `INSERT INTO friendships (first_user, second_user, requested_by)
-     VALUES (least($1::uuid, $2::uuid), greatest($1::uuid, $2::uuid), $1)
-     ON CONFLICT (first_user, second_user) DO UPDATE
-       SET id = excluded.id, requested_by = excluded.requested_by, status = 'pending', updated_at = now()
-       WHERE friendships.status = 'declined' AND (
-         friendships.requested_by <> excluded.requested_by OR
-         friendships.updated_at <= now() - interval '1 day'
-       )
-     RETURNING id`, [userId, other]);
-  if (row) return { id: row.id };
-  const { rows: [existing] } = await pool.query(
-    `SELECT id, status FROM friendships
-     WHERE first_user = least($1::uuid, $2::uuid) AND second_user = greatest($1::uuid, $2::uuid)`, [userId, other]);
-  if (existing?.status === 'declined') throw new HttpError(429, '暂时无法再次发送申请，请明天重试。');
-  return { id: existing?.id };
+async function requestFriend(userId, body, sourceIp) {
+  const other=readId(body.userId);
+  if (other===userId) throw new HttpError(400,'不能添加自己。');
+  const note=cleanText(body.note??'',100);
+  await rateLimit('friend:'+userId,20,60);
+  await rateLimit('friend-net:'+sourceIp,100,60);
+  await rateLimit('friend-target:'+other,35,60);
+  return inTransaction(pool,async(db)=>{
+    await lockUsers(db,userId,other);
+    const allowed=await db.query(`SELECT 1 FROM users WHERE id=$2 AND NOT ${blocked('$1::uuid','$2::uuid')}`,[userId,other]);
+    if (!allowed.rowCount || (await preferences(db,other)).addPolicy==='none') {
+      throw new HttpError(404,'当前无法发送好友申请。');
+    }
+    const existing=await db.query(`SELECT id,status,requested_by,updated_at FROM friendships
+      WHERE first_user=least($1::uuid,$2::uuid) AND second_user=greatest($1::uuid,$2::uuid)`,[userId,other]);
+    const current=existing.rows[0];
+    if (current?.status==='pending' || current?.status==='accepted') return {id:current.id};
+    if (current && current.updated_at.getTime()>Date.now()-86400000) {
+      throw new HttpError(429,'暂时无法再次发送申请，请稍后重试。');
+    }
+    const {rows:[row]}=await db.query(`INSERT INTO friendships as f(first_user,second_user,requested_by)
+      VALUES (least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1)
+      ON CONFLICT(first_user,second_user) DO UPDATE SET id=excluded.id,status='pending',requested_by=$1,im_synced=false,updated_at=now()
+      RETURNING id`,[userId,other]);
+    await db.query(`INSERT INTO friend_notes(friendship_id,note) VALUES($1,$2)
+      ON CONFLICT(friendship_id) DO UPDATE SET note=excluded.note`,[row.id,note]);
+    return {id:row.id};
+  });
 }
 
-async function respondToFriend(userId, id, action) {
-  const status = { accept: 'accepted', decline: 'declined' }[action];
-  const { rows: [row] } = await pool.query(
-    `UPDATE friendships SET status = $3, updated_at = CASE WHEN status = $3 THEN updated_at ELSE now() END
-     WHERE id = $1 AND (first_user = $2 OR second_user = $2)
-       AND requested_by <> $2 AND status IN ('pending', $3)
-     RETURNING id`, [readId(id), userId, status]);
-  if (!row) throw new HttpError(404, '找不到可以处理的好友请求。');
-  return {};
+async function respondToFriend(userId,id,action) {
+  readId(id);
+  const status=action==='accept'?'accepted':'declined';
+  const {rows:[candidate]}=await pool.query(`SELECT requested_by FROM friendships WHERE id=$1 AND requested_by<>$2
+    AND $2::uuid IN (first_user,second_user)`,[id,userId]);
+  if (!candidate) throw new HttpError(404,'找不到可以处理的好友请求。');
+  return inTransaction(pool,async(db)=>{
+    await lockUsers(db,userId,candidate.requested_by);
+    const {rows:[row]}=await db.query(`UPDATE friendships AS f SET status=$3,updated_at=CASE WHEN f.status=$3 THEN f.updated_at ELSE now() END
+      WHERE f.id=$1 AND $2::uuid IN (f.first_user,f.second_user) AND f.requested_by<>$2
+      AND f.status IN ('pending',$3) AND NOT ${blocked('f.first_user','f.second_user')} RETURNING f.id`,[id,userId,status]);
+    if (!row) throw new HttpError(404,'找不到可以处理的好友请求。');
+    return {};
+  });
 }
 
 async function imOperation(operation) {
@@ -179,16 +168,18 @@ async function imOperation(operation) {
   }
 }
 
-async function prepareChat(userId, other) {
-  const { rows: [row] } = await pool.query(
-    `SELECT id, im_synced FROM friendships
-     WHERE first_user = least($1::uuid, $2::uuid)
-       AND second_user = greatest($1::uuid, $2::uuid) AND status = 'accepted'`, [userId, readId(other)]);
-  if (!row) throw new HttpError(403, '只能与已接受请求的好友聊天。');
+async function prepareChat(userId,other) {
+  readId(other);
+  if (!await areFriends(pool,userId,other)) throw new HttpError(403,'只能与已接受请求的好友聊天。');
+  const {rows:[row]}=await pool.query(`SELECT id,im_synced FROM friendships
+    WHERE first_user=least($1::uuid,$2::uuid) AND second_user=greatest($1::uuid,$2::uuid) AND status='accepted'`,[userId,other]);
+  if (!row) throw new HttpError(403,'只能与已接受请求的好友聊天。');
   if (!row.im_synced) {
-    await rateLimit('pair:' + row.id, 20, 15);
-    await imOperation(() => syncFriends(userId, other));
-    await pool.query('UPDATE friendships SET im_synced = true WHERE id = $1', [row.id]);
+    await rateLimit('pair:'+row.id,20,15);
+    await imOperation(()=>syncFriends(userId,other));
+    const done=await pool.query(`UPDATE friendships SET im_synced=true WHERE id=$1 AND status='accepted'
+      AND NOT ${blocked('first_user','second_user')}`,[row.id]);
+    if (!done.rowCount) throw new HttpError(403,'当前关系已不允许聊天。');
   }
   return {};
 }
@@ -249,6 +240,9 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
   const route = method + ' ' + path;
   const { authorization } = headers;
   try {
+    if (method==='POST' && /^\/callbacks\/easemob\/[A-Za-z0-9_-]{32,96}$/.test(path)) {
+      return json(200,await beforeImSend(await readBody(),path.split('/').at(-1)));
+    }
     if (route === 'GET /health') return json(200, { ok: true });
     if (route === 'GET /ops/readiness') return await readiness(authorization);
     if (route === 'GET /ops/phone-usage') {
@@ -265,6 +259,20 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
       case 'POST /v1/logout':
         await pool.query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);
         return json(200, {});
+      case 'POST /v1/privacy/password': {
+        await rateLimit('p0-password:'+user.id,6,60);
+        const body=await readBody();
+        const oldPassword=readPassword(body.oldPassword);
+        const newPassword=readPassword(body.newPassword);
+        const credential=await passwordHash(newPassword);
+        await inTransaction(pool,async(db)=>{
+          const {rows:[row]}=await db.query('SELECT password_hash FROM users WHERE id=$1 FOR UPDATE',[user.id]);
+          if (!await matchesPassword(oldPassword,row?.password_hash)) throw new HttpError(403,'原密码不正确，请检查后重试。');
+          await db.query('UPDATE users SET password_hash=$2 WHERE id=$1',[user.id,credential]);
+          await db.query('DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2',[user.id,tokenHash]);
+        });
+        return json(200,{});
+      }
       case 'GET /v1/me':
         return json(200, { user });
       case 'PATCH /v1/me': {
@@ -276,11 +284,11 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
       }
       case 'GET /v1/people':
         await rateLimit('lookup:' + user.id, 60, 1);
-        return json(200, await findPeople(user.id, query.get('username')));
+        return json(200, await searchPerson(user.id, query.get('username'),'username'));
       case 'GET /v1/friends':
         return json(200, await friendships(user.id));
       case 'POST /v1/friends':
-        return json(200, await requestFriend(user.id, (await readBody()).userId));
+        return json(200, await requestFriend(user.id, await readBody(), sourceIp));
       case 'POST /v1/friends/accept':
         return json(200, await respondToFriend(user.id, (await readBody()).id, 'accept'));
       case 'POST /v1/friends/decline':
@@ -288,10 +296,15 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
       case 'POST /v1/im/contact':
         return json(200, await prepareChat(user.id, (await readBody()).userId));
       case 'POST /v1/im/token':
+        if (process.env.PENLIA_IM_PRIVACY_READY!=='1'||!process.env.PENLIA_IM_CALLBACK_SECRET||
+            !process.env.PENLIA_IM_CALLBACK_PATH_KEY || process.env.PENLIA_IM_CALLBACK_PATH_KEY.length<32) {
+          throw new HttpError(503,'聊天权限服务暂未启用。');
+        }
         await rateLimit('im:' + user.id, 20, 15);
         return json(200, await imOperation(() => userToken(user.id)));
       default:
-        return json(404, { error: '接口不存在。' });
+        return await p0Routes(route,{user,tokenHash,query,headers,sourceIp,readBody,rateLimit})
+          ?? json(404, { error: '接口不存在。' });
     }
   } catch (error) {
     if (error instanceof HttpError || error instanceof PhoneError) return json(error.status, { error: error.message });

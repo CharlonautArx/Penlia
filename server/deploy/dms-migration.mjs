@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { readMigrations } from '../migration-files.mjs';
 
-const migrations = await readMigrations();
-const grants = (await readFile(new URL('./runtime-grants.sql', import.meta.url), 'utf8')).trim();
+const p0 = process.argv.includes('--p0');
+const migrations = (await readMigrations()).filter(({ name }) => name === (p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
+if (migrations.length !== 1) throw new Error('Expected one DMS migration');
+const grants = (await readFile(new URL(p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
 const schemaCheck = (await readFile(new URL('./dms-schema-check.sql', import.meta.url), 'utf8')).trim();
 
 function repeatableCreates({ name, sql }) {
@@ -14,7 +16,7 @@ function repeatableCreates({ name, sql }) {
   }
   return statements.map((statement) => {
     const ddl = statement.trim();
-    const create = /^CREATE (TABLE|INDEX) ([a-z_][a-z0-9_]*)\b/.exec(ddl);
+    const create = /^CREATE (TABLE|(?:UNIQUE )?INDEX) ([a-z_][a-z0-9_]*)\b/.exec(ddl);
     if (!create || ddl.includes('$$') || /\$[a-zA-Z_][a-zA-Z_0-9]*\$/.test(ddl)) {
       throw new Error(`${name} contains a statement that cannot be safely replayed by DMS`);
     }
@@ -31,8 +33,9 @@ const steps = [
   "SET LOCAL lock_timeout = '10s';",
   'SELECT pg_advisory_xact_lock(182129779);',
   'CREATE TABLE IF NOT EXISTS public.schema_migrations (name text PRIMARY KEY);',
+  ...(p0 ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '001_initial.sql') THEN '1' ELSE 'Apply the original Penlia migration first' END::integer AS baseline_check;"] : []),
   ...migrations.flatMap(repeatableCreates),
-  schemaCheck,
+  ...(!p0 ? [schemaCheck] : []),
   grants,
   ...migrations.map(({ name }) =>
     `INSERT INTO public.schema_migrations (name) VALUES ('${name}') ON CONFLICT (name) DO NOTHING;`),
