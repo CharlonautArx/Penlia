@@ -77,13 +77,12 @@ export function PostCard({ item, onUpdate, onPin }: {
     });
   }
 
+  const avatar = <Avatar userId={item.authorId} name={item.author} source={demoPortrait(item.authorUsername ?? '')} size={43} />;
   const link = sheet === 'share' ? Linking.createURL(momentSharePath + item.id) : '';
   return <View style={local.post}>
     <View style={styles.row}>
-      <Pressable accessibilityRole="button" accessibilityLabel={item.author + '的动态'}
-        onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id: item.authorId } })}>
-        <Avatar userId={item.authorId} name={item.author} source={demoPortrait(item.authorUsername ?? '')} size={43} />
-      </Pressable>
+      {mine ? avatar : <Pressable accessibilityRole="button" accessibilityLabel={item.author + '的动态'}
+        onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id: item.authorId } })}>{avatar}</Pressable>}
       <View style={styles.grow}>
         <Text style={styles.strong} numberOfLines={2}>{item.author}</Text>
         <Text style={styles.small}>{createdTime(Date.parse(item.createdAt))}{item.scope ? ' · ' + scopes[item.scope] : ' · 可见范围由发布者设置'}</Text>
