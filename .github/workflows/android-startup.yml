@@ -1,9 +1,8 @@
-name: Android release startup diagnosis
+name: Penlia original APK R8 comparison
 
 on:
-  workflow_dispatch:
   push:
-    branches: [codex/penlia-android-startup-fix]
+    tags: [penlia-startup-original-r8-ab]
 
 permissions:
   contents: read
@@ -24,6 +23,7 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: '16111833'
           packages: platform-tools
       - name: Install Android compilation tools
         run: |
@@ -54,9 +54,10 @@ jobs:
       - name: Capture release startup logs
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          emulator-build: '16970787'
           api-level: 35
           arch: x86_64
-          target: google_apis
+          target: default
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
@@ -68,5 +69,6 @@ jobs:
           path: |
             output/a/
             output/b/
+            output/*.apk
           retention-days: 7
           if-no-files-found: ignore
