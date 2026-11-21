@@ -17,7 +17,7 @@ const sections = ['一起生活', '为你推荐', '小游戏', '线下去处'] a
 const hero = require('../../../assets/identity/hero.jpg');
 
 export default function PlayScreen() {
-  const [section, setSection] = useState<typeof sections[number]>(isUiDemo ? '为你推荐' : '一起生活');
+  const [section, setSection] = useState<typeof sections[number]>('一起生活');
   const [gameMode, setGameMode] = useState<typeof gameModes[number]>('全部');
   const [category, setCategory] = useState<typeof categories[number]>('全部');
   const [city, setCity] = useState<City>('上海');
@@ -36,8 +36,8 @@ export default function PlayScreen() {
     <IconButton label="想去的地方" icon="bookmark-outline" onPress={() => router.push('/playground/saved')} />
   </>}>
     <Segments label="玩乐分类" value={section} onChange={setSection}
-      options={sections.filter((item) => !isUiDemo || item !== '一起生活').map((item) => ({ id: item, label: item }))} />
-    {section === '一起生活' && !isUiDemo && <LifeHub />}
+      options={sections.map((item) => ({ id: item, label: item }))} />
+    {section === '一起生活' && <LifeHub />}
     {section === '为你推荐' && <>
       <View style={local.hero}>
         <Image source={hero} style={local.heroImage} />

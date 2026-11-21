@@ -21,3 +21,7 @@ export function initialDemoPets() { return {}; }
 export function PhonePreview() { return null; }
 
 export function DemoCall() { return null; }
+
+export const lifeDemoImages = {};
+export const seed = () => ({});
+export function offlineRequest(): never { throw new Error('Demo fixtures are disabled'); }

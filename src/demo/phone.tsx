@@ -134,6 +134,7 @@ export function PhonePreview({ onLegacy, onEnter }: {
               maxLength={11} value={phone} onChangeText={updatePhone} style={local.phoneInput}
               placeholder="输入中国大陆手机号" placeholderTextColor={colors.quiet} />
           </View>
+          <Button label="直接进入演示" variant="gradient" icon="arrow-forward" onPress={() => onEnter()} />
           <Text style={styles.strong}>短信验证码</Text>
           <View style={local.phoneField}>
             <TextInput accessibilityLabel="短信验证码" keyboardType="number-pad" autoComplete="one-time-code" maxLength={6}
@@ -149,7 +150,6 @@ export function PhonePreview({ onLegacy, onEnter }: {
             <Text style={styles.small}>离线演示。滑块与短信在本机模拟。</Text>
             <View style={local.exampleRow}>
               <Button label="填入演示号码" variant="soft" onPress={() => updatePhone(register ? examples.onboarding : examples.existing)} />
-              <Button label="直接进入演示" variant="quiet" onPress={() => onEnter()} />
             </View>
             <Button label="朋聊号密码登录" variant="quiet" onPress={onLegacy} />
           </View>

@@ -53,7 +53,7 @@ export default function PersonScreen() {
         </View>
       </View>
       {!!(profile?.bio ?? friend.bio) && <Text style={[styles.body, local.bio]}>{profile?.bio ?? friend.bio}</Text>}
-      {!isUiDemo&&<FriendLifeStatus id={id}/>}
+      <FriendLifeStatus id={id}/>
       <Button label="发消息" icon="chatbubble-outline"
         onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />
       {isUiDemo?<View style={local.shortcuts}>

@@ -47,7 +47,7 @@ export function useLocalDocument<T>(key: string | undefined, load: () => Promise
     persist(next);
   }
 
-  return { value, loading, error, update, retry: () => {
+  return { value, getLatest: () => current.current, loading, error, update, retry: () => {
     if (current.current !== undefined) persist(current.current);
     else if (key && !loading) {
       setLoading(true);

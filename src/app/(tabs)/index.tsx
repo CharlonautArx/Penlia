@@ -89,7 +89,7 @@ export default function ChatsScreen() {
   return (
     <Screen title="聊天" solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} actions={
       <>
-        {!demo && <IconButton label="群聊" icon="people-outline" onPress={() => router.push('/groups')} />}
+        <IconButton label="群聊" icon="people-outline" onPress={() => router.push('/groups')} />
         <IconButton label="发起会话" icon="add-outline" tinted onPress={() => setCompose(true)} />
       </>
     }>

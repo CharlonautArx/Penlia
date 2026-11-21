@@ -5,6 +5,7 @@ import {
   createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
 
+import { useLocalDocument } from '../features/local/document';
 import { demoUser } from '../demo/data';
 import { isUiDemo } from '../demo/mode';
 import { DemoProvider, useDemo } from '../demo/state';
@@ -72,28 +73,31 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
   const demo = useDemo();
   if (!demo) throw new Error('DemoProvider is required');
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [demoAvatarKey, setDemoAvatarKey] = useState<string>();
+  const key = 'penlia.demo.session.v1';
+  const profileDoc = useLocalDocument<{ user: User; avatarKey?: string; active: boolean }>(key, async () => {
+    const record = await AsyncStorage.getItem(key);
+    return record ? JSON.parse(record) : { user: demoUser, active: false };
+  });
+  const profile = profileDoc.value;
+  const session = profile?.active && !demo.loading ? { user: profile.user, token: 'demo-only' } : null;
   const avatar = useAccountAvatar(session?.user.id);
   const enterDemo = () => {
-    setDemoAvatarKey(undefined);
-    setSession({ user: demoUser, token: 'demo-only' });
+    profileDoc.update((stored) => ({ ...stored, active: true }));
   };
   async function completeDemoProfile({ avatarKey, avatarPhoto, ...profile }: {
     name: string; username: string; avatarKey: string; avatarPhoto?: string;
   }) {
     await avatar.saveOnSignup(demoUser.id, avatarPhoto);
-    setDemoAvatarKey(avatarKey);
-    setSession({ user: { ...demoUser, ...profile }, token: 'demo-only' });
+    profileDoc.update(() => ({ user: { ...demoUser, ...profile }, avatarKey, active: true }));
   }
   const updateProfile = async (name: string, bio: string) => {
-    setSession((current) => current && { ...current, user: { ...current.user, name, bio } });
+    profileDoc.update((stored) => ({ ...stored, user: { ...stored.user, name, bio } }));
   };
 
   return (
     <SessionContext.Provider value={{
-      ...avatar, session, enterDemo, completeDemoProfile, demoAvatarKey, request: demo.request, updateProfile, loading: false, restoreError: '',
-      restore: async () => {}, authenticate: async () => enterDemo(), logout: async () => setSession(null),
+      ...avatar, session, enterDemo, completeDemoProfile, demoAvatarKey: profile?.avatarKey, request: demo.request, updateProfile, loading: profileDoc.loading || demo.loading, restoreError: profileDoc.error || demo.storageError,
+      restore: async () => { profileDoc.retry(); demo.retryStorage(); }, authenticate: async () => enterDemo(), logout: async () => profileDoc.update((value) => ({ ...value, active: false })),
     }}>
       {children}
     </SessionContext.Provider>

@@ -39,7 +39,7 @@ function AppNavigation() {
                 <Stack.Screen name="playground" />
                 <Stack.Screen name="space" />
               </Stack.Protected>
-              <Stack.Protected guard={!!session && !isUiDemo}>
+              <Stack.Protected guard={!!session}>
                 <Stack.Screen name="social" />
                 <Stack.Screen name="life" />
                 <Stack.Screen name="world" />

@@ -31,7 +31,6 @@ export default function PrivacyScreen() {
   const back = () => (router.canGoBack() ? router.back() : router.replace('/me'));
 
   const load = useCallback(async () => {
-    if (isUiDemo) return;
     try {
       const { settings: current, priorityIds } = await request<{ settings: Settings; priorityIds: string[] }>(
         '/privacy',
@@ -107,15 +106,9 @@ export default function PrivacyScreen() {
     />
   );
 
-  if (isUiDemo)
-    return (
-      <Screen title="隐私与安全" back={back}>
-        <Notice>需要连接正式账号服务才能查看和更改隐私设置。</Notice>
-      </Screen>
-    );
-
   return (
     <Screen title="隐私与安全" back={back} refreshing={busy} onRefresh={() => void run(load)}>
+      {isUiDemo && <Notice>隐私设置仅保存到这台设备的演示账号。</Notice>}
       {!!notice && !sheet && (
         <Notice action="刷新" onAction={() => void run(load)}>
           {notice}

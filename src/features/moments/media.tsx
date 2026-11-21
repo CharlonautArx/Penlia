@@ -5,6 +5,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, Text, View } from 'react-native';
 import { Icon } from '../../components/ui';
+import { lifeDemoImages } from '../../demo/life-assets';
+import { isUiDemo } from '../../demo/mode';
 import { apiOrigin } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, fixed, radius, space, styles } from '../../theme';
@@ -12,7 +14,7 @@ import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/
 import { pickPhotos, preparePhoto } from '../media/picker';
 import { nativePhotoUri, useLocalPhotoUri } from '../space/media';
 
-export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4' };
+export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4'; demoAsset?: string; demoUri?: string };
 export type LocalMedia =
   | { id: string; mime: 'image/jpeg'; photoId: string }
   | { id: string; mime: 'video/mp4'; uri: string; bytes: number; duration?: number };
@@ -84,7 +86,7 @@ function useProtectedSource(id: string, enabled = true, reviewId?:string) {
   const [cached, setCached] = useState<{ source: string; token: string; uri: string }>();
   const [problem, setProblem] = useState('');
   const uri = useMemo(() => {
-    if (!enabled || !token) return undefined;
+    if (isUiDemo || !enabled || !token) return undefined;
     try {
       return apiOrigin() + (reviewId ? '/v1/p1/review-media/' + encodeURIComponent(reviewId) + '/' : '/v1/moment-media/')
         + encodeURIComponent(id);
@@ -137,6 +139,8 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio }: {
   const [failed, setFailed] = useState(false);
   const video = item.mime === 'video/mp4';
   const { source, problem } = useProtectedSource(item.id, !video || open, reviewId);
+  const displaySource = isUiDemo && item.demoUri ? { uri: item.demoUri } : source;
+  const photoSource = isUiDemo && item.demoAsset ? lifeDemoImages[item.demoAsset] : displaySource;
   return <>
     <Pressable accessibilityRole="button"
       accessibilityLabel={reviewId ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
@@ -148,16 +152,16 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio }: {
       {video ? <>
         <Icon name="play-circle-outline" size={37} color={colors.accent} />
         <Text style={styles.muted}>短视频</Text>
-      </> : source && !failed ? (
-        <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="cover" resizeMethod="resize"
+      </> : photoSource && !failed ? (
+        <Image source={photoSource} style={{ width: '100%', height: '100%' }} resizeMode="cover" resizeMethod="resize"
           onError={() => setFailed(true)} />
       ) : <Text style={styles.small}>{problem || (failed ? '照片暂不可访问' : '正在载入照片…')}</Text>}
     </Pressable>
     {open && <MediaViewer title={reviewId ? '举报附件' : video ? '短视频' : '图片预览'} onClose={() => setOpen(false)}>
       {failed || problem ? <MediaViewerMessage>{problem || '暂时无法显示该媒体。'}</MediaViewerMessage>
-        : !source ? <MediaViewerMessage busy>正在加载媒体…</MediaViewerMessage>
-        : video ? <MomentVideo source={source} immersive />
-        : <Image source={source} accessibilityLabel="原图预览" resizeMode="contain" style={viewerStyles.photo}
+        : !(video ? displaySource : photoSource) ? <MediaViewerMessage busy>正在加载媒体…</MediaViewerMessage>
+        : video ? displaySource && <MomentVideo source={displaySource} immersive />
+        : <Image source={photoSource} accessibilityLabel="原图预览" resizeMode="contain" style={viewerStyles.photo}
           onError={() => setFailed(true)} />}
     </MediaViewer>}
   </>;

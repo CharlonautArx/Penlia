@@ -1,3 +1,4 @@
+import { isUiDemo } from '../demo/mode';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text } from 'react-native';
@@ -32,7 +33,7 @@ export default function Boundary() {
   const [reason, setReason] = useState('');
   return (
     <Screen title="生活边界保护" back={back} refreshing={busy} onRefresh={() => void load()}>
-      <Text style={styles.muted}>长按聊天消息可以举报。确认提交前，可以查看将交给审核人员的内容。</Text>
+      <Text style={styles.muted}>{isUiDemo ? '长按群聊消息可体验举报预览。演示记录留在本机。' : '长按聊天消息可以举报。确认提交前，可以查看将交给审核人员的内容。'}</Text>
       {!!error && <Notice>{error}</Notice>}
       {data?.canReview && (
         <ListRow title="审核工作台" detail="处理工单和申诉" onPress={() => router.push('/review/queue')} />
@@ -42,7 +43,7 @@ export default function Boundary() {
         <ListRow
           key={item.id}
           title={reportKinds[item.kind]}
-          detail={item.status === 'pending' ? '等待审核' : '已处理'}
+          detail={isUiDemo ? '本机演示' : item.status === 'pending' ? '等待审核' : '已处理'}
         />
       ))}
       {data && !data.reports.length && <Empty>暂无举报记录。</Empty>}

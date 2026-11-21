@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Empty, Icon, IconButton, ListRow, Notice, Screen, Sheet } from '../../components/ui';
-import { isUiDemo } from '../../demo/mode';
 import { PrivateFeed } from '../../features/moments/Feed';
 import { demoPortrait } from '../../demo/visuals';
 import { EntryCard } from '../../features/space/EntryCard';
@@ -13,7 +12,7 @@ import { colors, styles } from '../../theme';
 
 export default function MomentsScreen() {
   const { mine, author, local } = useLocalSearchParams<{ mine?: string; author?: string; local?: string }>();
-  return isUiDemo || local==='1' ? <LocalMoments mine={mine} /> : <PrivateFeed mine={mine} author={author || undefined} />;
+  return local==='1' ? <LocalMoments mine={mine} /> : <PrivateFeed mine={mine} author={author || undefined} />;
 }
 
 function LocalMoments({mine}:{mine?:string}) {
@@ -32,7 +31,7 @@ function LocalMoments({mine}:{mine?:string}) {
 
   return <Screen title="动态" solid inset={false} actions={
     <>
-      {!isUiDemo && <IconButton label="返回私密动态" icon="arrow-back-outline" onPress={()=>router.setParams({local:'0'})}/>}
+      <IconButton label="返回私密动态" icon="arrow-back-outline" onPress={()=>router.setParams({local:'0'})}/>
       <IconButton label="我的空间" icon="person-circle-outline"
         onPress={() => router.push({ pathname: '/space/[id]', params: { id: me.id } })} />
       <IconButton label="发布动态" icon="create-outline" tinted onPress={() => setActions(true)} />
