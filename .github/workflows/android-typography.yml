@@ -1,0 +1,52 @@
+name: Penlia native typography comparison
+on:
+  push:
+    tags: [penlia-typography-android-comparison]
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve the previously verified release
+        run: |
+          git fetch --depth=1 --no-tags origin refs/tags/penlia-startup-x86-release-smoke-v3
+          git show FETCH_HEAD:demo-preview/penlia-startup-fixed-x86_64.apk > "$RUNNER_TEMP/penlia-before.apk"
+          echo "bf770932867baf20fec68dcca4760cbb35b2e0c457f994f27b0ce0a1d5182e84  $RUNNER_TEMP/penlia-before.apk" | sha256sum --check
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Prepare hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle --timeout=15
+          ls -l /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod u+rw /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+      - name: Compare both R8-enabled release APKs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-build: '16970787'
+          api-level: 35
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: >-
+            bash scripts/android-typography-comparison.sh "$RUNNER_TEMP/penlia-before.apk" output/before before
+            && bash scripts/android-typography-comparison.sh demo-preview/penlia-typography-x86_64.apk output/after after
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: penlia-typography-comparison
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore
