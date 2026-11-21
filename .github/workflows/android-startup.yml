@@ -1,0 +1,69 @@
+name: Android release startup diagnosis
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/penlia-android-startup-fix]
+
+permissions:
+  contents: read
+
+jobs:
+  compare-r8:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android compilation tools
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+      - run: npm ci
+      - name: Build two matching x86_64 release APKs
+        env:
+          EAS_BUILD_PROFILE: ui-demo
+          EXPO_PUBLIC_PENLIA_UI_DEMO: '1'
+          CI: '1'
+        run: |
+          mkdir -p output
+          npx expo prebuild --platform android --no-install
+          for variant in a b; do
+            minify=true
+            if [ "$variant" = b ]; then minify=false; fi
+            (
+              cd android
+              ./gradlew :app:assembleRelease --max-workers=2 -PreactNativeArchitectures=x86_64 "-Pandroid.enableMinifyInReleaseBuilds=$minify"
+            )
+            cp android/app/build/outputs/apk/release/app-release.apk "output/$variant.apk"
+          done
+      - name: Set up KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Capture release startup logs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash -c 'status=0; for variant in a b; do bash scripts/android-startup-smoke.sh output/$variant.apk output/$variant || status=1; done; exit "$status"'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-startup-logcat
+          path: |
+            output/a/
+            output/b/
+          retention-days: 7
+          if-no-files-found: ignore
