@@ -1,0 +1,52 @@
+name: Penlia original R8 runtime A and B
+on:
+  push:
+    tags: [penlia-original-r8-runtime]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 44887775620
+          name: android-startup-logcat
+          path: originals
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Prepare hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle --timeout=15
+          ls -l /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod u+rw /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+      - name: Compare the original releases on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-build: '16970787'
+          api-level: 35
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash scripts/android-startup-ab-runtime.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-startup-logcat
+          path: output/
+          retention-days: 7
+          if-no-files-found: ignore
