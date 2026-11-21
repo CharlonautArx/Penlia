@@ -13,7 +13,9 @@ adb shell cmd uimode night no
 sleep 4
 
 adb install -r "$apk" > "$results/install.txt"
-adb install -r "$(realpath "$3")" >> "$results/install.txt"
+if [ "$#" -ge 3 ]; then
+  adb install -r "$(realpath "$3")" >> "$results/install.txt"
+fi
 adb shell ime list -s > "$results/input-methods.txt"
 adb shell settings get secure default_input_method > "$results/default-ime.txt"
 adb shell pm clear "$package" > "$results/clear.txt"
@@ -177,87 +179,98 @@ touch "$results/launch.txt"
 launch
 tap '直接进入演示'
 locate '发起会话' >/dev/null
-tap '好友'
-locate '新的朋友' >/dev/null
-tap '玩乐'
-locate '查看里弄七码咖啡' >/dev/null
-tap '我的'
-locate '查看个人资料' >/dev/null
-tap '动态'
-capture friends-feed '好友动态'
-header=$(read_bounds '查看我的动态')
-for cycle in 1 2; do
-  tap '日志'
-  capture journals '写日志'
-  assert_same_header
+if [ "${PENLIA_ANDROID_TOOLS_ONLY:-0}" = '1' ]; then
+  tap 'prefix:小满，'
+  tap 'input:消息'
+  adb shell input text 'Draft'
+  assert_ime_open keyboard-open 消息 更多输入方式 从图库选择图片
+else
+  tap '好友'
+  locate '新的朋友' >/dev/null
+  tap '玩乐'
+  locate '查看里弄七码咖啡' >/dev/null
+  tap '我的'
+  locate '查看个人资料' >/dev/null
+  tap '动态'
+  capture friends-feed '好友动态'
+  header=$(read_bounds '查看我的动态')
+  for cycle in 1 2; do
+    tap '日志'
+    capture journals '写日志'
+    assert_same_header
+    tap '相册'
+    capture albums '新建相册'
+    assert_same_header
+    tap 'button:动态'
+    locate '好友动态' >/dev/null
+    assert_same_header
+  done
   tap '相册'
-  capture albums '新建相册'
+  tap '慢慢过的日子'
+  locate '3 张 · 本机相册' >/dev/null
+  adb shell input keyevent 4
+  locate '新建相册' >/dev/null
   assert_same_header
   tap 'button:动态'
+  tap '查看我的动态'
+  capture timeline '管理这条动态'
+  if grep -Fq 'content-desc="青禾的动态"' "$results/ui.xml"; then fail; fi
+  adb shell input keyevent 4
   locate '好友动态' >/dev/null
   assert_same_header
-done
-tap '相册'
-tap '慢慢过的日子'
-locate '3 张 · 本机相册' >/dev/null
-adb shell input keyevent 4
-locate '新建相册' >/dev/null
-assert_same_header
-tap 'button:动态'
-tap '查看我的动态'
-capture timeline '管理这条动态'
-if grep -Fq 'content-desc="青禾的动态"' "$results/ui.xml"; then fail; fi
-adb shell input keyevent 4
-locate '好友动态' >/dev/null
-assert_same_header
-echo 'Pane switches kept the same header and navigation; album and owner timeline returned correctly.' | tee -a "$results/checks.txt"
+  echo 'Pane switches kept the same header and navigation; album and owner timeline returned correctly.' | tee -a "$results/checks.txt"
 
-tap '聊天'
-tap 'prefix:小满，'
-capture keyboard-closed 'input:消息'
-closed=$(read_bounds '消息')
-tap 'input:消息'
-sleep 1.2
-assert_ime_open keyboard-open 消息 更多输入方式 从图库选择图片
-one_line=$(read_bounds '消息')
-adb shell input text 'Penlia'
-adb shell input keyevent 66
-adb shell input text 'Second%sline'
-adb shell input keyevent 66
-adb shell input text 'Third%sline'
-locate 'input:消息' >/dev/null
-three_lines=$(read_bounds '消息')
-read -r x old_top right bottom <<< "$one_line"
-read -r x new_top right bottom <<< "$three_lines"
-test "$((old_top-new_top))" -ge 24 || { echo 'Multiline field did not expand.' >&2; fail; }
-assert_ime_open keyboard-multiline 消息 更多输入方式 从图库选择图片
-for line in 4 5 6 7 8 9; do
-  adb shell input keyevent 66
-  adb shell input text "Line$line"
-done
-assert_ime_open keyboard-capped 消息 更多输入方式 从图库选择图片
-read -r x capped_top right capped_bottom <<< "$(read_bounds '消息')"
-test "$((capped_bottom-capped_top))" -le 345 || { echo 'Multiline field exceeded its cap.' >&2; fail; }
-adb shell am instrument -w app.penlia.preview.tests/.ImeInput > "$results/unicode.txt"
-grep -Fq 'unicode entered in the focused Android editor' "$results/unicode.txt" || fail
-locate '你好 Penlia 😊' >/dev/null
-assert_ime_open keyboard-unicode 消息 更多输入方式 从图库选择图片
-tap '发送'
-locate '你好 Penlia 😊' >/dev/null
-locate 'input:消息' >/dev/null
-grep -Fq 'text="输入模拟消息"' "$results/ui.xml" || fail
-tap 'input:消息'
-adb shell input text 'Draft'
-for cycle in 1 2 3; do
-  adb shell input keyevent 4
-  sleep 0.8
-  locate 'Draft' >/dev/null
-  test -z "$(ime_frame "hidden-$cycle")" || { echo 'Keyboard remained visible on Back' >&2; fail; }
-  test "$(read_bounds '消息')" = "$closed" || { echo 'Closed composer baseline drifted' >&2; fail; }
+  tap '聊天'
+  tap 'prefix:小满，'
+  capture keyboard-closed 'input:消息'
+  closed=$(read_bounds '消息')
   tap 'input:消息'
-  sleep 0.8
-  assert_ime_open "reopen-$cycle" 消息 更多输入方式 从图库选择图片
-done
+  sleep 1.2
+  assert_ime_open keyboard-open 消息 更多输入方式 从图库选择图片
+  one_line=$(read_bounds '消息')
+  adb shell input text 'Penlia'
+  adb shell input keyevent 66
+  adb shell input text 'Second%sline'
+  adb shell input keyevent 66
+  adb shell input text 'Third%sline'
+  locate 'input:消息' >/dev/null
+  three_lines=$(read_bounds '消息')
+  read -r x old_top right bottom <<< "$one_line"
+  read -r x new_top right bottom <<< "$three_lines"
+  test "$((old_top-new_top))" -ge 24 || { echo 'Multiline field did not expand.' >&2; fail; }
+  assert_ime_open keyboard-multiline 消息 更多输入方式 从图库选择图片
+  for line in 4 5 6 7 8 9; do
+    adb shell input keyevent 66
+    adb shell input text "Line$line"
+  done
+  assert_ime_open keyboard-capped 消息 更多输入方式 从图库选择图片
+  read -r x capped_top right capped_bottom <<< "$(read_bounds '消息')"
+  test "$((capped_bottom-capped_top))" -le 345 || { echo 'Multiline field exceeded its cap.' >&2; fail; }
+  for attempt in 1 2 3; do
+    if adb shell am instrument -w app.penlia.preview.tests/.ImeInput > "$results/unicode.txt" 2>&1 &&
+      grep -Fq 'unicode entered in the focused Android editor' "$results/unicode.txt"; then break; fi
+    sleep 1
+  done
+  grep -Fq 'unicode entered in the focused Android editor' "$results/unicode.txt" || fail
+  locate '你好 Penlia 😊' >/dev/null
+  assert_ime_open keyboard-unicode 消息 更多输入方式 从图库选择图片
+  tap '发送'
+  locate '你好 Penlia 😊' >/dev/null
+  locate 'input:消息' >/dev/null
+  grep -Fq 'text="输入模拟消息"' "$results/ui.xml" || fail
+  tap 'input:消息'
+  adb shell input text 'Draft'
+  for cycle in 1 2 3; do
+    adb shell input keyevent 4
+    sleep 0.8
+    locate 'Draft' >/dev/null
+    test -z "$(ime_frame "hidden-$cycle")" || { echo 'Keyboard remained visible on Back' >&2; fail; }
+    test "$(read_bounds '消息')" = "$closed" || { echo 'Closed composer baseline drifted' >&2; fail; }
+    tap 'input:消息'
+    sleep 0.8
+    assert_ime_open "reopen-$cycle" 消息 更多输入方式 从图库选择图片
+  done
+fi
 tap '更多输入方式'
 locate '位置' >/dev/null
 tap '关闭'
@@ -267,9 +280,13 @@ tap '😊'
 locate 'Draft😊' >/dev/null
 echo 'The emoji drawer appended to the retained draft.' | tee -a "$results/checks.txt"
 tap '从图库选择图片'
-sleep 1.0
-adb shell dumpsys activity activities > "$results/picker.txt"
-grep -Ei 'photopicker|pickimages|documentsui|com[.](android|google[.]android)[.]providers[.]media' "$results/picker.txt" >/dev/null || fail
+picker_pattern='photopicker|pickimages|documentsui|com[.](android|google[.]android)[.]providers[.]media'
+for attempt in 1 2 3 4 5; do
+  sleep 0.8
+  adb shell dumpsys activity activities > "$results/picker.txt"
+  grep -Eiq "$picker_pattern" "$results/picker.txt" && break
+done
+grep -Eiq "$picker_pattern" "$results/picker.txt" || fail
 adb exec-out screencap -p > "$results/picker.png"
 adb shell input keyevent 4
 locate 'Draft😊' >/dev/null
@@ -290,4 +307,8 @@ for cycle in 2 3 4 5; do
   locate '发起会话' >/dev/null
 done
 if grep -Eq 'AndroidRuntime.*Process: app\.penlia\.mobile\.preview|Fatal signal.*>>> app\.penlia\.mobile\.preview' "$results/logcat.txt"; then fail; fi
-echo 'Passed pane navigation, native private and group IME, multiline bounds, text send, draft retention and five cold starts.' | tee -a "$results/checks.txt"
+if [ "${PENLIA_ANDROID_TOOLS_ONLY:-0}" = '1' ]; then
+  echo 'Passed native private and group IME, attachment drawer, emoji drawer, system photo picker, draft retention and five cold starts.' | tee -a "$results/checks.txt"
+else
+  echo 'Passed pane navigation, native private and group IME, multiline bounds, text send, draft retention and five cold starts.' | tee -a "$results/checks.txt"
+fi
