@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glint } from '../../components/Glint';
 import type { IconName } from '../../components/ui';
@@ -17,6 +18,12 @@ const tabs: { name: string; title: string; icon?: IconName; activeIcon?: IconNam
 
 export default function TabLayout() {
   const { reduced } = useAppearance();
+  const { fontScale } = useWindowDimensions();
+  const { bottom } = useSafeAreaInsets();
+  // Give the scaled label its own space above the system navigation inset.
+  const scaledAndroidBar = Platform.OS === 'android' && fontScale > 1
+    ? { height: 49 + bottom + Math.ceil(type.tag.lineHeight * (fontScale - 1)) + space.xxs }
+    : undefined;
   return (
     <Tabs
       backBehavior="initialRoute"
@@ -27,7 +34,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel],
-        tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar],
+        tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar, scaledAndroidBar],
       }}
     >
       {tabs.map(({ name, title, icon, activeIcon }) => (
