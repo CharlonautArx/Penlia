@@ -17,9 +17,15 @@
 
 P3 见 [开发与验收](docs/penlia-p3.md)。P2 见 [开发与验收](docs/penlia-p2.md) 和 [八张实际操作截图](demo-preview/p2/README.md)。P1 证据见 [开发与验收](docs/penlia-p1.md) 和 [9 张实际操作截图](demo-preview/p1/README.md)。P0 证据见 [验收记录](docs/penlia-p0.md) 和 [12 张实际操作截图](demo-preview/p0/README.md)。完整功能范围见 [四阶段路线图](docs/penlia-roadmap.md)。
 
+## 动态、空间与状态
+
+- 正式 API 启用新动态接口前，先在联调库执行 009 及现有应用角色授权。验证活动中的旧状态保持旧期限，已过期的旧状态没有恢复，长期状态在旧客户端保留兼容显示。详见 [数据与验收](demo-preview/unified-moments/README.md)。
+- 用两个授权好友和第三个无权账号验证转发的原动态链接、直接媒体访问和既有共创授权。更改内容范围、解除好友、撤回授权或删除后，应再次拒绝新请求。真实 IM 接通后再测双机转发。
+- ARM64 手机需复验与旧预览包同签名覆盖安装、系统图库选取封面、字体缩放及深色模式。本机旧动态、封面、日志和相册由既有应用数据保留；未来跨设备迁移需要单独确认受众和上传行为。
+
 ## 外部服务接入登记
 
-**阿里云 FC 与 PostgreSQL · 已有代码和迁移，待隔离云环境验证。** 沿用 Node.js 22 Web 函数的 `npm run start` 和 9000 端口，核对 HTTPS、VPC、交换机、安全组、RDS 内网地址及白名单。归档本次提交、迁移清单、ZIP 摘要和备份恢复点。数据库参数为 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`；使用证书校验时按现有实现选 `PGSSLROOTCERT` 或 `PG_CA_PEM`。已部署的初始迁移从账本核对，先在隔离库验证 P0 和后续增量，迁移角色与业务账号分别授权。现有 Serverless 实例缺少 TLS 时，`PG_TLS=disable` 仅限隔离内网和测试数据，正式数据的传输方案待确认。本机可用 `bash server/deploy/package-fc.sh` 生成 ZIP，云端先检查 `/health`，再用临时 `PENLIA_DIAGNOSTIC_TOKEN` 检查 `/ops/readiness`，并单独验证新表和角色权限。费用核对 FC 请求、计算、网络、日志以及 RDS 容量、备份和连接压力。 [FC 手册](server/README.md) · [P0 DMS 增量](server/deploy/penlia-p0-dms.sql) · [P1 DMS 增量](server/deploy/penlia-p1-dms.sql) · [005 收尾增量](server/deploy/penlia-p1-followup-dms.sql) · [006 P2 增量](server/deploy/penlia-p2-dms.sql) · [007 P2 收尾增量](server/deploy/penlia-p2-followup-dms.sql)。007 在 006 后使用迁移账号执行。验收已存地址和坐标保留、空坐标可存、单边坐标拒绝，并核对 007 账本条目。随后执行 [008 P3 增量](server/deploy/penlia-p3-dms.sql)，核对 P3 表及回忆关联约束。最新代码须在 008 成功后再替换 FC，媒体读取和关系撤权复用 008 的表。
+**阿里云 FC 与 PostgreSQL · 已有代码和迁移，待隔离云环境验证。** 沿用 Node.js 22 Web 函数的 `npm run start` 和 9000 端口，核对 HTTPS、VPC、交换机、安全组、RDS 内网地址及白名单。归档本次提交、迁移清单、ZIP 摘要和备份恢复点。数据库参数为 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`；使用证书校验时按现有实现选 `PGSSLROOTCERT` 或 `PG_CA_PEM`。已部署的初始迁移从账本核对，先在隔离库验证 P0 和后续增量，迁移角色与业务账号分别授权。现有 Serverless 实例缺少 TLS 时，`PG_TLS=disable` 仅限隔离内网和测试数据，正式数据的传输方案待确认。本机可用 `bash server/deploy/package-fc.sh` 生成 ZIP，云端先检查 `/health`，再用临时 `PENLIA_DIAGNOSTIC_TOKEN` 检查 `/ops/readiness`，并单独验证新表和角色权限。费用核对 FC 请求、计算、网络、日志以及 RDS 容量、备份和连接压力。 [FC 手册](server/README.md) · [P0 DMS 增量](server/deploy/penlia-p0-dms.sql) · [P1 DMS 增量](server/deploy/penlia-p1-dms.sql) · [005 收尾增量](server/deploy/penlia-p1-followup-dms.sql) · [006 P2 增量](server/deploy/penlia-p2-dms.sql) · [007 P2 收尾增量](server/deploy/penlia-p2-followup-dms.sql)。007 在 006 后使用迁移账号执行。验收已存地址和坐标保留、空坐标可存、单边坐标拒绝，并核对 007 账本条目。随后执行 [008 P3 增量](server/deploy/penlia-p3-dms.sql)，核对 P3 表及回忆关联约束。媒体读取和关系撤权复用 008 的表。继续执行 [009 动态与状态增量](server/deploy/penlia-unified-moments-dms.sql)，核对授权及旧数据兼容后再部署本轮 API。
 
 **环信 IM · 已有 REST 和客户端 SDK，待供应商配置及双机验收。** 服务端使用 `EASEMOB_APP_KEY`、`EASEMOB_REST_URL`、`EASEMOB_CLIENT_ID` 和 `EASEMOB_CLIENT_SECRET`，Android 仅使用公开的 `EXPO_PUBLIC_EASEMOB_APP_KEY`。在隔离环信应用启用好友关系检查，配置 HTTPS 发送前回调 `POST /callbacks/easemob/<path-key>`，将 `PENLIA_IM_CALLBACK_SECRET` 和 `PENLIA_IM_CALLBACK_PATH_KEY` 放在服务端。回调失败默认拒绝，确认规则后在隔离 FC 开 `PENLIA_IM_PRIVACY_READY=1`。验证陌生人、拉黑、删除好友、签名错误和回调超时均被拦截，再验证文字、图片、位置、历史恢复及设备撤销。仅在确认供应商支持后启用 `PENLIA_IM_REWRITE_MEDIA=1`。待核对套餐中的漫游、附件留存、公网流量和回调能力。P0 群聊使用独立的 HTTP 与 PostgreSQL 链路，后台同步见下方代码待办。 [P0 环信接入说明](docs/penlia-p0.md#阿里云与环信接入顺序) · [发送前回调](https://doc.easemob.com/document/server-side/callback_presending.html)
 
@@ -60,7 +66,7 @@ P3 见 [开发与验收](docs/penlia-p3.md)。P2 见 [开发与验收](docs/penl
 以下步骤均等待用户批准。从隔离联调环境起步，逐项验收后再申请上线。
 
 1. **确认环境、凭证与费用边界。** 归档最终分支提交、迁移 SQL、应用包名与签名。列出本次获批的云资源、第三方项目、账单告警和费用硬上限。使用隔离库、隔离应用和少量授权测试号码。敏感信息通过控制台安全配置渠道保存，Expo 客户端只使用该环境的公开 API 地址和 IM App Key。
-2. **验证数据库备份和增量。** 在联调库核对 PostgreSQL 17、VPC、白名单、连接与传输加密方案。先演练备份恢复、核对账本，再按 001、手机号 002、003–008 的所需顺序补齐迁移与最小授权。已有 001 的环境从账本所示的下一步开始。手机号 002 使用单独的脚本和运行授权。复测旧账号、好友与媒体、007 旧地点、008 作者撤权，以及业务角色拒绝 DDL。
+2. **验证数据库备份和增量。** 在联调库核对 PostgreSQL 17、VPC、白名单、连接与传输加密方案。先演练备份恢复、核对账本，再按 001、手机号 002、003–009 的所需顺序补齐迁移与最小授权。已有 001 的环境从账本所示的下一步开始。手机号 002 使用单独的脚本和运行授权。复测旧账号、好友与媒体、007 旧地点、008 作者撤权、009 原动态与状态撤权，以及业务角色拒绝 DDL。
 3. **部署获批的联调 FC。** 用同一提交打包 Web 函数 ZIP，核对 Node.js 22、9000、`npm run start`、HTTPS、VPC 出入口和服务端环境变量。检查 `/health`；用临时诊断令牌检查联调数据库和环信就绪状态。联调未通的供应商保持关闭。核对冷启动、日志脱敏、请求体上限、数据库连接池、错误告警和可回滚版本。
 4. **先接账号，再接即时通信。** 审核并实现真实滑块和短信适配，配置签名和模板、预算硬上限及白名单。验证预算、重放、并发、过期、绑定与旧登录。再配置环信好友校验、发送前回调与历史漫游，确认失败关闭后才开启 IM。验证陌生人和拉黑拒绝、群邀请、正常文字与附件发收、历史恢复和多设备撤销。
 5. **接入通知、通话及可选服务。** 在待实现的令牌注册、推送投递、RTC 适配器和原生引擎接线通过后，按厂商项目配置受控额度。复测静默、后台唤醒、相机麦克风权限、通话加入及强制离房。按媒资容量评估是否需要 OSS；未申请的地图、商家 API、DeepSeek 保持停用。获批后分别验证私有附件撤权、费用、定位与导航准确性、审核数据脱敏；为已获批的提醒与审核任务做幂等、补跑和告警验证。
