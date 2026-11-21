@@ -19,7 +19,7 @@ export const capsuleEntryVisible = (entry, space, capsule, v) => `(${member(spac
   NOT ${blocked(entry + '.author_id', v)} AND (${opened(capsule)} OR
     (${capsule}.sealed_at IS NULL AND ${entry}.author_id=${v})))`;
 
-export const statusVisible = (s, v) => `(${s}.expires_at>now() AND
+export const statusVisible = (s, v) => `((${s}.expires_at IS NULL OR ${s}.expires_at>now()) AND
   (${s}.user_id=${v} OR (${known(s + '.user_id', v)} AND (
     ${s}.scope='friends' OR (${s}.scope='selected' AND EXISTS(SELECT 1 FROM p2_status_viewers sv
       WHERE sv.user_id=${s}.user_id AND sv.viewer_id=${v}))))))`;

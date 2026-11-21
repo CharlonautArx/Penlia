@@ -118,3 +118,12 @@ test('P3 flat DMS release requires 007 and limits the runtime role to scoped dat
     'GRANT SELECT, INSERT, DELETE ON p3_record_viewers, p3_media TO penlia_app',
   ]);
 });
+
+test('009 DMS script replays after P3 and does not rewrite existing expiry values', () => {
+  const generated = execFileSync(process.execPath, [fileURLToPath(file('dms-migration.mjs')), '--unified-moments'], { encoding: 'utf8' });
+  assert.equal(generated, readFileSync(new URL('./penlia-unified-moments-dms.sql', import.meta.url), 'utf8'));
+  assert.match(generated, /008_shared_world_p3\.sql/);
+  assert.match(generated, /expires_at DROP NOT NULL/);
+  assert.match(generated, /ADD COLUMN IF NOT EXISTS pinned/);
+  assert.doesNotMatch(generated, /UPDATE p2_status|GRANT ALL|GRANT SELECT, INSERT, DELETE ON public.moment_comments/i);
+});

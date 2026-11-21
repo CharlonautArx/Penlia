@@ -1,83 +1,22 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { Avatar, Empty, Icon, IconButton, ListRow, Notice, Screen, Sheet } from '../../components/ui';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef } from 'react';
 import { PrivateFeed } from '../../features/moments/Feed';
-import { demoPortrait } from '../../demo/visuals';
-import { EntryCard } from '../../features/space/EntryCard';
-import type { EntryKind } from '../../features/space/model';
-import { useSpace } from '../../features/space/store';
-import { colors, styles } from '../../theme';
+import { useSession } from '../../services/session';
 
 export default function MomentsScreen() {
   const { mine, author, local } = useLocalSearchParams<{ mine?: string; author?: string; local?: string }>();
-  return local==='1' ? <LocalMoments mine={mine} /> : <PrivateFeed mine={mine} author={author || undefined} />;
+  const { session } = useSession();
+  const me = session?.user.id;
+  const handled = useRef('');
+  useFocusEffect(useCallback(() => {
+    const id = mine === '1' || local === '1' ? me : author;
+    const key = id ? id + '/' + local : '';
+    if (!key) { handled.current = ''; return; }
+    if (!id || handled.current === key) return;
+    handled.current = key;
+    router.setParams({ mine: '0', author: '', local: '0' });
+    if (local === '1') router.push({ pathname: '/space/[id]', params: { id, archive: '1' } });
+    else router.push({ pathname: '/life/timeline/[id]', params: { id } });
+  }, [mine, author, local, me]));
+  return <PrivateFeed />;
 }
-
-function LocalMoments({mine}:{mine?:string}) {
-  const state = useSpace();
-  const [actions, setActions] = useState(false);
-  const me = state.me;
-  if (!me) return null;
-  const entries = state.value?.entries.filter((entry) => state.entryVisible(entry) && (mine !== '1' || entry.ownerId === me.id))
-    .sort((a, b) => b.at - a.at) ?? [];
-  const draftCount = Object.values(state.value?.drafts ?? {}).filter(Boolean).length;
-
-  function compose(kind: EntryKind) {
-    setActions(false);
-    router.push({ pathname: '/space/compose', params: { kind } });
-  }
-
-  return <Screen title="动态" solid inset={false} actions={
-    <>
-      <IconButton label="返回私密动态" icon="arrow-back-outline" onPress={()=>router.setParams({local:'0'})}/>
-      <IconButton label="我的空间" icon="person-circle-outline"
-        onPress={() => router.push({ pathname: '/space/[id]', params: { id: me.id } })} />
-      <IconButton label="发布动态" icon="create-outline" tinted onPress={() => setActions(true)} />
-    </>
-  }>
-    <View style={local.feedBar}>
-      <View style={local.feedTabs}>
-        {[['全部动态', '0'], ['我的动态', '1']].map(([label, value]) => {
-          const selected = (mine === '1' ? '1' : '0') === value;
-          return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => router.setParams({ mine: value })}
-            style={[local.tab, selected && local.selected]}>
-            <Text style={selected ? local.selectedText : styles.muted}>{label}</Text>
-          </Pressable>;
-        })}
-      </View>
-      <Text style={styles.small}>仅此设备</Text>
-    </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="发布动态" style={({ pressed }) => [local.quick, pressed && local.pressed]}
-      onPress={() => compose('thought')}>
-      <Avatar userId={me.id} name={me.name} source={demoPortrait(state.demoAvatarKey ?? me.username)} size={32} />
-      <Text style={[styles.muted, styles.grow]}>写动态…</Text>
-      {draftCount > 0 && <Text style={local.draft}>草稿 {draftCount}</Text>}
-      <Icon name="image-outline" color={colors.accent} size={18} />
-    </Pressable>
-    {!!state.error && <View style={local.inset}><Notice action="重试" onAction={state.retry}>{state.error}</Notice></View>}
-    {state.loading && <Empty busy>正在读取本机动态…</Empty>}
-    {!state.loading && !state.error && !entries.length && <Empty icon="create-outline">还没有动态。写下今天的一件小事吧。</Empty>}
-    {entries.map((entry) => <EntryCard key={entry.id} entry={entry} />)}
-    {actions && <Sheet title="发布动态" onClose={() => setActions(false)}>
-      <ListRow title="发布动态" detail={state.value?.drafts.thought ? '继续本机草稿' : '记录此刻的想法和照片'}
-        left={<Icon name="chatbox-ellipses-outline" color={colors.accent} />} onPress={() => compose('thought')} />
-      <ListRow title="写日志" detail={state.value?.drafts.journal ? '继续本机草稿' : '写一段想留住的生活'}
-        left={<Icon name="book-outline" color={colors.accent} />} onPress={() => compose('journal')} />
-    </Sheet>}
-  </Screen>;
-}
-
-const local = StyleSheet.create({
-  inset: { paddingHorizontal: 16 },
-  feedBar: { ...styles.row, ...styles.divider, justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 51 },
-  feedTabs: { flexDirection: 'row', gap: 15 },
-  tab: { minHeight: 46, justifyContent: 'center', borderBottomWidth: 2, borderColor: 'transparent' },
-  selected: { borderColor: '#E46986' },
-  selectedText: { ...styles.strong, color: colors.accent },
-  quick: { ...styles.row, marginHorizontal: 16, marginVertical: 10, paddingHorizontal: 11, minHeight: 50,
-    borderRadius: 12, backgroundColor: colors.backdrop },
-  pressed: { opacity: 0.7 },
-  draft: { ...styles.small, color: colors.accent },
-});

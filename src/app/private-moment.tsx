@@ -238,7 +238,8 @@ export default function PrivateMoment() {
                 }
                 void run(async () => {
                   await request('/moments/' + previous.id, { method: 'DELETE' });
-                  router.replace('/moments');
+                  if (router.canGoBack()) router.back();
+                  else router.replace('/moments');
                 });
               }}
             />

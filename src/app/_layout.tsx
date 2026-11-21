@@ -32,6 +32,7 @@ function AppNavigation() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="chat/[id]" />
                 <Stack.Screen name="privacy" />
+                <Stack.Screen name="profile" />
                 <Stack.Screen name="groups" />
                 <Stack.Screen name="group/[id]" />
                 <Stack.Screen name="private-moment" />

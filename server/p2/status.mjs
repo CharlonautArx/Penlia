@@ -5,7 +5,7 @@ import { choose, invalid, timeOf, conflict } from '../p1/common.mjs';
 import { statusVisible } from './access.mjs';
 import { assetList, dayMs, deleteAssets, replaceAssets } from './common.mjs';
 
-export async function getStatus(user, id) {
+export async function getStatus(user, id, explicitLifetime = false) {
   const {
     rows: [status],
   } = await pool.query(
@@ -15,7 +15,12 @@ export async function getStatus(user, id) {
     FROM p2_status st WHERE st.user_id=$2 AND ${statusVisible('st', '$1::uuid')}`,
     [user, id],
   );
-  return { status: status ?? null };
+  if (!status) return { status: null };
+  if (status.expiresAt === null && !explicitLifetime) {
+    // Old clients format this field as a date. The placeholder is never persisted.
+    return { status: { ...status, expiresAt: '9999-12-31T00:00:00.000Z', persistent: true } };
+  }
+  return { status };
 }
 export async function saveStatus(user, body) {
   const caption = cleanText(body.caption ?? '', 64),
@@ -25,15 +30,17 @@ export async function saveStatus(user, body) {
   const targets = scope === 'selected' ? idsOf(body.memberIds ?? []) : [];
   if (!caption && !emoji && !media.length) throw invalid('请选择图片、表情或填写状态。');
   if (scope === 'selected' && !targets.length) throw invalid('请选择可见好友。');
-  const end = timeOf(body.expiresAt);
-  if (+end <= Date.now() || +end > Date.now() + 7 * dayMs) throw invalid('状态有效期须在未来七天内。');
+  const end = body.expiresAt === null ? null : timeOf(body.expiresAt);
+  if (end && (+end <= Date.now() || +end > Date.now() + 7 * dayMs)) throw invalid('状态有效期须在未来七天内。');
   return inTransaction(pool, async (db) => {
     await lockUsers(db, user);
     await verifyFriends(db, user, targets);
     const {
       rows: [previous],
     } = await db.query('SELECT revision,expires_at FROM p2_status WHERE user_id=$1 FOR UPDATE', [user]);
-    const active = previous && +previous.expires_at > Date.now();
+    const active = previous && (previous.expires_at === null || +previous.expires_at > Date.now());
+    if (previous?.expires_at === null && end !== null)
+      throw conflict('请更新朋聊后编辑这个长期状态。');
     if ((active && body.revision !== previous.revision) || (!active && body.revision !== undefined))
       throw conflict();
     await db.query(

@@ -3,14 +3,20 @@ import { p3MediaVisible } from '../p3/access.mjs';
 import { randomUUID } from 'node:crypto';
 import { cleanText, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
-import { blocked, idsOf, lockUsers, verifyFriends } from './access.mjs';
+import { blocked, idsOf, lockUsers, restricted, verifyFriends } from './access.mjs';
 import { collectionReadable, contributionReadable, contributionScope, momentReaders, momentVisible, unusedMedia } from '../p1/collection-access.mjs';
 
 export const mediaLimit = 4 * 1024 * 1024;
 const notFound = () => new HttpError(404, '找不到可查看的内容。');
 const canRead = momentVisible('p', '$1::uuid');
-const projection = `p.id,p.author_id AS "authorId",u.name AS author,p.body,p.revision,p.created_at AS "createdAt",
+const participantVisible = (actor) => `${momentVisible('p', actor)}
+  AND NOT ${blocked(actor, '$1::uuid')} AND NOT ${restricted(actor, '$1::uuid')}`;
+const projection = `p.id,p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.revision,p.created_at AS "createdAt",
+  CASE WHEN p.author_id=$1 THEN p.pinned ELSE NULL END AS pinned,
   CASE WHEN p.author_id=$1 THEN p.scope END AS scope,
+  EXISTS(SELECT 1 FROM moment_likes l WHERE l.moment_id=p.id AND l.user_id=$1) AS liked,
+  (SELECT count(*)::integer FROM moment_likes l WHERE l.moment_id=p.id AND ${participantVisible('l.user_id')}) AS "likeCount",
+  (SELECT count(*)::integer FROM moment_comments c WHERE c.moment_id=p.id AND ${participantVisible('c.user_id')}) AS "commentCount",
   (SELECT c.id FROM p1_collections c WHERE c.moment_id=p.id) AS "collaborationId",
   CASE WHEN p.author_id=$1 THEN p.audience_group END AS "groupId",
   CASE WHEN p.author_id=$1 THEN ARRAY(SELECT v.user_id FROM private_moment_viewers v WHERE v.moment_id=p.id) END AS "memberIds",
@@ -19,33 +25,105 @@ const projection = `p.id,p.author_id AS "authorId",u.name AS author,p.body,p.rev
 
 export async function listMoments(userId, query) {
   const cursor = query.get('before');
-  const author = query.get('author') ?? null;
+  const author = query.get('author') || null;
   if (author) readId(author);
-  let time = null,
-    id = null;
+  const friendsOnly = query.get('feed') === 'friends';
+  const ownTimeline = author === userId && query.get('order') === 'pinned';
+  let time = null;
+  let id = null;
+  let pin = false;
   if (cursor !== null) {
     const parts = cursor.split('|');
+    if (ownTimeline && ['0', '1'].includes(parts[0])) pin = parts.shift() === '1';
     if (
       parts.length !== 2 ||
       !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3,6})?Z$/.test(parts[0]) ||
       !Number.isFinite(Date.parse(parts[0]))
-    )
-      throw new HttpError(400, '无效的分页位置。');
+    ) throw new HttpError(400, '无效的分页位置。');
     [time, id] = [parts[0], readId(parts[1])];
   }
   const { rows } = await pool.query(
-    `SELECT ${projection}, to_char(p.created_at AT TIME ZONE 'UTC',
-    'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
+    `SELECT ${projection},to_char(p.created_at AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
     FROM private_moments p JOIN users u ON u.id=p.author_id WHERE ${canRead}
-    AND ($2::uuid IS NULL OR p.author_id=$2) AND ($3::timestamptz IS NULL OR (p.created_at,p.id)<($3,$4))
-    ORDER BY p.created_at DESC,p.id DESC LIMIT 21`,
-    [userId, author, time, id],
+    AND ($2::uuid IS NULL OR p.author_id=$2) AND (NOT $5::boolean OR p.author_id<>$1)
+    AND ($3::timestamptz IS NULL OR
+      ($6::boolean AND (p.pinned,p.created_at,p.id)<($7::boolean,$3,$4)) OR
+      (NOT $6 AND (p.created_at,p.id)<($3,$4)))
+    ORDER BY CASE WHEN $6 THEN p.pinned ELSE false END DESC,p.created_at DESC,p.id DESC LIMIT 21`,
+    [userId, author, time, id, friendsOnly, ownTimeline, pin],
   );
   const last = rows[19];
   return {
     moments: rows.slice(0, 20).map(({ cursor_time, ...row }) => row),
-    next: rows.length > 20 ? last.cursor_time + '|' + last.id : null,
+    next: rows.length > 20 ? (ownTimeline ? Number(last.pinned) + '|' : '') + last.cursor_time + '|' + last.id : null,
   };
+}
+
+export async function ownMomentCount(userId) {
+  const { rows: [row] } = await pool.query(
+    'SELECT count(*)::integer AS count FROM private_moments WHERE author_id=$1', [userId],
+  );
+  return row;
+}
+
+export async function pinMoment(userId, id, pinned) {
+  if (typeof pinned !== 'boolean') throw new HttpError(400, '请选择置顶状态。');
+  const result = await pool.query(
+    'UPDATE private_moments SET pinned=$3 WHERE id=$2 AND author_id=$1', [userId, id, pinned],
+  );
+  if (!result.rowCount) throw notFound();
+  return { pinned };
+}
+
+async function interact(userId, id, action) {
+  return inTransaction(pool, async (db) => {
+    const visible = await db.query(`SELECT p.id FROM private_moments p WHERE p.id=$2 AND ${canRead} FOR SHARE OF p`, [userId, id]);
+    if (!visible.rowCount) throw notFound();
+    return action(db);
+  });
+}
+
+export async function setMomentLike(userId, id, liked) {
+  if (typeof liked !== 'boolean') throw new HttpError(400, '请选择点赞状态。');
+  return interact(userId, id, async (db) => {
+    if (liked) {
+      await db.query('INSERT INTO moment_likes(moment_id,user_id) VALUES($2,$1) ON CONFLICT DO NOTHING', [userId, id]);
+    } else {
+      await db.query('DELETE FROM moment_likes WHERE user_id=$1 AND moment_id=$2', [userId, id]);
+    }
+    const { rows: [row] } = await db.query(`SELECT count(*)::integer AS "likeCount"
+      FROM private_moments p JOIN moment_likes l ON l.moment_id=p.id
+      WHERE p.id=$2 AND ${canRead} AND ${participantVisible('l.user_id')}`, [userId, id]);
+    return { liked, likeCount: row.likeCount };
+  });
+}
+
+export async function listMomentComments(userId, id, before) {
+  if (before !== null) readId(before);
+  const { rows: [row] } = await pool.query(`SELECT coalesce((
+    SELECT jsonb_agg(to_jsonb(page) ORDER BY page."createdAt" DESC,page.id DESC) FROM (
+      SELECT c.id,c.user_id AS "authorId",u.name AS author,c.body,c.created_at AS "createdAt"
+      FROM moment_comments c JOIN users u ON u.id=c.user_id
+      WHERE c.moment_id=p.id AND ${participantVisible('c.user_id')}
+        AND ($3::uuid IS NULL OR (c.created_at,c.id)<(SELECT older.created_at,older.id
+          FROM moment_comments older WHERE older.moment_id=p.id AND older.id=$3 AND ${participantVisible('older.user_id')}))
+      ORDER BY c.created_at DESC,c.id DESC LIMIT 31
+    ) page),'[]'::jsonb) AS comments
+    FROM private_moments p WHERE p.id=$2 AND ${canRead}`, [userId, id, before]);
+  if (!row) throw notFound();
+  return { comments: row.comments.slice(0, 30), next: row.comments.length > 30 ? row.comments[29].id : null };
+}
+
+export async function addMomentComment(userId, id, body) {
+  const message = cleanText(body.body, 500);
+  if (!message) throw new HttpError(400, '请输入留言。');
+  const clientId = readId(body.clientId);
+  return interact(userId, id, async (db) => {
+    await db.query(`INSERT INTO moment_comments(moment_id,user_id,client_id,body)
+      VALUES($2,$1,$3,$4) ON CONFLICT(moment_id,user_id,client_id) DO NOTHING`, [userId, id, clientId, message]);
+    return {};
+  });
 }
 
 export async function getMoment(userId, id) {

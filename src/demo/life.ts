@@ -7,6 +7,7 @@ import { friend, friendName, members, self, type Row, type Rows } from './life-f
 type Input = Record<string, unknown>;
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 const list = (value: unknown): Row[] => Array.isArray(value) ? value : [];
+const newestFirst = (a: Row, b: Row) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id);
 const now = () => new Date().toISOString();
 const unavailable = '这个操作仅在正式服务中可用。预览数据保存在本机。';
 const author = { authorId: self, author: demoUser.name, createdAt: '', revision: 1 };
@@ -119,10 +120,61 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     }
   }
   if (root === 'moments') {
-    if (!get) return upsert('moments', area ? {} : { ...author, createdAt: now(), media: assetRefs() });
-    if (area) return { moment: requireRow('moments') };
     const selected = query.get('author');
-    return { moments: rows('moments').filter((item) => !selected || item.authorId === selected), next: null };
+    const timeline = selected === self && query.get('order') === 'pinned';
+    const visible = (item: Row) => item.authorId === self ||
+      (item.scope !== 'private' && (item.scope !== 'selected' || strings(item.memberIds).includes(self)));
+    const project = (item: Row) => {
+      const likes = strings(item.demoLikes);
+      return { ...item, authorUsername: item.authorId === self ? demoUser.username : demoPeople.find((person) => person.id === item.authorId)?.username, pinned: item.authorId === self ? !!item.pinned : null,
+        liked: likes.includes(self), likeCount: likes.length,
+        commentCount: rows('momentComments').filter((entry) => entry.momentId === item.id).length };
+    };
+    if (area === 'count' && get) return { count: rows('moments').filter((item) => item.authorId === self).length };
+    if (!area && method === 'POST') {
+      const previous = rows('moments').find((item) => item.authorId === self && item.clientId === body.clientId);
+      return previous ?? save('moments', add(body, { ...author, createdAt: now(), media: assetRefs() }));
+    }
+    if (area) {
+      const moment = requireRow('moments');
+      if (!visible(moment)) throw new Error('找不到可查看的内容。');
+      if (id === 'like' && method === 'PUT') {
+        if (typeof body.liked !== 'boolean') throw new Error('请选择点赞状态。');
+        const likes = strings(moment.demoLikes).filter((user) => user !== self);
+        if (body.liked) likes.push(self);
+        return project(save('moments', { ...moment, demoLikes: likes }));
+      }
+      if (id === 'comments') {
+        if (get) {
+          const all = rows('momentComments').filter((entry) => entry.momentId === area).sort(newestFirst);
+          const before = query.get('before');
+          const start = before ? all.findIndex((entry) => entry.id === before) + 1 : 0;
+          const page = all.slice(start, start + 30);
+          return { comments: page, next: all.length > start + 30 ? page.at(-1)?.id ?? null : null };
+        }
+        if (typeof body.body !== 'string' || !body.body.trim() || body.body.length > 500) throw new Error('请输入留言。');
+        const previous = rows('momentComments').find((entry) => entry.momentId === area && entry.clientId === body.clientId);
+        return previous ?? save('momentComments', add(body, { ...author, momentId: area, createdAt: now() }));
+      }
+      if (get) return { moment: project(moment) };
+      if (moment.authorId !== self) throw new Error('只有发布者能修改这条动态。');
+      if (id === 'pin' && method === 'PUT') {
+        if (typeof body.pinned !== 'boolean') throw new Error('请选择置顶状态。');
+        return save('moments', { ...moment, pinned: body.pinned });
+      }
+      if (remove) {
+        store.momentComments = rows('momentComments').filter((entry) => entry.momentId !== area);
+        return drop('moments', moment);
+      }
+      return edit('moments', moment);
+    }
+    const all = rows('moments').filter((item) => visible(item) && (!selected || item.authorId === selected)
+      && (query.get('feed') !== 'friends' || item.authorId !== self))
+      .sort((a, b) => (timeline ? Number(!!b.pinned) - Number(!!a.pinned) : 0) || newestFirst(a, b));
+    const cursor = query.get('before');
+    const offset = cursor ? all.findIndex((item) => item.id === cursor) + 1 : 0;
+    const page = all.slice(offset, offset + 20);
+    return { moments: page.map(project), next: all.length > offset + 20 ? page.at(-1)?.id ?? null : null };
   }
 
   if (root === 'p1') {
@@ -282,9 +334,14 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'place-resonance') return { matches: [] };
     if (area === 'status') {
       const current = rows('status').find((row) => row.ownerId === (id || self));
-      if (get) return { status: current && String(current.expiresAt) > now() ? current : null };
+      if (get) return { status: current && (current.ownerId === self || !current.scope || current.scope === 'friends'
+        || (current.scope === 'selected' && strings(current.memberIds).includes(self))) &&
+        (current.expiresAt === null || String(current.expiresAt) > now()) ? current : null };
+      if (id && id !== self) throw new Error('只能修改自己的状态。');
+      if (!remove && current?.expiresAt === null && body.expiresAt !== null) throw new Error('请更新朋聊后编辑这个长期状态。');
+      if (!remove && body.scope === 'selected' && !strings(body.memberIds).length) throw new Error('请选择可见好友。');
       if (remove) return current ? drop('status', current) : {};
-      return save('status', { ...(current ?? { id: self }), ...body, ownerId: self, media: assetRefs(current?.media),
+      return save('status', { ...(current ?? { id: self }), ...body, emoji: body.emoji ?? '', ownerId: self, media: assetRefs(current?.media),
         revision: Number(current?.revision ?? 0) + 1 });
     }
     if (area === 'memories') {

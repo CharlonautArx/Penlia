@@ -26,11 +26,16 @@ import {
   sendGroupMessage,
 } from './groups.mjs';
 import {
+  addMomentComment,
   deleteMoment,
   discardMedia,
   getMedia,
   getMoment,
   listMoments,
+  listMomentComments,
+  ownMomentCount,
+  pinMoment,
+  setMomentLike,
   postMedia,
   publishMoment,
   updateMoment,
@@ -92,6 +97,8 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
     case 'POST /v1/group-invites/accept':
     case 'POST /v1/group-invites/decline':
       return result(await decideGroupInvite(id, readId((await readBody()).id), route.endsWith('/accept')));
+    case 'GET /v1/moments/count':
+      return result(await ownMomentCount(id));
     case 'GET /v1/moments':
       return result(await listMoments(id, query));
     case 'POST /v1/moments':
@@ -177,7 +184,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   }
 
   const match =
-    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media)\/([0-9a-f-]{36})(?:\/(invites|messages|leave))?$/.exec(
+    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media)\/([0-9a-f-]{36})(?:\/(invites|messages|leave|pin|like|comments))?$/.exec(
       route,
     );
   if (!match) return undefined;
@@ -220,6 +227,13 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       if (action === 'leave' && method === 'POST') return result(await leaveGroup(id, item));
       break;
     case 'moments':
+      if (action === 'pin' && method === 'PUT') return result(await pinMoment(id, item, (await readBody()).pinned));
+      if (action === 'like' && method === 'PUT') return result(await setMomentLike(id, item, (await readBody()).liked));
+      if (action === 'comments' && method === 'GET') return result(await listMomentComments(id, item, query.get('before')));
+      if (action === 'comments' && method === 'POST') {
+        await rateLimit('moment-comments:' + id, 45, 1);
+        return result(await addMomentComment(id, item, await readBody()), 201);
+      }
       if (!action && method === 'GET') return result(await getMoment(id, item));
       if (!action && method === 'PATCH') return result(await updateMoment(id, item, await readBody()));
       if (!action && method === 'DELETE') return result(await deleteMoment(id, item));

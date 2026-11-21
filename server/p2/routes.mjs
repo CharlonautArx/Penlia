@@ -87,9 +87,9 @@ export async function p2Routes(method, path, { user, query, readBody, headers, r
   if (resource === 'status')
     switch (key) {
       case 'GET:list':
-        return status.getStatus(me, me);
+        return status.getStatus(me, me, query.get('lifetime') === '1');
       case 'GET:one':
-        return status.getStatus(me, id);
+        return status.getStatus(me, id, query.get('lifetime') === '1');
       case 'POST:list':
         return status.saveStatus(me, await readBody());
       case 'DELETE:list':

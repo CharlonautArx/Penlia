@@ -60,12 +60,12 @@ export default function PersonScreen() {
         onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />
       {isUiDemo?<View style={local.shortcuts}>
         <Button label="个人空间" icon="albums-outline" variant="soft"
-          onPress={() => router.push({ pathname: '/space/[id]', params: { id: friend.userId } })} />
+          onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id: friend.userId } })} />
         <Button label="共同小宠物" icon="heart-circle-outline" variant="soft"
           onPress={() => router.push({ pathname: '/pet/[id]', params: { id: friend.userId } })} />
       </View>:<SettingGroup>
         <ListRow title="查看对方动态" left={<Icon name="images-outline" />}
-          onPress={() => router.push({ pathname: '/moments', params: { author: id } })} separator={false} />
+          onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id } })} separator={false} />
       </SettingGroup>}
     </> : <Empty busy={!relationships && !error && !failure}>{failure || error || (relationships && !friend ? '找不到这位好友。' : '正在加载资料…')}</Empty>}
     {management && <Sheet title="关系与隐私" onClose={() => setManagement(false)}>
@@ -86,7 +86,7 @@ export default function PersonScreen() {
 }
 
 function FriendLifeStatus({id}:{id:string}){
-  const {data}=useRecord<{status:LifeStatus|null}>('/p2/status/'+id,20000);
+  const {data}=useRecord<{status:LifeStatus|null}>('/p2/status/'+id+'?lifetime=1',20000);
   return data?.status?<StatusBlock status={data.status}/>:null;
 }
 

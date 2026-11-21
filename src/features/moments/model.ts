@@ -17,11 +17,25 @@ export type Moment = {
   collaborationId?: string | null;
   authorId: string;
   author: string;
+  authorUsername?: string;
   body: string;
   createdAt: string;
   revision: number;
+  pinned?: boolean | null;
+  liked?: boolean;
+  likeCount?: number;
+  commentCount?: number;
   scope: Audience | null;
   groupId: string | null;
   memberIds: string[] | null;
   media: Media[];
+};
+
+
+export type MomentComment = {
+  id: string;
+  authorId: string;
+  author: string;
+  body: string;
+  createdAt: string;
 };
