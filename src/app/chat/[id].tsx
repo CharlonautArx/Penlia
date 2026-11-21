@@ -1,7 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
 import { Avatar, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } from '../../components/ui';
@@ -27,6 +26,7 @@ import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
+import { ChatViewport } from '../../features/chat/Viewport';
 
 function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
   const { session, request } = useSession();
@@ -175,7 +175,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         changed();
       }
       pending.current = undefined;
-      if (value.kind === 'text') setDraft('');
+      if (value.kind === 'text') setDraft((current) => current.trim() === value.text ? '' : current);
       if (value.kind === 'image') setPhotos((current)=>current.filter((item)=>item.id!==value.photoId));
       else {
         setQuiet(false);setNoReply(false);
@@ -254,7 +254,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
       <MessageComposer label="消息" placeholder={demo ? '输入模拟消息' : '发消息'}
-        value={draft} onChange={setDraft} editable={!sending} maxLength={500}
+        value={draft} onChange={setDraft} maxLength={500}
         attachLabel="更多输入方式" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
         photoDisabled={prepareBusy} toolsDisabled={sending}
@@ -360,49 +360,46 @@ export default function ConversationScreen() {
   }
 
   return (
-    <SafeAreaView style={local.safe}>
-      <KeyboardAvoidingView style={chatLayout.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={local.header}>
-          <IconButton label="返回" icon="chevron-back" onPress={goBack} />
-          {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
-            style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
-            onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
-            <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />
-            <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
-          </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
-          <DemoLabel />
-          {person && <PetShortcut peer={person.userId} /> }
-          {person && <IconButton label="聊天选项" icon="ellipsis-horizontal" onPress={() => setMore(true)} />}
-        </View>
-        {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
-          <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
-        {more && person && <Sheet title="聊天选项" onClose={() => setMore(false)}>
-          <Button label="语音通话" variant="soft" icon="call-outline" onPress={() => {
-            setMore(false); setCall({ kind: 'voice', incoming: false });
-          }} />
-          <Button label="视频通话" variant="soft" icon="videocam-outline" onPress={() => {
-            setMore(false); setCall({ kind: 'video', incoming: false });
-          }} />
-          {isUiDemo && <Button label="模拟视频来电" variant="quiet" onPress={() => {
-            setMore(false); setCall({ kind: 'video', incoming: true });
-          }} />}
-          <Button label="查看好友资料" variant="soft" icon="person-outline" onPress={() => {
-            setMore(false);
-            router.push({ pathname: '/person/[id]', params: { id: person.userId } });
-          }} />
-        </Sheet>}
-        {call && person && (isUiDemo ? <DemoCall kind={call.kind} incoming={call.incoming}
-          name={person.name} username={person.username} onClose={() => setCall(undefined)} />
-          : <Sheet title={call.kind === 'voice' ? '语音通话' : '视频通话'} onClose={() => setCall(undefined)}>
-            <Notice>通话服务尚未启用。需要配置 RTC、通话信令和呼叫权限后才可以拨打。</Notice>
-          </Sheet>)}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <ChatViewport>
+      <View style={local.header}>
+        <IconButton label="返回" icon="chevron-back" onPress={goBack} />
+        {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
+          style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
+          onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
+          <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />
+          <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
+        </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
+        <DemoLabel />
+        {person && <PetShortcut peer={person.userId} /> }
+        {person && <IconButton label="聊天选项" icon="ellipsis-horizontal" onPress={() => setMore(true)} />}
+      </View>
+      {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
+        <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
+      {more && person && <Sheet title="聊天选项" onClose={() => setMore(false)}>
+        <Button label="语音通话" variant="soft" icon="call-outline" onPress={() => {
+          setMore(false); setCall({ kind: 'voice', incoming: false });
+        }} />
+        <Button label="视频通话" variant="soft" icon="videocam-outline" onPress={() => {
+          setMore(false); setCall({ kind: 'video', incoming: false });
+        }} />
+        {isUiDemo && <Button label="模拟视频来电" variant="quiet" onPress={() => {
+          setMore(false); setCall({ kind: 'video', incoming: true });
+        }} />}
+        <Button label="查看好友资料" variant="soft" icon="person-outline" onPress={() => {
+          setMore(false);
+          router.push({ pathname: '/person/[id]', params: { id: person.userId } });
+        }} />
+      </Sheet>}
+      {call && person && (isUiDemo ? <DemoCall kind={call.kind} incoming={call.incoming}
+        name={person.name} username={person.username} onClose={() => setCall(undefined)} />
+        : <Sheet title={call.kind === 'voice' ? '语音通话' : '视频通话'} onClose={() => setCall(undefined)}>
+          <Notice>通话服务尚未启用。需要配置 RTC、通话信令和呼叫权限后才可以拨打。</Notice>
+        </Sheet>)}
+    </ChatViewport>
   );
 }
 
 const local = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.panel },
   header: { ...styles.row, ...styles.divider, minHeight: 54, gap: space.xxs, paddingHorizontal: space.xxs, backgroundColor: colors.panel },
   profileLink: { ...styles.row, ...styles.grow, gap: space.xs, minHeight: touch },
   profilePressed: { opacity: 0.72 },

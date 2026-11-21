@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Button, Icon, IconButton, Sheet } from '../../components/ui';
@@ -106,22 +106,26 @@ export function MessageBody({ text }: { text: string }) {
   return <Text style={styles.body}>{text}</Text>;
 }
 
-export function MessageComposer({ label, placeholder, value, onChange, editable, maxLength,
+export function MessageComposer({ label, placeholder, value, onChange, maxLength,
   attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, sendLabel, sendDisabled, onSend, mode }: {
-  label: string; placeholder: string; value: string; onChange: (value: string) => void; editable: boolean; maxLength: number;
+  label: string; placeholder: string; value: string; onChange: (value: string) => void; maxLength: number;
   attachLabel: string; photoLabel: string; onAttach: () => void; onPhoto: () => void; onEmoji?: () => void;
   toolsDisabled?: boolean; photoDisabled?: boolean; sendLabel: string; sendDisabled: boolean; onSend: () => void;
   mode?: ReactNode;
 }) {
+  function openTool(action: () => void) {
+    Keyboard.dismiss();
+    action();
+  }
   return <View style={ui.composer}>
     {mode && <View style={ui.composerMode}>{mode}</View>}
     <View style={ui.composerControls}>
-      <IconButton label={attachLabel} icon="add-circle-outline" disabled={toolsDisabled} onPress={onAttach} />
-      <IconButton label={photoLabel} icon="image-outline" disabled={toolsDisabled || photoDisabled} onPress={onPhoto} />
+      <IconButton label={attachLabel} icon="add-circle-outline" disabled={toolsDisabled} onPress={() => openTool(onAttach)} />
+      <IconButton label={photoLabel} icon="image-outline" disabled={toolsDisabled || photoDisabled} onPress={() => openTool(onPhoto)} />
       <View style={ui.composerEntry}>
         <TextInput accessibilityLabel={label} placeholder={placeholder} placeholderTextColor={colors.quiet}
-          multiline maxLength={maxLength} value={value} onChangeText={onChange} editable={editable} style={ui.composerInput} />
-        {onEmoji && <IconButton label="表情" icon="happy-outline" disabled={toolsDisabled} onPress={onEmoji} />}
+          multiline scrollEnabled maxLength={maxLength} value={value} onChangeText={onChange} style={ui.composerInput} />
+        {onEmoji && <IconButton label="表情" icon="happy-outline" disabled={toolsDisabled} onPress={() => openTool(onEmoji)} />}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={sendLabel} accessibilityState={{ disabled: sendDisabled, busy: sendLabel !== '发送' }}
         disabled={sendDisabled} onPress={onSend} style={({ pressed }) => [ui.send, sendDisabled && ui.sendDisabled, pressed && ui.pressedBubble]}>
@@ -160,7 +164,7 @@ const ui = StyleSheet.create({
   composerMode: { flexDirection: 'row', columnGap: space.sm, alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: space.sm, paddingBottom: space.xxs },
   composerControls: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xxs },
   composerEntry: { ...styles.grow, flexDirection: 'row', alignItems: 'flex-end', backgroundColor: colors.search, borderRadius: radius.surface },
-  composerInput: { ...styles.grow, ...type.body, color: colors.text, minHeight: touch, maxHeight: 124, paddingHorizontal: space.sm, paddingVertical: 11 },
+  composerInput: { ...styles.grow, ...type.body, color: colors.text, minHeight: touch, maxHeight: 124, textAlignVertical: 'top', paddingHorizontal: space.sm, paddingVertical: 11 },
   send: { width: touch, minHeight: touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
   sendDisabled: { backgroundColor: colors.search },
 });

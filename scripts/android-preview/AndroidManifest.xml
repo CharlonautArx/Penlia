@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="app.penlia.preview.tests">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35"/>
+  <application android:label="Penlia emulator tests"/>
+  <instrumentation android:name=".ImeInput" android:targetPackage="app.penlia.preview.tests"/>
+</manifest>

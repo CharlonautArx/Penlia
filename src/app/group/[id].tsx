@@ -1,8 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppState, FlatList, Text, View } from 'react-native';
 import { Avatar, Button, Empty, IconButton, ListRow, Notice, Section, Sheet, TopBar } from '../../components/ui';
 import {
   chooseMomentPhotos,
@@ -24,6 +23,7 @@ import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, space, styles } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
+import { ChatViewport } from '../../features/chat/Viewport';
 
 type Line = {
   id: string;
@@ -58,6 +58,7 @@ export default function GroupConversation() {
   const [call,setCall]=useState(requestedCall==='1');
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [busy, setBusy] = useState(false);
+  const working = useRef(false);
   const [details, setDetails] = useState(false);
   const [invite, setInvite] = useState<{ name: string; code: string }>();
   const [confirmExit, setConfirmExit] = useState(false);
@@ -121,7 +122,8 @@ export default function GroupConversation() {
   );
 
   async function run(task: () => Promise<void>) {
-    if (busy) return;
+    if (working.current) return;
+    working.current = true;
     setBusy(true);
     setError('');
     try {
@@ -129,6 +131,7 @@ export default function GroupConversation() {
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
+      working.current = false;
       setBusy(false);
       setProgress('');
     }
@@ -163,99 +166,97 @@ export default function GroupConversation() {
     pending.current = undefined;
     uploaded.current.clear();
     setPhotos([]);
-    setDraft('');
+    setDraft((current) => current === draft ? '' : current);
     setQuiet(false);
     setNoReply(false);
     await load();
   }
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.panel }}>
-      <KeyboardAvoidingView style={chatLayout.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <TopBar
-          title={group?.name ?? '群聊'}
-          back={back}
-          actions={
-            group && (
-              <IconButton
-                label="群资料和邀请"
-                icon="ellipsis-horizontal"
-                onPress={() => {
-                  setDetails(true);
-                  void info();
-                }}
-              />
-            )
+    <ChatViewport>
+      <TopBar
+        title={group?.name ?? '群聊'}
+        back={back}
+        actions={
+          group && (
+            <IconButton
+              label="群资料和邀请"
+              icon="ellipsis-horizontal"
+              onPress={() => {
+                setDetails(true);
+                void info();
+              }}
+            />
+          )
+        }
+      />
+      <FlatList
+        data={messages}
+        inverted
+        keyboardShouldPersistTaps="handled"
+        keyExtractor={(line) => line.id}
+        contentContainerStyle={chatLayout.messages}
+        ListEmptyComponent={
+          <View style={chatLayout.inverted}>
+            <Empty busy={!group && !error}>{error || (group ? '还没有群消息。' : '正在读取群聊…')}</Empty>
+          </View>
+        }
+        ListFooterComponent={
+          next ? (
+            <Button
+              label="加载更早消息"
+              disabled={busy}
+              variant="quiet"
+              onPress={() =>
+                void run(async () => {
+                  const page = await request<{ messages: Line[]; next: string | null }>(
+                    groupPath + '/messages?before=' + encodeURIComponent(next),
+                  );
+                  setMessages((current) => [
+                    ...current,
+                    ...page.messages.filter((line) => !current.some((existing) => existing.id === line.id)),
+                  ]);
+                  setSeenOlder(true);
+                  setNext(page.next);
+                })
+              }
+            />
+          ) : undefined
+        }
+        renderItem={({ item, index }) => {
+          const mine = item.senderId === own;
+          const timestamp = Date.parse(item.sentAt);
+          const older = messages[index + 1];
+          const newer = messages[index - 1];
+          const block = startsMessageBlock(timestamp, older ? Date.parse(older.sentAt) : undefined);
+          return <View>
+            {block && <ChatTimestamp value={timestamp} />}
+            <ChatBubble mine={mine} first={block || item.senderId !== older?.senderId}
+              last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
+              author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={() => setActions(item)}>
+              {!!item.content && <MessageBody text={item.content} />}
+              {!!item.media.length && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, minWidth: 160 }}>
+                  {item.media.map((media) => <MomentMediaTile key={media.id} item={media} context="chat" />)}
+                </View>
+              )}
+              {item.noReply && <NoReply />}
+              {item.silent && <Moon words />}
+            </ChatBubble>
+          </View>;
+        }}
+      />
+      {!!error && !!group && !details && <Notice>{error}</Notice>}
+      {!!group && <MessageComposer label="群消息" placeholder="发消息" value={draft} onChange={setDraft}
+        maxLength={1000} attachLabel="更多群消息选项" photoLabel="从图库选择群图片"
+        toolsDisabled={busy} onAttach={() => setTools(true)} onEmoji={() => setEmoji(true)}
+        onPhoto={() => void run(async () => {
+          if (own) {
+            const chosen = await chooseMomentPhotos(own, 6);
+            if (chosen.length) setPhotos(chosen);
           }
-        />
-        <FlatList
-          data={messages}
-          inverted
-          keyboardShouldPersistTaps="handled"
-          keyExtractor={(line) => line.id}
-          contentContainerStyle={chatLayout.messages}
-          ListEmptyComponent={
-            <View style={chatLayout.inverted}>
-              <Empty busy={!group && !error}>{error || (group ? '还没有群消息。' : '正在读取群聊…')}</Empty>
-            </View>
-          }
-          ListFooterComponent={
-            next ? (
-              <Button
-                label="加载更早消息"
-                disabled={busy}
-                variant="quiet"
-                onPress={() =>
-                  void run(async () => {
-                    const page = await request<{ messages: Line[]; next: string | null }>(
-                      groupPath + '/messages?before=' + encodeURIComponent(next),
-                    );
-                    setMessages((current) => [
-                      ...current,
-                      ...page.messages.filter((line) => !current.some((existing) => existing.id === line.id)),
-                    ]);
-                    setSeenOlder(true);
-                    setNext(page.next);
-                  })
-                }
-              />
-            ) : undefined
-          }
-          renderItem={({ item, index }) => {
-            const mine = item.senderId === own;
-            const timestamp = Date.parse(item.sentAt);
-            const older = messages[index + 1];
-            const newer = messages[index - 1];
-            const block = startsMessageBlock(timestamp, older ? Date.parse(older.sentAt) : undefined);
-            return <View>
-              {block && <ChatTimestamp value={timestamp} />}
-              <ChatBubble mine={mine} first={block || item.senderId !== older?.senderId}
-                last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
-                author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={() => setActions(item)}>
-                {!!item.content && <MessageBody text={item.content} />}
-                {!!item.media.length && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, minWidth: 160 }}>
-                    {item.media.map((media) => <MomentMediaTile key={media.id} item={media} context="chat" />)}
-                  </View>
-                )}
-                {item.noReply && <NoReply />}
-                {item.silent && <Moon words />}
-              </ChatBubble>
-            </View>;
-          }}
-        />
-        {!!error && !!group && !details && <Notice>{error}</Notice>}
-        {!!group && <MessageComposer label="群消息" placeholder="发消息" value={draft} onChange={setDraft}
-          editable={!busy} maxLength={1000} attachLabel="更多群消息选项" photoLabel="从图库选择群图片"
-          toolsDisabled={busy} onAttach={() => setTools(true)} onEmoji={() => setEmoji(true)}
-          onPhoto={() => void run(async () => {
-            if (own) {
-              const chosen = await chooseMomentPhotos(own, 6);
-              if (chosen.length) setPhotos(chosen);
-            }
-          })}
-          sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || busy}
-          onSend={() => void run(send)} mode={quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />}
-      </KeyboardAvoidingView>
+        })}
+        sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || busy}
+        onSend={() => void run(send)} mode={quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />}
       {actions && <MessageActions timestamp={Date.parse(actions.sentAt)} text={actions.content}
         onClose={() => setActions(undefined)} report={actions.senderId !== own ? () => {
           const index = messages.findIndex((line) => line.id === actions.id);
@@ -386,6 +387,6 @@ export default function GroupConversation() {
           />
         </Sheet>
       )}
-    </SafeAreaView>
+    </ChatViewport>
   );
 }

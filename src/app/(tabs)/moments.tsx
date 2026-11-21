@@ -4,7 +4,7 @@ import { PrivateFeed } from '../../features/moments/Feed';
 import { useSession } from '../../services/session';
 
 export default function MomentsScreen() {
-  const { mine, author, local } = useLocalSearchParams<{ mine?: string; author?: string; local?: string }>();
+  const { mine, author, local, pane } = useLocalSearchParams<{ mine?: string; author?: string; local?: string; pane?: string }>();
   const { session } = useSession();
   const me = session?.user.id;
   const handled = useRef('');
@@ -18,5 +18,5 @@ export default function MomentsScreen() {
     if (local === '1') router.push({ pathname: '/space/[id]', params: { id, archive: '1' } });
     else router.push({ pathname: '/life/timeline/[id]', params: { id } });
   }, [mine, author, local, me]));
-  return <PrivateFeed />;
+  return <PrivateFeed linkedPane={pane === 'journal' || pane === 'albums' ? pane : undefined} />;
 }
