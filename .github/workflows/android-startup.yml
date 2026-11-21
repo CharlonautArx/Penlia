@@ -2,6 +2,11 @@ name: Android release startup diagnosis
 
 on:
   workflow_dispatch:
+    inputs:
+      compare_baseline:
+        description: Compare R8 on and off on the original preview source
+        type: boolean
+        default: false
   push:
     branches: [codex/penlia-android-startup-fix]
 
@@ -9,11 +14,20 @@ permissions:
   contents: read
 
 jobs:
-  compare-r8:
+  startup:
     runs-on: ubuntu-24.04
     timeout-minutes: 48
     steps:
       - uses: actions/checkout@v4
+      - name: Select the original source for the R8 comparison
+        if: inputs.compare_baseline
+        run: |
+          cp scripts/android-startup-smoke.sh "$RUNNER_TEMP/penlia-startup-smoke.sh"
+          rm scripts/android-startup-smoke.sh
+          git fetch --depth 1 origin e99f649ec98a8c48475a88de7bff93de16f42a08
+          git checkout --detach FETCH_HEAD
+          mkdir -p scripts
+          cp "$RUNNER_TEMP/penlia-startup-smoke.sh" scripts/android-startup-smoke.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -29,15 +43,16 @@ jobs:
         run: |
           sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
       - run: npm ci
-      - name: Build two matching x86_64 release APKs
+      - name: Build x86_64 release APKs
         env:
           EAS_BUILD_PROFILE: ui-demo
           EXPO_PUBLIC_PENLIA_UI_DEMO: '1'
           CI: '1'
+          VARIANTS: ${{ inputs.compare_baseline && 'a b' || 'fixed' }}
         run: |
           mkdir -p output
           npx expo prebuild --platform android --no-install
-          for variant in a b; do
+          for variant in $VARIANTS; do
             minify=true
             if [ "$variant" = b ]; then minify=false; fi
             (
@@ -60,7 +75,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
-          script: bash -c 'status=0; for variant in a b; do bash scripts/android-startup-smoke.sh output/$variant.apk output/$variant || status=1; done; exit "$status"'
+          script: bash -c 'status=0; for apk in output/*.apk; do bash scripts/android-startup-smoke.sh "$apk" "${apk%.apk}" || status=1; done; exit "$status"'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -68,5 +83,6 @@ jobs:
           path: |
             output/a/
             output/b/
+            output/fixed/
           retention-days: 7
           if-no-files-found: ignore
