@@ -10,7 +10,7 @@ import { AudienceSheet } from '../../features/space/AudienceSheet';
 import { selectPhotos, SpacePhoto } from '../../features/space/media';
 import { audienceName, blankDraft, copyDraft, selectableAudience, type Entry, type EntryDraft, type Photo } from '../../features/space/model';
 import { useSpace } from '../../features/space/store';
-import { colors, styles } from '../../theme';
+import { colors, styles, type } from '../../theme';
 
 export default function ComposeScreen() {
   const { kind, edit } = useLocalSearchParams<{ kind?: string; edit?: string }>();
@@ -177,7 +177,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
 const local = StyleSheet.create({
   paper: { backgroundColor: colors.panel, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   saved: { ...styles.small, color: colors.accent },
-  title: { ...styles.body, ...styles.divider, fontSize: 21, fontWeight: '700', padding: 14, minHeight: 55 },
+  title: { ...styles.body, ...styles.divider, ...type.hero, padding: 14, minHeight: 55 },
   body: { ...styles.body, minHeight: 120, paddingHorizontal: 14, paddingTop: 13, textAlignVertical: 'top' },
   article: { minHeight: 248, lineHeight: 26 },
   count: { ...styles.small, textAlign: 'right', paddingHorizontal: 13, paddingVertical: 7 },

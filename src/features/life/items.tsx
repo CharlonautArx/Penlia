@@ -9,7 +9,7 @@ import { type LocalMedia, type Media } from '../moments/media';
 import { Choices, Field, useRecord } from '../social/ui';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, fixed, radius, styles, touch } from '../../theme';
+import { colors, fixed, radius, styles, touch, type } from '../../theme';
 import { AssetPicker, DataEmpty, MediaStrip, uploadAssets, type Project } from './ui';
 
 const categories = {
@@ -397,7 +397,7 @@ function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => v
               borderColor: colors.panel,
             }}
           >
-            <Text style={{ color: fixed.onAction, fontWeight: '700' }}>{index + 1}</Text>
+            <Text style={{ ...type.tag, color: fixed.onAction }}>{index + 1}</Text>
           </Pressable>
         ))}
       </View>

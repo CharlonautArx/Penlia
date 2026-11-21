@@ -1,7 +1,9 @@
 import { DynamicColorIOS, Platform, PlatformColor, StyleSheet, type ColorValue } from 'react-native';
 import palette from './palette.json';
+import { type } from './typography';
 
 export { palette };
+export { type, weight } from './typography';
 export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
 export const colorNames = Object.keys(palette.light) as (keyof typeof palette.light)[];
 type ColorName = typeof colorNames[number];
@@ -19,17 +21,6 @@ export const contentWidth = 620;
 export const fixed = {
   onAction: '#FFFFFF', onBrand: '#312633', lens: '#141318',
   onLens: '#F9F6F9', overlay: '#16131975', photoShade: '#17131DCE',
-} as const;
-
-export const type = {
-  display: { fontSize: 32, lineHeight: 39, fontWeight: '700' },
-  title: { fontSize: 26, lineHeight: 34, fontWeight: '700' },
-  heading: { fontSize: 19, lineHeight: 26, fontWeight: '700' },
-  emphasis: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
-  body: { fontSize: 16, lineHeight: 24 },
-  support: { fontSize: 14, lineHeight: 21 },
-  caption: { fontSize: 12, lineHeight: 17 },
-  time: { fontSize: 12, lineHeight: 17, fontVariant: ['tabular-nums'] as 'tabular-nums'[] },
 } as const;
 
 export const elevation = { inline: colors.backdrop, surface: colors.panel, raised: colors.search } as const;

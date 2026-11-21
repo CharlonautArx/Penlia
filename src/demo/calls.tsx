@@ -5,7 +5,7 @@ import { AppState, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Icon, Notice, Sheet } from '../components/ui';
 import { transitionCall, type CallEvent, type CallKind } from '../features/calls/model';
-import { colors, styles } from '../theme';
+import { colors, styles, type } from '../theme';
 import { demoPortrait } from './visuals';
 
 export function DemoCall({ kind, name, username, incoming, onClose }: {
@@ -118,7 +118,7 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
 const local = StyleSheet.create({
   stage: { borderRadius: 16, alignItems: 'center', gap: 7, paddingVertical: 23 },
   video: { minHeight: 240, justifyContent: 'center' },
-  name: { fontSize: 21, fontWeight: '800', color: colors.ink },
+  name: { ...type.hero, color: colors.ink },
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   camera: { position: 'absolute', bottom: 8, right: 8, width: 77, height: 104, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.ink },
   fill: { width: '100%', height: '100%' },

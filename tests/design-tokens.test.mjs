@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { type, weight } from '../src/typography.ts';
 
 const palettes = JSON.parse(readFileSync(new URL('../src/palette.json', import.meta.url)));
 function luminance(hex) {
@@ -31,5 +32,21 @@ test('body, secondary labels, buttons and message colors meet normal-text AA con
       const ratio = contrast(palette[foreground] ?? foreground, palette[surface]);
       assert.ok(ratio >= 4.5, mode + ' ' + foreground + '/' + surface + ' = ' + ratio.toFixed(2));
     }
+  }
+});
+
+test('system typography separates regular body text, medium labels, and the game score', () => {
+  for (const role of ['body', 'support', 'caption', 'time']) {
+    assert.equal(type[role].fontWeight, weight.regular, role);
+  }
+  for (const role of ['title', 'heading', 'emphasis', 'control', 'tag']) {
+    assert.equal(type[role].fontWeight, weight.medium, role);
+  }
+  assert.ok(type.title.fontSize > type.heading.fontSize);
+  assert.ok(type.heading.fontSize > type.body.fontSize);
+  assert.deepEqual(Object.keys(type).filter((role) => Number(type[role].fontWeight) >= 700), ['score']);
+  for (const [role, style] of Object.entries(type)) {
+    assert.ok(style.lineHeight > style.fontSize, role);
+    assert.equal(style.fontFamily, undefined, role);
   }
 });

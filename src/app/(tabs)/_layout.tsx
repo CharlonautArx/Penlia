@@ -53,7 +53,7 @@ export default function TabLayout() {
 }
 
 const local = StyleSheet.create({
-  label: { ...type.caption, fontWeight: '600' },
+  label: { ...type.tag },
   webLabel: { lineHeight: 18, flexShrink: 0 },
   bar: { backgroundColor: colors.panel, borderTopColor: colors.border },
   webBar: { minHeight: 60, paddingBottom: space.xxs },

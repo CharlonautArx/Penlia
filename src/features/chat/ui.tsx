@@ -141,7 +141,7 @@ const ui = StyleSheet.create({
   time: { ...type.time, color: colors.quiet },
   pressedRow: { backgroundColor: colors.backdrop },
   unread: { minWidth: 20, minHeight: 20, borderRadius: radius.pill, backgroundColor: colors.pink, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xxs },
-  unreadText: { ...type.caption, color: colors.accent, fontWeight: '700' },
+  unreadText: { ...type.tag, color: colors.accent },
   timestamp: { alignItems: 'center', paddingTop: space.md, paddingBottom: space.xs },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 3, gap: space.xs },
   firstMessage: { paddingTop: space.xs },

@@ -1,7 +1,7 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { OrbFace } from '../features/pet/Orb';
-import { colors, radius, space, styles, type } from '../theme';
+import { colors, radius, space, styles, type, weight } from '../theme';
 import { BrandMark, DemoLabel } from './ui';
 
 const hero = require('../../assets/identity/hero.jpg');
@@ -10,7 +10,7 @@ export function WelcomeIdentity({ compact = false }: { compact?: boolean }) {
   return <View style={local.identity}>
     <View style={local.wordmark}>
       <BrandMark size={35} />
-      <Text style={styles.strong}>朋聊 <Text style={styles.muted}>Penlia</Text></Text>
+      <Text style={local.brandName}>朋聊 <Text style={styles.muted}>Penlia</Text></Text>
       <View style={styles.grow} /><DemoLabel />
     </View>
     {!compact && <View style={local.brandStory}>
@@ -26,6 +26,7 @@ export function WelcomeIdentity({ compact = false }: { compact?: boolean }) {
 const local = StyleSheet.create({
   identity: { gap: space.md },
   wordmark: { ...styles.row, gap: space.xs },
+  brandName: { ...styles.strong, fontWeight: weight.semibold },
   brandStory: { flexDirection: 'row', alignItems: 'stretch', gap: space.sm, backgroundColor: colors.pink,
     borderRadius: radius.surface, overflow: 'hidden', minHeight: 136 },
   copy: { width: '62%', minWidth: 0, padding: space.md, gap: space.xs, justifyContent: 'center' },

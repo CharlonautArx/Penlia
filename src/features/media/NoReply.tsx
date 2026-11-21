@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { StyleSheet, Text, View } from 'react-native';
+import { type } from '../../theme';
 
 export function NoReply() {
   return (
@@ -21,5 +22,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
-  text: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  text: { ...type.tag, color: '#FFFFFF', fontSize: 11 },
 });

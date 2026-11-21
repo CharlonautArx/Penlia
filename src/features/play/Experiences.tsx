@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Icon, type IconName } from '../../components/ui';
-import { colors, styles } from '../../theme';
+import { colors, styles, type } from '../../theme';
 
 const moves = [
   { label: '石头', icon: 'ellipse-outline' },
@@ -163,17 +163,17 @@ const game = StyleSheet.create({
   mode: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   arena: { borderRadius: 15, backgroundColor: '#322537', padding: 17, gap: 9, alignItems: 'center' },
   score: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', justifyContent: 'space-around', gap: 12 },
-  scoreLabel: { color: '#E7D9ED', fontSize: 13, fontWeight: '600' },
-  number: { color: '#FFFFFF', fontSize: 37, fontWeight: '800', lineHeight: 45, fontVariant: ['tabular-nums'] },
+  scoreLabel: { ...type.control, color: '#E7D9ED', fontSize: 13 },
+  number: { ...type.score, color: '#FFFFFF' },
   scoreSep: { color: '#D89AB3' },
-  result: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  result: { ...type.emphasis, color: '#FFFFFF', textAlign: 'center' },
   round: { color: '#E7D9ED', fontSize: 13, lineHeight: 20 },
   moves: { flexDirection: 'row', gap: 8 },
   move: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 85, borderRadius: 13, gap: 8,
     backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   pressed: { opacity: 0.68 },
   prompt: { borderRadius: 15, padding: 18, gap: 12 },
-  question: { color: colors.ink, fontSize: 22, lineHeight: 31, fontWeight: '800' },
+  question: { ...type.hero, color: colors.ink },
   target: { minHeight: 155, borderRadius: 15, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: colors.lavender, padding: 15 },
   waiting: { backgroundColor: colors.pink },
   active: { backgroundColor: '#AEFFF8' },

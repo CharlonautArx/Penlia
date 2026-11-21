@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../../components/ui';
-import { colors, styles } from '../../theme';
+import { colors, styles, type } from '../../theme';
 import type { Game } from './games';
 import { disclosure, type Place } from './places';
 
@@ -64,13 +64,13 @@ const local = StyleSheet.create({
   chip: { minHeight: 44, minWidth: 47, paddingHorizontal: 10, borderRadius: 10, justifyContent: 'center',
     alignItems: 'center', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   chosen: { backgroundColor: colors.pink, borderColor: '#F2C8D4' },
-  chosenText: { color: colors.accent, fontWeight: '700' },
+  chosenText: { ...type.control, color: colors.accent },
   pressed: { opacity: 0.7 },
   hero: { minHeight: 127, borderRadius: 14, backgroundColor: '#3B2843', overflow: 'hidden', justifyContent: 'center' },
   heroImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
   heroCopy: { paddingLeft: 15, paddingRight: 65, paddingVertical: 14, gap: 5 },
   featuredMeta: { color: '#FCF1F9', fontSize: 12, lineHeight: 17 },
-  featuredTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 32, fontWeight: '800' },
+  featuredTitle: { ...type.title, color: '#FFFFFF' },
   heroArrow: { width: 43, height: 43, borderRadius: 14, backgroundColor: '#FFFFFFD9',
     alignItems: 'center', justifyContent: 'center', position: 'absolute', bottom: 14, right: 13 },
   gameRow: { ...styles.row, gap: 10, minHeight: 64, padding: 7, paddingRight: 12, backgroundColor: colors.panel,

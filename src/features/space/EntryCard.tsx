@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
-import { colors, styles } from '../../theme';
+import { colors, styles, type } from '../../theme';
 import { localId } from '../local/document';
 import { SpacePhoto } from './media';
 import { audienceName, blankDraft, createdTime, type Entry, type Photo, type Reply } from './model';
@@ -204,7 +204,7 @@ const local = StyleSheet.create({
   full: { marginHorizontal: -16, borderBottomWidth: 0 },
   kind: { ...styles.small, color: colors.accent },
   audience: { ...styles.small, color: colors.accent, backgroundColor: colors.pink, paddingHorizontal: 6, borderRadius: 5, overflow: 'hidden' },
-  articleTitle: { fontSize: 27, fontWeight: '800', lineHeight: 37, color: colors.text, marginTop: 7 },
+  articleTitle: { ...type.article, color: colors.text, marginTop: 7 },
   paragraph: { ...styles.body, fontSize: 16, lineHeight: 27, marginBottom: 5 },
   location: { ...styles.row, gap: 5 },
   photos: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -214,7 +214,7 @@ const local = StyleSheet.create({
   fullPhoto: { width: '100%', aspectRatio: 1.04, borderRadius: 12 },
   video: { height: 145, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.ink, justifyContent: 'center' },
   videoLabel: { ...styles.row, gap: 6, position: 'absolute', alignSelf: 'center', borderRadius: 12, backgroundColor: '#261D30CC', padding: 10 },
-  videoText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  videoText: { ...type.control, color: '#FFFFFF', fontSize: 13 },
   actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   action: { ...styles.row, gap: 5, minHeight: 44, minWidth: 43, paddingHorizontal: 4 },
   pressed: { opacity: 0.72 },

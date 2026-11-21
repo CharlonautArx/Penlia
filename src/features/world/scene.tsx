@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../components/ui';
 import { useAppearance } from '../../components/appearance';
+import { type } from '../../theme';
 import { PetOrb } from '../pet/Orb';
 import { decorNames, type WorldRecord, type Space, type Decor } from './model';
 
@@ -61,7 +62,7 @@ const local = StyleSheet.create({
   stage: { borderRadius: 18, padding: 12, gap: 5 },
   sky: { alignItems: 'center', paddingBottom: 9 },
   pet: { height: 117, width: 124 },
-  petName: { color: '#3A3042', fontWeight: '600', fontSize: 15 },
+  petName: { ...type.control, color: '#3A3042', fontSize: 15 },
   gridRow: { flexDirection: 'row', gap: 5 },
   slot: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 47, borderRadius: 11, backgroundColor: '#FFFFFF45' },
   occupied: { backgroundColor: '#FFFFFFAA' },

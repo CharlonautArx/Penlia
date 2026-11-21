@@ -6,7 +6,7 @@ import { Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet } from 
 import { discoveryCatalog } from '../../../features/play/catalog';
 import { InviteButton, useSavedPlaces } from '../../../features/play/Gather';
 import { bookingUrl, disclosure } from '../../../features/play/places';
-import { colors, styles } from '../../../theme';
+import { colors, styles, type } from '../../../theme';
 
 export default function PlaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -69,7 +69,7 @@ export default function PlaceScreen() {
 const local = StyleSheet.create({
   image: { width: '100%', height: 215, borderRadius: 15, backgroundColor: colors.lavender },
   identity: { gap: 7 },
-  title: { fontSize: 26, lineHeight: 35, fontWeight: '800', letterSpacing: -0.5, color: colors.text },
+  title: { ...type.article, color: colors.text },
   tag: { color: colors.accent, backgroundColor: colors.pink, paddingHorizontal: 8, borderRadius: 6,
     overflow: 'hidden', fontSize: 11, lineHeight: 20 },
   meta: { gap: 7 },

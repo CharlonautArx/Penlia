@@ -130,7 +130,7 @@ const local = StyleSheet.create({
   field: { ...styles.row, gap: space.sm, backgroundColor: colors.search, borderRadius: radius.control, paddingLeft: space.sm, minHeight: touch },
   input: { ...styles.grow, ...type.body, paddingVertical: space.xs, paddingRight: space.xxs, color: colors.text, minHeight: touch },
   link: { minHeight: touch, justifyContent: 'center', paddingHorizontal: space.xs },
-  linkText: { ...type.support, color: colors.accent, fontWeight: '600' },
+  linkText: { ...type.control, color: colors.accent },
   policies: { ...styles.row, gap: space.xxs, justifyContent: 'center', flexWrap: 'wrap' },
   preview: { gap: space.xs },
   center: { textAlign: 'center' },

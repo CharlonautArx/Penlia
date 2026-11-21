@@ -65,6 +65,6 @@ const local = StyleSheet.create({
   selected: { backgroundColor: colors.pink },
   pressed: { opacity: 0.7 },
   day: { ...type.emphasis, color: colors.text },
-  today: { color: colors.accent, fontWeight: '700' },
+  today: { color: colors.accent },
   marker: { width: 4, height: 4, backgroundColor: colors.accent, borderRadius: 2 },
 });

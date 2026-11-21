@@ -12,7 +12,7 @@ import { EntryCard, JournalLink } from '../../features/space/EntryCard';
 import { selectPhotos, SpacePhoto } from '../../features/space/media';
 import { createdTime, type SpaceCard } from '../../features/space/model';
 import { useSpace } from '../../features/space/store';
-import { colors, styles } from '../../theme';
+import { colors, styles, type } from '../../theme';
 
 const tones = {
   mist: ['#F5D7E4', '#E5DDEE', '#C9EAE9'],
@@ -212,12 +212,12 @@ const local = StyleSheet.create({
   cover: { height: 153, justifyContent: 'flex-end' },
   coverImage: { position: 'absolute', width: '100%', height: '100%' },
   coverShade: { position: 'absolute', width: '100%', height: 66, bottom: 0 },
-  coverStatus: { fontSize: 13, color: colors.ink, fontWeight: '700', marginBottom: 10, marginLeft: 13 },
+  coverStatus: { ...type.tag, color: colors.ink, marginBottom: 10, marginLeft: 13 },
   onPhoto: { color: '#FFFFFF' },
   profileBody: { paddingHorizontal: 12, paddingTop: 11, paddingBottom: 13, gap: 6 },
   profileRow: { ...styles.row, gap: 10 },
   avatar: { borderWidth: 2, borderColor: colors.panel, borderRadius: 22 },
-  name: { fontSize: 24, lineHeight: 32, color: colors.text, fontWeight: '800' },
+  name: { ...type.title, color: colors.text },
   nav: { flexDirection: 'row', gap: 5, padding: 4, borderRadius: 12, backgroundColor: '#EEEFF3' },
   tab: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 43, borderRadius: 9 },
   selected: { backgroundColor: colors.panel },

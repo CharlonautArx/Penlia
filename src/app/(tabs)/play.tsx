@@ -10,7 +10,7 @@ import { discoveryCatalog } from '../../features/play/catalog';
 import { InviteButton } from '../../features/play/Gather';
 import { gameModes, games } from '../../features/play/games';
 import { categories, cities, type City, visiblePlaces } from '../../features/play/places';
-import { colors, styles } from '../../theme';
+import { colors, styles, type } from '../../theme';
 import { LifeHub } from '../../features/life/Hub';
 
 const sections = ['一起生活', '为你推荐', '小游戏', '线下去处'] as const;
@@ -100,10 +100,10 @@ const local = StyleSheet.create({
   hero: { minHeight: 111, backgroundColor: colors.pink, borderRadius: 15, justifyContent: 'center', overflow: 'hidden' },
   heroImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', marginLeft: '16%', resizeMode: 'cover' },
   heroCopy: { paddingHorizontal: 15, gap: 5 },
-  heroTitle: { fontSize: 22, lineHeight: 30, color: '#321D36', fontWeight: '800', letterSpacing: -0.6 },
+  heroTitle: { ...type.hero, color: '#321D36' },
   heroSub: { fontSize: 13, lineHeight: 19, color: '#4D3A52' },
   block: { gap: 9 },
   more: { flexDirection: 'row', alignItems: 'center', marginLeft: 'auto', minHeight: 44, gap: 2 },
-  moreText: { fontSize: 12, lineHeight: 17, color: colors.accent, fontWeight: '700' },
+  moreText: { ...type.tag, color: colors.accent },
   invite: { ...styles.card, gap: 8 },
 });

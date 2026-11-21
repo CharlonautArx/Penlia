@@ -11,7 +11,7 @@ import { usePets } from '../../features/pet/store';
 import { createdTime } from '../../features/space/model';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { brandGradient, colors, styles } from '../../theme';
+import { brandGradient, colors, styles, type } from '../../theme';
 
 const newborn = emptyPet();
 
@@ -167,14 +167,14 @@ const local = StyleSheet.create({
   hero: { borderRadius: 15, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   art: { height: 221, overflow: 'hidden' },
   heroCaption: { ...styles.row, paddingHorizontal: 14, paddingVertical: 10 },
-  name: { fontSize: 25, lineHeight: 33, color: colors.text, fontWeight: '800' },
+  name: { ...type.title, color: colors.text },
   partners: { flexDirection: 'row', alignItems: 'center' },
   second: { marginLeft: -7, borderWidth: 2, borderColor: colors.panel, borderRadius: 12 },
   inline: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   stats: { flexDirection: 'row', gap: 9 },
   vital: { ...styles.card, flex: 1, padding: 10, gap: 4 },
   energy: { ...styles.card, width: 110, padding: 10, gap: 4, backgroundColor: colors.pink },
-  value: { fontSize: 24, fontWeight: '800', color: colors.ink },
+  value: { ...type.metric, color: colors.ink },
   track: { height: 6, borderRadius: 4, backgroundColor: colors.lavender, overflow: 'hidden' },
   progress: { height: '100%', borderRadius: 4 },
   activity: { ...styles.row, gap: 5 },

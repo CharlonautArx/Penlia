@@ -5,7 +5,7 @@ import { Empty, Screen, Section } from '../../../components/ui';
 import { HandGame, PromptGame, ReflexGame } from '../../../features/play/Experiences';
 import { InviteButton } from '../../../features/play/Gather';
 import { getGame } from '../../../features/play/games';
-import { colors, styles } from '../../../theme';
+import { colors, styles, type } from '../../../theme';
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,7 +30,7 @@ export default function GameScreen() {
 
 const local = StyleSheet.create({
   image: { width: '100%', height: 143, borderRadius: 14, resizeMode: 'cover', backgroundColor: colors.lavender },
-  players: { color: colors.accent, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  players: { ...type.tag, color: colors.accent },
   info: { gap: 3 },
   invite: { ...styles.card, gap: 8 },
 });

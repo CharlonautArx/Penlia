@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
 import { isUiDemo } from '../demo/mode';
-import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type } from '../theme';
+import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useAppearance } from './appearance';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -80,7 +80,7 @@ export function Avatar({ name, source, size = 46, userId, localPhotoId }: {
   return imageSource
     ? <Image accessible={false} source={imageSource} style={[frame, { backgroundColor: color }]} />
     : <View accessible={false} style={[ui.avatar, frame, { backgroundColor: color }]}>
-      <Text style={[ui.avatarText, { fontSize: Math.round(size * 0.39) }]}>{Array.from(name)[0] || '朋'}</Text>
+      <Text allowFontScaling={false} style={[ui.avatarText, { fontSize: Math.round(size * 0.39) }]}>{Array.from(name)[0] || '朋'}</Text>
     </View>;
 }
 
@@ -231,13 +231,13 @@ const ui = StyleSheet.create({
   barWrap: { backgroundColor: colors.panel },
   bar: { minHeight: 60, paddingHorizontal: space.md, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   backBar: { minHeight: 54, paddingLeft: space.xxs },
-  title: { flexShrink: 1, ...type.title, color: colors.text, letterSpacing: -0.25 },
-  pageTitle: { ...type.heading, letterSpacing: 0 },
+  title: { flexShrink: 1, ...type.title, color: colors.text },
+  pageTitle: { ...type.heading },
   actions: { flexDirection: 'row', alignItems: 'center' },
   demoLabel: { color: colors.accent, backgroundColor: colors.pink, borderRadius: radius.small, overflow: 'hidden',
-    paddingHorizontal: space.xs, paddingVertical: space.xxs, ...type.caption, fontWeight: '600' },
+    paddingHorizontal: space.xs, paddingVertical: space.xxs, ...type.tag },
   avatar: { alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.ink, fontWeight: '600' },
+  avatarText: { color: colors.ink, fontWeight: weight.medium },
   iconButton: { width: touch, minHeight: touch, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   tinted: { backgroundColor: colors.pink },
   button: { minHeight: touch, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, gap: space.xs,
@@ -247,7 +247,7 @@ const ui = StyleSheet.create({
   danger: { backgroundColor: colors.pink },
   pressed: { opacity: 0.65 },
   disabled: { opacity: 0.48 },
-  buttonText: { ...type.support, fontWeight: '600', flexShrink: 1, textAlign: 'center' },
+  buttonText: { ...type.control, flexShrink: 1, textAlign: 'center' },
   search: { minHeight: touch, borderRadius: radius.control, backgroundColor: colors.search, flexDirection: 'row',
     alignItems: 'center', paddingLeft: space.sm, gap: space.xs },
   searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },
@@ -271,7 +271,7 @@ const ui = StyleSheet.create({
   segments: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, rowGap: 0, ...styles.divider },
   segment: { minHeight: touch, justifyContent: 'center', borderBottomWidth: 2, borderColor: 'transparent' },
   activeSegment: { borderBottomColor: colors.accent },
-  activeSegmentText: { ...type.support, fontWeight: '700', color: colors.accent },
+  activeSegmentText: { ...type.control, color: colors.accent },
   settings: { gap: space.xs },
   settingLabel: { paddingHorizontal: space.xxs },
   settingRows: { borderRadius: radius.surface, backgroundColor: colors.panel, overflow: 'hidden' },
