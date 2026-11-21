@@ -1,6 +1,6 @@
 import { cleanText, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
-import { blocked, idsOf, lockUsers, verifyFriends } from '../p0/access.mjs';
+import { idsOf, lockUsers, verifyFriends } from '../p0/access.mjs';
 import { assertAllowed, choose, conflict, invalid, missing } from '../p1/common.mjs';
 import { itemVisible, known, member } from './access.mjs';
 import { memoryVisible } from './memories.mjs';
@@ -8,7 +8,7 @@ import { assetList, deleteAssets, linkOf, replaceAssets, revisionOf, spaceOf, te
 
 const kinds = ['saved', 'place'];
 const categories = ['food', 'film', 'music', 'travel', 'leisure', 'other'];
-const fields = `i.id,i.owner_id AS "ownerId",i.kind,i.title,i.category,i.notes,i.location,i.tags,i.state,i.latitude,i.longitude,
+const fields = `i.id,i.owner_id AS "ownerId",i.kind,i.title,i.category,i.notes,i.city,i.location,i.tags,i.state,i.latitude,i.longitude,
   i.source_url AS "sourceUrl",i.revision,
   CASE WHEN i.owner_id=$1 OR EXISTS(SELECT 1 FROM p2_spaces ps WHERE ps.id=i.space_id AND ${member('ps', '$1::uuid')})
     THEN i.space_id END AS "spaceId",u.name AS author,${assetList('item', 'i.id')} AS media,
@@ -21,7 +21,7 @@ const fields = `i.id,i.owner_id AS "ownerId",i.kind,i.title,i.category,i.notes,i
     AND ${memoryVisible('rm', '$1::uuid')}) THEN i.memory_id END AS "memoryId"`;
 
 function coordinates(body, kind) {
-  if (kind === 'saved') return [null, null];
+  if (kind === 'saved' || (body.latitude == null && body.longitude == null)) return [null, null];
   if (
     typeof body.latitude !== 'number' ||
     typeof body.longitude !== 'number' ||
@@ -30,7 +30,7 @@ function coordinates(body, kind) {
     Math.abs(body.latitude) > 90 ||
     Math.abs(body.longitude) > 180
   )
-    throw invalid('请输入有效经纬度。');
+    throw invalid('请同时填写有效的纬度和经度，或将两项留空。');
   return [body.latitude, body.longitude];
 }
 function tagsOf(value) {
@@ -103,6 +103,7 @@ export async function saveItem(user, body, id) {
     wish,
     trip,
     memory,
+    body.city === undefined ? null : textOf(body.city, 80),
   ];
   return inTransaction(pool, async (db) => {
     await lockUsers(db, user);
@@ -137,9 +138,11 @@ export async function saveItem(user, body, id) {
         rows: [saved],
       } = await db.query(
         `UPDATE p2_items SET space_id=$4,title=$5,category=$6,notes=$7,location=$8,tags=$9,
-        state=$10,scope=$11,audience_group=$12,source_url=$13,latitude=$14,longitude=$15,wish_id=$16,trip_id=$17,memory_id=$18,revision=revision+1
-        WHERE id=$1 AND owner_id=$2 AND kind=$3 AND revision=$19 RETURNING id`,
-        [id, user, ...values, revisionOf(body.revision)],
+        state=$10,scope=$11,audience_group=$12,source_url=$13,
+        latitude=CASE WHEN $21 THEN $14 ELSE latitude END,longitude=CASE WHEN $21 THEN $15 ELSE longitude END,
+        wish_id=$16,trip_id=$17,memory_id=$18,city=coalesce($19,city),revision=revision+1
+        WHERE id=$1 AND owner_id=$2 AND kind=$3 AND revision=$20 RETURNING id`,
+        [id, user, ...values, revisionOf(body.revision), body.latitude !== undefined || body.longitude !== undefined],
       ));
       if (!saved) throw conflict();
     } else {
@@ -152,8 +155,8 @@ export async function saveItem(user, body, id) {
         rows: [saved],
       } = await db.query(
         `INSERT INTO p2_items(owner_id,client_id,kind,space_id,title,category,notes,location,tags,
-        state,scope,audience_group,source_url,latitude,longitude,wish_id,trip_id,memory_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
+        state,scope,audience_group,source_url,latitude,longitude,wish_id,trip_id,memory_id,city)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,coalesce($19,'')) RETURNING id`,
         [user, client, ...values],
       ));
     }
@@ -178,8 +181,8 @@ export async function copyItem(user, id, body) {
     const {
       rows: [copy],
     } = await db.query(
-      `INSERT INTO p2_items(owner_id,client_id,kind,title,category,notes,location,tags,state,scope,source_url,latitude,longitude)
-      SELECT $1,$2,i.kind,i.title,i.category,i.notes,i.location,i.tags,i.state,'private',i.source_url,i.latitude,i.longitude FROM p2_items i
+      `INSERT INTO p2_items(owner_id,client_id,kind,title,category,notes,city,location,tags,state,scope,source_url,latitude,longitude)
+      SELECT $1,$2,i.kind,i.title,i.category,i.notes,i.city,i.location,i.tags,i.state,'private',i.source_url,i.latitude,i.longitude FROM p2_items i
       WHERE i.id=$3 AND ${itemVisible('i', '$1::uuid')} RETURNING id`,
       [user, client, id],
     );

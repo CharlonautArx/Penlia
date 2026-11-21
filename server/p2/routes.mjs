@@ -119,6 +119,7 @@ export async function p2Routes(method, path, { user, query, readBody, headers, r
         return capsules.readCapsuleAudio(me, id, headers.range, method === 'HEAD');
     }
   if (resource === 'memory-sources' && key === 'GET:list') return memories.memorySources(me, query);
+  if (resource === 'memory-candidates' && key === 'GET:list') return memories.memoryCandidates(me);
   if (resource === 'memories')
     switch (key) {
       case 'GET:list':

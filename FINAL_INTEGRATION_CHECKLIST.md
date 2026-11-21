@@ -12,14 +12,14 @@
 | --- | --- | --- | --- | --- |
 | P0 | 两个隔离账号完成好友确认、群邀请、文字和多图群聊、私密动态发布、视频播放及撤权。PostgreSQL 17 增量迁移重复执行、Android ARM64 Release 编译和 APK 签名校验通过。 | 环信单聊、图片和位置消息、发送前回调及静默规则待联调。 | 真实滑块和短信供应商接线、厂商推送、群聊后台同步、跨设备头像、完整数据导出及注销流程。动态多人共创归 P1。 | 双机私聊、附件历史、QR 相机、设备撤销后的环信会话、后台推送、原生视频及深色与大字体。 |
 | P1 | 本地 PostgreSQL 17 跑通功能 10–13 与 15 的主要链路，功能 14 覆盖成员授权、续期和停用状态。 | 私聊标签和短视频、私聊证据核验、审核定时任务、RTC 服务与原生引擎。 | 群聊新举报支持授权媒体核验。推送唤醒、厂商实际 RTC 接入待办。DeepSeek 脱敏输入接口默认关闭。 | 双机私聊文字、图片、短视频与两种标签，RTC 多机通话、重连、静默、弱网、深色及大字体。 |
-| P2 | 共享日程、行程、真实收藏与推荐、回忆、胶囊、生活状态、愿望地图通过隔离端到端接口验证。 | 应用内提醒和调度入口已实现，等待可选调度、厂商推送和地图底图。 | 举报证据留存和清理、媒体回收与账号注销待安排。收藏保留用户自由输入。 | 日程和约局跨时区、相册和音视频播放、胶囊到期提醒、一次前台定位与系统地图。 |
+| P2 | 共享日程、行程、真实收藏与推荐、回忆、胶囊、生活状态、愿望地图通过隔离端到端接口验证。007 收尾复测通过，覆盖无坐标收藏、忙闲授权及回忆候选撤权。 | 应用内提醒和调度入口已实现，等待可选调度、厂商推送和地图底图。 | 举报证据留存和清理、媒体回收与账号注销待安排。收藏保留用户自由输入。 | 日程和约局跨时区及空闲参考文案、回忆候选保存、无坐标卡片与有坐标标记、相册和音视频播放、胶囊到期提醒、一次前台定位与系统地图。 |
 | P3 | 待授权，第 24 项暂缓 | 待更新 | 待更新 | 待更新 |
 
 P2 见 [开发与验收](docs/penlia-p2.md) 和 [八张实际操作截图](demo-preview/p2/README.md)。P1 证据见 [开发与验收](docs/penlia-p1.md) 和 [9 张实际操作截图](demo-preview/p1/README.md)。P0 证据见 [验收记录](docs/penlia-p0.md) 和 [12 张实际操作截图](demo-preview/p0/README.md)。完整功能范围见 [四阶段路线图](docs/penlia-roadmap.md)。
 
 ## 外部服务接入登记
 
-**阿里云 FC 与 PostgreSQL · 已有代码和迁移，待隔离云环境验证。** 沿用 Node.js 22 Web 函数的 `npm run start` 和 9000 端口，核对 HTTPS、VPC、交换机、安全组、RDS 内网地址及白名单。归档本次提交、迁移清单、ZIP 摘要和备份恢复点。数据库参数为 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`；使用证书校验时按现有实现选 `PGSSLROOTCERT` 或 `PG_CA_PEM`。已部署的初始迁移从账本核对，先在隔离库验证 P0 和后续增量，迁移角色与业务账号分别授权。现有 Serverless 实例缺少 TLS 时，`PG_TLS=disable` 仅限隔离内网和测试数据，正式数据的传输方案待确认。本机可用 `bash server/deploy/package-fc.sh` 生成 ZIP，云端先检查 `/health`，再用临时 `PENLIA_DIAGNOSTIC_TOKEN` 检查 `/ops/readiness`，并单独验证新表和角色权限。费用核对 FC 请求、计算、网络、日志以及 RDS 容量、备份和连接压力。 [FC 手册](server/README.md) · [P0 DMS 增量](server/deploy/penlia-p0-dms.sql) · [P1 DMS 增量](server/deploy/penlia-p1-dms.sql) · [005 收尾增量](server/deploy/penlia-p1-followup-dms.sql) · [006 P2 增量](server/deploy/penlia-p2-dms.sql)
+**阿里云 FC 与 PostgreSQL · 已有代码和迁移，待隔离云环境验证。** 沿用 Node.js 22 Web 函数的 `npm run start` 和 9000 端口，核对 HTTPS、VPC、交换机、安全组、RDS 内网地址及白名单。归档本次提交、迁移清单、ZIP 摘要和备份恢复点。数据库参数为 `PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`；使用证书校验时按现有实现选 `PGSSLROOTCERT` 或 `PG_CA_PEM`。已部署的初始迁移从账本核对，先在隔离库验证 P0 和后续增量，迁移角色与业务账号分别授权。现有 Serverless 实例缺少 TLS 时，`PG_TLS=disable` 仅限隔离内网和测试数据，正式数据的传输方案待确认。本机可用 `bash server/deploy/package-fc.sh` 生成 ZIP，云端先检查 `/health`，再用临时 `PENLIA_DIAGNOSTIC_TOKEN` 检查 `/ops/readiness`，并单独验证新表和角色权限。费用核对 FC 请求、计算、网络、日志以及 RDS 容量、备份和连接压力。 [FC 手册](server/README.md) · [P0 DMS 增量](server/deploy/penlia-p0-dms.sql) · [P1 DMS 增量](server/deploy/penlia-p1-dms.sql) · [005 收尾增量](server/deploy/penlia-p1-followup-dms.sql) · [006 P2 增量](server/deploy/penlia-p2-dms.sql) · [007 P2 收尾增量](server/deploy/penlia-p2-followup-dms.sql)。007 在 006 后使用迁移账号执行。验收已存地址和坐标保留、空坐标可存、单边坐标拒绝，并核对 007 账本条目。
 
 **环信 IM · 已有 REST 和客户端 SDK，待供应商配置及双机验收。** 服务端使用 `EASEMOB_APP_KEY`、`EASEMOB_REST_URL`、`EASEMOB_CLIENT_ID` 和 `EASEMOB_CLIENT_SECRET`，Android 仅使用公开的 `EXPO_PUBLIC_EASEMOB_APP_KEY`。在隔离环信应用启用好友关系检查，配置 HTTPS 发送前回调 `POST /callbacks/easemob/<path-key>`，将 `PENLIA_IM_CALLBACK_SECRET` 和 `PENLIA_IM_CALLBACK_PATH_KEY` 放在服务端。回调失败默认拒绝，确认规则后在隔离 FC 开 `PENLIA_IM_PRIVACY_READY=1`。验证陌生人、拉黑、删除好友、签名错误和回调超时均被拦截，再验证文字、图片、位置、历史恢复及设备撤销。仅在确认供应商支持后启用 `PENLIA_IM_REWRITE_MEDIA=1`。待核对套餐中的漫游、附件留存、公网流量和回调能力。P0 群聊使用独立的 HTTP 与 PostgreSQL 链路，后台同步见下方代码待办。 [P0 环信接入说明](docs/penlia-p0.md#阿里云与环信接入顺序) · [发送前回调](https://doc.easemob.com/document/server-side/callback_presending.html)
 
@@ -33,13 +33,13 @@ P2 见 [开发与验收](docs/penlia-p2.md) 和 [八张实际操作截图](demo-
 
 **阿里云 OSS · 私有上传与访问方案已设计，客户端和存储适配器待实现。** P0 动态和群图在 PostgreSQL 中按登录身份读取，单文件上限 4 MB、每账号 32 MB；头像仍保存于本机。配置 OSS 前选择地域、私有 Bucket、RAM 角色、上传与下载签名期限、配额、生命周期和对象键规则。存储适配层负责短期上传授权、类型与大小验证、确认提交、读取和回收，业务权限留在服务端。验证地址转发、权限撤回、账号注销、替换头像、上传重试及孤儿清理；如使用短期读取签名，实测撤权至签名失效的窗口。费用核对存储、请求、下载流量、备份、转码及未完成上传。 [私有头像上传接口设计](demo-preview/media-notes.md#头像上传接入方案)
 
-**地图与生活服务 API · 本地坐标图和系统地图交接已实现。** P2 只绘制经本人授权、用户主动添加的 WGS‑84 点位，按类别和状态展示。打开系统地图由用户主动触发。收藏是自由录入与好友主动分享。商家 API 留待单独批准。未来按授权阶段定义地图与商家接口；配置前确认坐标系、区域覆盖、SDK 或 API Key 的配额、包名与签名限制、缓存许可及合作授权。用已知地点验证 WGS‑84 交接、定位权限、区域偏差及断网。商家数据须核验来源、时间、价格、跳转归属和赞助标识；真实合作接口接通前使用自由输入或系统交接流程。费用核对地图调用、逆地理编码、商用许可和合作结算。 [地图接入说明](demo-preview/media-notes.md#正式媒体消息)
+**地图与生活服务 API · 本地坐标图和系统地图交接已实现。** P2 允许只填地点名称，城市、地址和经纬度可选。所有有权查看的记录均可展示为卡片，只有带合法 WGS‑84 坐标对的记录才进入示意图。打开系统地图由用户主动触发。收藏是自由录入与好友主动分享。商家 API 留待单独批准。未来按授权阶段定义地图与商家接口；配置前确认坐标系、区域覆盖、SDK 或 API Key 的配额、包名与签名限制、缓存许可及合作授权。用已知地点验证 WGS‑84 交接、定位权限、区域偏差及断网。商家数据须核验来源、时间、价格、跳转归属和赞助标识；真实合作接口接通前使用自由输入或系统交接流程。费用核对地图调用、逆地理编码、商用许可和合作结算。 [地图接入说明](demo-preview/media-notes.md#正式媒体消息)
 
 **DeepSeek 辅助审核 · 已预留默认关闭的脱敏输入接口。** 将来需先确认主动提交证据的用户允许用于辅助审核，案件证据已核验，授权审核员选择片段并确认姓名、地址等必要脱敏。接口从已提交材料生成文本，遮盖常见号码、邮箱、链接和账号。传输内容仅包含案件分类、政策版本、角色类别、脱敏文本和媒体类型。原件、附件地址、账号和工单 ID 留在朋聊服务端。联调前核对数据处理地域、保留、超时、单价及预算。缺少适配器、同意或脱敏确认时应拒绝请求。审核建议只能提供复核方向，人工裁决保留审计。 [P1 审核说明](docs/penlia-p1.md)
 
-**Android 安装包 · P0、P1 与 P2 本机 ARM64 Release 编译与测试签名验证通过，安装与联调待执行。** 用最终提交构建内部测试 APK，核对包名、版本、签名和发布渠道。现有 EAS `preview` 配置生成 APK；联调构建使用 `EXPO_PUBLIC_API_URL`、公开 IM App Key 和 `EXPO_PUBLIC_PENLIA_UI_DEMO=0`。保持签名连续性，并核对 EAS 配额。至少两台 Android 手机验证全新安装、覆盖升级、弱网、权限拒绝、扫码、相册、视频、消息与推送，记录设备、系统版本及 APK 摘要。 [EAS 配置](eas.json) · [Android APK 构建](https://docs.expo.dev/build-reference/apk/)
+**Android 安装包 · P0、P1 与 P2 初次交付的本机 ARM64 Release 编译与测试签名验证通过。** 007 收尾复测通过了 Android Hermes bundle 导出，最新原生包与实机安装留到集中联调。用最终提交构建内部测试 APK，核对包名、版本、签名和发布渠道。现有 EAS `preview` 配置生成 APK；联调构建使用 `EXPO_PUBLIC_API_URL`、公开 IM App Key 和 `EXPO_PUBLIC_PENLIA_UI_DEMO=0`。保持签名连续性，并核对 EAS 配额。至少两台 Android 手机验证全新安装、覆盖升级、弱网、权限拒绝、扫码、相册、视频、消息与推送，记录设备、系统版本及 APK 摘要。 [EAS 配置](eas.json) · [Android APK 构建](https://docs.expo.dev/build-reference/apk/)
 
-**生活提醒 · P2 已有应用内提醒和可选调度。** 使用独立的 `PENLIA_LIFE_JOB_TOKEN` 配置服务器间鉴权，获批后周期调用 `POST /ops/p2/reminders/run`。处理回执为已插入数量，同一用户、记录和日期幂等。回忆按用户时区，胶囊按约定绝对时间。配置后验收错过批次、并发重试、撤回、退出、停用、过期和离线后重新登录。通知文案只用通用提示，原内容在 App 重新鉴权后展示。费用核对触发器、函数请求、RDS 读写和推送配额。
+**生活提醒 · P2 已有应用内提醒和可选调度。** 回忆候选由 `GET /v1/p2/memory-candidates` 按打开页面时的授权生成，独立于提醒调度。验证撤销原始权限后候选消失，未保存的候选不产生提醒。使用独立的 `PENLIA_LIFE_JOB_TOKEN` 配置服务器间鉴权，获批后周期调用 `POST /ops/p2/reminders/run`。处理回执为已插入数量，同一用户、记录和日期幂等。回忆按用户时区，胶囊按约定绝对时间。配置后验收错过批次、并发重试、撤回、退出、停用、过期和离线后重新登录。通知文案只用通用提示，原内容在 App 重新鉴权后展示。费用核对触发器、函数请求、RDS 读写和推送配额。
 
 **举报证据留存与清理 · 待用户确认策略。** 定义审理中、已结案、申诉期内及法律保全工单的独立留存期限，并明确管理员审批与紧急保全。设计基于工单状态的限量、幂等清理任务，覆盖 `p1_report_media` 加密附件、`p1_reports` 证据、申诉正文及敏感审核附注。区分应保留的最小审计记录与可销毁的证据内容。先提供仅统计的预演、保全排除、审计及回滚检查，再经授权执行。需核对 OSS 未来副本、数据库备份到期、密钥轮换、账号注销后的请求处理和安全留存期限。验收未结案与保全不删、过期内容确实不可读、删除后无旧链接、重复执行无误删。P2 本次没有启动清理任务。
 

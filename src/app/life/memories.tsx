@@ -38,6 +38,8 @@ type Memory = {
 };
 type Memories = { memories: Memory[]; frequency: Frequency };
 type Source = { id: string; title: string; day: string };
+type Candidate = Source & { sourceKind: Exclude<Kind, 'birthday'>; reason: 'anniversary' | 'recent' };
+type Draft = { source?: string; initial?: string; initialKind?: Kind };
 
 export default function MemoriesScreen() {
   const {
@@ -48,10 +50,17 @@ export default function MemoriesScreen() {
   } = useLocalSearchParams<{ from?: string; sourceKind?: Kind; title?: string; id?: string }>();
   const { session } = useSession();
   const { data, error, busy, run, request, load } = useRecord<Memories>('/p2/memories');
-  const [creating, setCreating] = useState(!!from);
+  const [draft, setDraft] = useState<Draft | undefined>(
+    from ? { source: from, initial, initialKind: sourceKind } : undefined,
+  );
+  const [candidateRevision, setCandidateRevision] = useState(0);
   const [sharing, setSharing] = useState<Memory>();
   const [deleting, setDeleting] = useState<Memory>();
   const items = (data?.memories ?? []).filter((item) => !id || item.id === id);
+  const refresh = () => {
+    void load();
+    setCandidateRevision((value) => value + 1);
+  };
   function sourceLink(item: Memory) {
     if (!item.sourceId) return;
     switch (item.sourceKind) {
@@ -70,10 +79,16 @@ export default function MemoriesScreen() {
     }
   }
   return (
-    <Screen title="共同回忆" back={back} refreshing={busy} onRefresh={() => void load()}>
+    <Screen title="共同回忆" back={back} refreshing={busy} onRefresh={refresh}>
       {!id && (
         <>
-          <Button label="保存一段回忆" variant="gradient" icon="add" onPress={() => setCreating(true)} />
+          <Button label="保存一段回忆" variant="gradient" icon="add" onPress={() => setDraft({})} />
+          <MemoryCandidates
+            key={candidateRevision}
+            choose={(candidate) =>
+              setDraft({ source: candidate.id, initial: candidate.title, initialKind: candidate.sourceKind })
+            }
+          />
           <Section title="回忆提醒" />
           <Choices
             labels={periods}
@@ -108,14 +123,12 @@ export default function MemoriesScreen() {
           </View>
         </View>
       ))}
-      {creating && (
+      {draft && (
         <MemoryEditor
-          source={from}
-          initial={initial}
-          initialKind={sourceKind}
+          {...draft}
           onClose={() => {
-            setCreating(false);
-            void load();
+            setDraft(undefined);
+            refresh();
           }}
         />
       )}
@@ -140,6 +153,7 @@ export default function MemoriesScreen() {
               void run(async () => {
                 await request('/p2/memories/' + deleting.id, { method: 'DELETE' });
                 setDeleting(undefined);
+                setCandidateRevision((value) => value + 1);
               })
             }
           />
@@ -148,6 +162,35 @@ export default function MemoriesScreen() {
     </Screen>
   );
 }
+
+function MemoryCandidates({ choose }: { choose: (candidate: Candidate) => void }) {
+  const { data, error, load } = useRecord<{ candidates: Candidate[] }>('/p2/memory-candidates');
+  return (
+    <View style={styles.card}>
+      <Section title="值得回想" />
+      <Text style={styles.muted}>仅从你有权查看的生活记录中挑选。候选只有你能看到，由你决定是否保存。</Text>
+      {!!error && (
+        <Notice action="重试" onAction={() => void load()}>
+          {error}
+        </Notice>
+      )}
+      {!data?.candidates.length && !error && <DataEmpty loading={!data}>暂时没有合适的回忆候选。</DataEmpty>}
+      {data?.candidates.map((candidate) => (
+        <ListRow
+          key={candidate.sourceKind + candidate.id}
+          title={candidate.title}
+          detail={[
+            candidate.reason === 'anniversary' ? '往年的今天' : '最近记录',
+            kinds[candidate.sourceKind],
+            candidate.day,
+          ].join(' · ')}
+          onPress={() => choose(candidate)}
+        />
+      ))}
+    </View>
+  );
+}
+
 function MemoryEditor({
   source,
   initial,

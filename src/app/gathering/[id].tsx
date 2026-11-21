@@ -233,7 +233,7 @@ function GatheringDetail({ id }: { id: string }) {
           </Text>
         )}
       </View>
-      {['interest','confirming','formed'].includes(g.state)&&<Button label={availability?'隐藏共享空闲':'查看共享空闲'}
+      {['interest','confirming','formed'].includes(g.state)&&<Button label={availability?'隐藏空闲参考':'查看空闲参考'}
         icon="calendar-outline" variant="soft" onPress={()=>setAvailability(!availability)}/>}
       {availability&&<Availability id={id} options={data.options}/>}
       {host&&g.category==='travel'&&['formed','completed'].includes(g.state)&&<Button label="转为共同旅行" variant="soft"
@@ -398,15 +398,15 @@ function GatheringDetail({ id }: { id: string }) {
 }
 
 function Availability({id,options}:{id:string;options:Option[]}){
-  const {data,error}=useRecord<{options:{id:string;includedCalendars:number;allFree:boolean}[]}>('/p2/availability/'+id);
+  const {data,error}=useRecord<{options:{id:string;includedCalendars:number;hasKnownConflict?:boolean;allFree:boolean}[]}>('/p2/availability/'+id);
   return <View style={styles.card}>
-    <Section title="已共享的空闲时间"/>
-    <Text style={styles.muted}>按候选开始后的 1 小时计算，结果只基于你和主动向你共享的日程。</Text>
+    <Section title="共享日程参考"/>
+    <Text style={styles.muted}>查看每个候选开始后 1 小时内，已授权日程是否显示冲突。未共享的时段仍是未知，能否参加以本人确认为准。</Text>
     {!!error&&<Notice>{error}</Notice>}
     {data?.options.map((item)=>{
       const option=options.find((candidate)=>candidate.id===item.id);
       return option?<Text key={item.id} style={styles.body}>
-        {formatTime(option.startsAt)} · {item.allFree?'已纳入的日程均为空闲':'已纳入的日程有冲突'} · {item.includedCalendars} 份日程
+        {formatTime(option.startsAt)} · {(item.hasKnownConflict??!item.allFree)?'已纳入的日程有冲突':'已纳入的日程未显示冲突'} · {item.includedCalendars===1?'仅纳入你的日程':item.includedCalendars+' 份日程'}
       </Text>:null;
     })}
   </View>;

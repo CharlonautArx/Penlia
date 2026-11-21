@@ -85,3 +85,20 @@ test('P2 flat increment checks the accepted P1 follow-up and preserves earlier s
   for(const create of creates)assert.match(create,/^CREATE (?:TABLE|(?:UNIQUE )?INDEX) IF NOT EXISTS /);
   assert.match(statements.at(-2), /006_life_p2\.sql/);
 });
+
+test('P2 follow-up checks the 006 ledger before changing coordinates, without expanding grants', () => {
+  const generated = execFileSync(process.execPath, [fileURLToPath(file('dms-migration.mjs')), '--p2-followup'], {
+    encoding: 'utf8',
+  });
+  assert.equal(generated, readFileSync(file('penlia-p2-followup-dms.sql'), 'utf8'));
+  assert.doesNotMatch(generated, /\$(?:[a-zA-Z_][a-zA-Z_0-9]*)?\$/);
+  assert.doesNotMatch(generated, /(^|\n)GRANT /);
+  const statements = generated.trim().split(';').map((step) => step.trim()).filter(Boolean);
+  assert.equal(statements[0], 'BEGIN');
+  assert.match(statements.find((step) => step.endsWith('AS p2_check')), /006_life_p2\.sql/);
+  const ddl = statements.filter((step) => step.startsWith('ALTER TABLE'));
+  assert.equal(ddl.length, 4);
+  assert.ok(statements.indexOf(ddl[0]) > statements.findIndex((step) => step.endsWith('AS p2_check')));
+  assert.match(statements.at(-2), /007_p2_life_followup\.sql/);
+  assert.equal(statements.at(-1), 'COMMIT');
+});

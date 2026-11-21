@@ -6,6 +6,7 @@ import { known } from './access.mjs';
 import { dayMs, revisionOf, textOf } from './common.mjs';
 
 const fields = 'id,title,details,starts_at AS "startsAt",ends_at AS "endsAt",visibility,revision';
+const estimateBasis = 'authorized_calendar_estimate';
 
 function interval(from, to, max = 62) {
   const start = timeOf(from),
@@ -59,17 +60,18 @@ export async function calendarView(user, query) {
   const events = [...own.slice(0, 500), ...shared.slice(0, 500)];
   const truncated = own.length > 500 || shared.length > 500;
   const windows = all.rows.length > 1 && !truncated ? sharedFreeWindows(start, end, events).slice(0, 16) : [];
-  return { calendars: all.rows, events, truncated, windows };
+  return { calendars: all.rows, events, truncated, windows, basis: estimateBasis };
 }
 
 export async function saveCalendarEvent(user, body, id) {
   const [start, end] = interval(body.startsAt, body.endsAt, 31);
+  const visibility = choose(body.visibility ?? 'private', ['private', 'busy', 'detail']);
   const values = [
-    cleanText(body.title, 80, true),
+    visibility === 'busy' ? textOf(body.title, 80) || '忙碌' : cleanText(body.title, 80, true),
     textOf(body.details, 400),
     start,
     end,
-    choose(body.visibility ?? 'private', ['private', 'busy', 'detail']),
+    visibility,
   ];
   if (id) {
     const {
@@ -164,20 +166,24 @@ export async function gatheringAvailability(user, id) {
   if (!allowed) throw missing();
   const { rows } = await pool.query(
     `WITH known_people AS (
-    SELECT m.user_id,g.access FROM p1_gathering_members m JOIN p1_gatherings event ON event.id=m.gathering_id
+    SELECT m.user_id FROM p1_gathering_members m JOIN p1_gatherings event ON event.id=m.gathering_id
     JOIN p2_calendar_shares g ON g.owner_id=m.user_id AND g.viewer_id=$2
     WHERE m.gathering_id=$1 AND g.accepted AND ${known('m.user_id', '$2::uuid')}
       AND NOT ${blocked('event.owner_id', 'm.user_id')}
-    UNION ALL SELECT $2::uuid,'detail')
+    UNION ALL SELECT $2::uuid)
     SELECT o.id,(SELECT count(*)::int FROM known_people) AS "includedCalendars",
-      NOT EXISTS(SELECT 1 FROM known_people k JOIN p2_calendar_events e ON e.owner_id=k.user_id
+      EXISTS(SELECT 1 FROM known_people k JOIN p2_calendar_events e ON e.owner_id=k.user_id
         WHERE (k.user_id=$2 OR e.visibility<>'private')
-          AND e.starts_at<o.starts_at+interval '1 hour' AND e.ends_at>o.starts_at) AS "allFree"
+          AND e.starts_at<o.starts_at+interval '1 hour' AND e.ends_at>o.starts_at) AS "hasKnownConflict"
     FROM p1_gathering_options o JOIN p1_gatherings g ON g.id=o.gathering_id
     WHERE o.gathering_id=$1 AND NOT ${blocked('g.owner_id', '$2::uuid')}
       AND EXISTS(SELECT 1 FROM p1_gathering_members a WHERE a.gathering_id=g.id AND a.user_id=$2)
     ORDER BY o.starts_at,o.id`,
     [id, user],
   );
-  return { options: rows };
+  return {
+    basis: estimateBasis,
+    // Keep allFree for older clients. It means no conflict in the available calendars.
+    options: rows.map((row) => ({ ...row, allFree: !row.hasKnownConflict })),
+  };
 }

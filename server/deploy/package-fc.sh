@@ -34,5 +34,6 @@ node "$server_dir/deploy/dms-migration.mjs" --p0 > "$output_dir/penlia-p0-dms.sq
 node "$server_dir/deploy/dms-migration.mjs" --p1 > "$output_dir/penlia-p1-dms.sql"
 node "$server_dir/deploy/dms-migration.mjs" --p1-followup > "$output_dir/penlia-p1-followup-dms.sql"
 node "$server_dir/deploy/dms-migration.mjs" --p2 > "$output_dir/penlia-p2-dms.sql"
+node "$server_dir/deploy/dms-migration.mjs" --p2-followup > "$output_dir/penlia-p2-followup-dms.sql"
 mv "$staging/Penlia-api.zip" "$output_dir/Penlia-api.zip"
-printf '%s\n' "$output_dir/Penlia-api.zip" "$output_dir/penlia-dms.sql" "$output_dir/penlia-p0-dms.sql" "$output_dir/penlia-p1-dms.sql" "$output_dir/penlia-p1-followup-dms.sql" "$output_dir/penlia-p2-dms.sql"
+printf '%s\n' "$output_dir/Penlia-api.zip" "$output_dir/penlia-dms.sql" "$output_dir/penlia-p0-dms.sql" "$output_dir/penlia-p1-dms.sql" "$output_dir/penlia-p1-followup-dms.sql" "$output_dir/penlia-p2-dms.sql" "$output_dir/penlia-p2-followup-dms.sql"

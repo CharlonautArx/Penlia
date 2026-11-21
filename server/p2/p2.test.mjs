@@ -124,6 +124,41 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
     write(owner, '/calendar-shares', { action: 'share', userId: id(viewer), access });
 
   let travel, diary, birthday;
+  await t.test('007: upgrade of a populated 006 table is repeatable and keeps existing places', async () => {
+    const previous = await readFile(new URL('../migrations/006_life_p2.sql', import.meta.url), 'utf8');
+    const current = await readFile(new URL('../migrations/007_p2_life_followup.sql', import.meta.url), 'utf8');
+    const ddl = previous.match(/CREATE TABLE p2_items \([\s\S]*?\n\);/)[0];
+    const db = await admin.connect();
+    const insert = async (kind, title, latitude = null, longitude = null) =>
+      db.query(`INSERT INTO p2_items(owner_id,client_id,kind,title,category,state,scope,latitude,longitude,location)
+        VALUES($1,$2,$3,$4,'other','want','private',$5,$6,'原地址')`, [id(a), randomUUID(), kind, title, latitude, longitude]);
+    try {
+      await db.query('BEGIN');
+      await db.query('CREATE SCHEMA migration_007_fixture');
+      await db.query('SET LOCAL search_path TO migration_007_fixture, public');
+      await db.query(ddl);
+      await insert('place', '已有坐标', 0, 121.46);
+      await insert('saved', '原收藏');
+      await db.query(current);
+      await insert('place', '新地点');
+      await db.query(current);
+      const { rows } = await db.query('SELECT title,latitude,longitude,city,location FROM p2_items ORDER BY latitude NULLS LAST,kind');
+      assert.deepEqual(rows, [
+        { title: '已有坐标', latitude: 0, longitude: 121.46, city: '', location: '原地址' },
+        { title: '新地点', latitude: null, longitude: null, city: '', location: '原地址' },
+        { title: '原收藏', latitude: null, longitude: null, city: '', location: '原地址' },
+      ]);
+      for (const [kind, latitude, longitude] of [['place', 0, null], ['place', null, 0], ['place', 0, 181], ['saved', 0, 0]]) {
+        await db.query('SAVEPOINT invalid_coordinate');
+        await assert.rejects(insert(kind, '无效坐标', latitude, longitude), { code: '23514' });
+        await db.query('ROLLBACK TO SAVEPOINT invalid_coordinate');
+        await db.query('RELEASE SAVEPOINT invalid_coordinate');
+      }
+    } finally {
+      await db.query('ROLLBACK');
+      db.release();
+    }
+  });
   await t.test(
     '16: calendar is private by default and replacements revoke details before opt-in',
     async () => {
@@ -164,6 +199,7 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
       ok(await write(b, '/calendar-shares', { action: 'accept', userId: id(a) }));
       const shared = ok(await p2(b, path));
       assert.equal(shared.events.length, 2);
+      assert.equal(shared.basis, 'authorized_calendar_estimate');
       assert.equal(shared.windows.length, 2);
       assert.ok(shared.events.every((event) => event.title === '忙碌' && event.details === null));
       assert.ok(!JSON.stringify(shared).includes('私人安排'));
@@ -175,6 +211,10 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
         ok(await p2(b, path)).events.find((event) => event.title === '允许分享详情').details,
         '在东门见',
       );
+      const detailView = ok(await p2(b, path));
+      assert.ok(detailView.events.some((event) => event.title === '忙碌' && event.details === null));
+      assert.doesNotMatch(JSON.stringify(detailView), /忙碌但原因私密|只给自己|私人安排/);
+      assert.deepEqual(ok(await p2(c, path)).windows, []);
       assert.equal((await p2(b, '/calendar/' + personal.id, 'DELETE')).status, 404);
       const next = scheduled(7 * 86400000);
       const gathering = ok(
@@ -200,18 +240,22 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
       ok(await share(b, a, 'busy'));
       ok(await write(a, '/calendar-shares', { action: 'accept', userId: id(b) }));
       const first = ok(await p2(a, '/availability/' + travel));
-      assert.equal(first.options[0].allFree, true);
+      assert.equal(first.basis, 'authorized_calendar_estimate');
+      assert.equal(first.options[0].hasKnownConflict, false);
       ok(
         await write(b, '/calendar', {
           clientId: randomUUID(),
-          title: '已分享时段',
           startsAt: next,
           endsAt: new Date(+new Date(next) + 3600000).toISOString(),
           visibility: 'busy',
         }),
       );
       assert.deepEqual(ok(await p2(a, '/availability/' + travel)).options, [
-        { id: first.options[0].id, includedCalendars: 2, allFree: false },
+        { id: first.options[0].id, includedCalendars: 2, hasKnownConflict: true, allFree: false },
+      ]);
+      ok(await write(b, '/calendar-shares', { action: 'revoke', userId: id(a) }));
+      assert.deepEqual(ok(await p2(a, '/availability/' + travel)).options, [
+        { id: first.options[0].id, includedCalendars: 1, hasKnownConflict: false, allFree: true },
       ]);
       assert.equal((await p2(c, '/availability/' + travel)).status, 404);
       ok(await write(a, '/calendar-shares', { action: 'revoke', userId: id(b) }));
@@ -462,6 +506,43 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
     },
   );
 
+  await t.test('19 follow-up: memory discovery is read-only and rechecks original permissions', async () => {
+    const createMoment = async (body, scope, memberIds = []) =>
+      ok(await api(a, '/moments', 'POST', { clientId: randomUUID(), body, scope, memberIds, mediaIds: [] }), 201).id;
+    const recent = await createMoment('只和书晴分享的近况', 'selected', [id(b)]);
+    const own = await createMoment('仅自己可见的候选', 'private');
+    const anniversary = await createMoment('往年的今天', 'friends');
+    const older = await createMoment('不是周年的旧记录', 'friends');
+    await admin.query(`UPDATE private_moments SET created_at=(
+      (now() AT TIME ZONE 'Asia/Shanghai')::date - interval '4 years'
+      - CASE WHEN id=$2 THEN interval '1 day' ELSE interval '0 day' END
+    ) AT TIME ZONE 'UTC' WHERE id IN ($1,$2)`, [anniversary, older]);
+    const counts = async () => (await admin.query(`SELECT
+      (SELECT count(*) FROM p2_memories) AS saved,
+      (SELECT count(*) FROM p2_memory_viewers) AS shared,
+      (SELECT count(*) FROM p2_reminders) AS reminded`)).rows[0];
+    const candidates = async (user) => ok(await p2(user, '/memory-candidates')).candidates;
+    const before = await counts();
+    assert.equal((await p2(null, '/memory-candidates')).status, 401);
+    const forB = await candidates(b);
+    assert.equal(forB.find((row) => row.id === recent).reason, 'recent');
+    assert.equal(forB.find((row) => row.id === anniversary).reason, 'anniversary');
+    assert.ok(!forB.some((row) => row.id === own || row.id === older));
+    assert.ok((await candidates(a)).some((row) => row.id === own));
+    assert.ok(!(await candidates(c)).some((row) => row.id === recent || row.id === own));
+    assert.ok(!(await candidates(outside)).some((row) => [recent, own, anniversary].includes(row.id)));
+    assert.deepEqual(await counts(), before);
+
+    const draft = { clientId: randomUUID(), sourceKind: 'moment', sourceId: recent, title: '获授权的回忆' };
+    assert.equal((await write(b, '/memories', draft)).status, 400);
+    await api(a, '/moments/' + recent, 'PATCH', { scope: 'private', revision: 1 }).then((response) => ok(response));
+    assert.ok(!(await candidates(b)).some((row) => row.id === recent));
+    assert.equal((await write(b, '/memories', { ...draft, confirmed: true })).status, 404);
+    const memory = ok(await write(b, '/memories', { ...draft, sourceId: anniversary, confirmed: true }));
+    assert.ok(!(await candidates(b)).some((row) => row.id === anniversary));
+    assert.ok(!ok(await p2(c, '/memories')).memories.some((row) => row.id === memory.id));
+  });
+
   await t.test(
     '20: text, photo, video and audio stay sealed until database time and can be withdrawn',
     async () => {
@@ -599,6 +680,33 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
       assert.deepEqual(ok(await p2(a, '/place-resonance')).matches, []);
     },
   );
+
+  await t.test('22 follow-up: name-only places are private by default and only valid pairs become coordinates', async () => {
+    const nameOnly = { kind: 'place', title: '等以后再去' };
+    const place = ok(await write(a, '/items', { ...nameOnly, clientId: randomUUID() })).id;
+    const matching = await own(a, 'place');
+    const first = ok(matching).items.find((item) => item.id === place);
+    assert.deepEqual([first.scope, first.city, first.location, first.latitude, first.longitude], ['private', '', '', null, null]);
+    assert.equal((await p2(b, '/items/' + place)).status, 404);
+    assert.equal((await write(b, '/items/' + place + '/copy', { clientId: randomUUID() })).status, 404);
+    assert.equal((await patch(b, '/items/' + place, { ...nameOnly, revision: 1 })).status, 409);
+    for (const bad of [{ latitude: 0 }, { longitude: 0 }, { latitude: '0', longitude: 0 }, { latitude: 0, longitude: 181 }]) {
+      assert.equal((await write(a, '/items', { ...nameOnly, clientId: randomUUID(), ...bad })).status, 400);
+    }
+    const shared = { ...nameOnly, scope: 'selected', memberIds: [id(b)], city: '上海', location: '浦东' };
+    ok(await patch(a, '/items/' + place, { ...shared, latitude: 0, longitude: 0, revision: 1 }));
+    const { item } = ok(await p2(b, '/items/' + place));
+    assert.deepEqual([item.city, item.location, item.latitude, item.longitude], ['上海', '浦东', 0, 0]);
+    ok(await patch(a, '/items/' + place, { ...shared, city: undefined, revision: 2 }));
+    const unchanged = ok(await p2(a, '/items/' + place)).item;
+    assert.deepEqual([unchanged.city, unchanged.latitude, unchanged.longitude], ['上海', 0, 0]);
+    ok(await patch(a, '/items/' + place, { ...shared, latitude: null, longitude: null, revision: 3 }));
+    const copy = ok(await write(b, '/items/' + place + '/copy', { clientId: randomUUID() })).id;
+    const copied = ok(await p2(b, '/items/' + copy)).item;
+    assert.deepEqual([copied.city, copied.scope, copied.latitude, copied.longitude], ['上海', 'private', null, null]);
+    ok(await write(b, '/items', { ...nameOnly, clientId: randomUUID(), scope: 'selected', memberIds: [id(a)] }));
+    assert.deepEqual(ok(await p2(a, '/place-resonance')).matches, []);
+  });
   await t.test(
     'removing a friendship withdraws direct grants and blocking removes workspace roles',
     async () => {

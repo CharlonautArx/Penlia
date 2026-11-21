@@ -144,20 +144,22 @@ export default function Calendar() {
       {mode === 'day' && anyone.length > 1 && !data?.truncated && (
         <>
           <Button
-            label={showFree ? '收起共同空闲' : '查看当天共同空闲'}
+            label={showFree ? '收起空闲参考' : '查看当天空闲参考'}
             variant="soft"
             onPress={() => setShowFree(!showFree)}
           />
           {showFree && (
             <View style={styles.card}>
-              <Section title="共同空闲" />
-              <Text style={styles.muted}>仅根据已共享给你的日程计算，显示至少 30 分钟的空档。</Text>
+              <Section title="共同空闲参考" />
+              <Text style={styles.muted}>
+                根据你的日程和好友授权给你的忙闲记录，列出至少 30 分钟未发现冲突的时段。未共享的时段仍是未知，能否参加请向本人确认。
+              </Text>
               {data?.windows.map((slot) => (
                 <Text key={slot.startsAt} style={styles.body}>
                   {formatTime(slot.startsAt)} 至 {formatTime(slot.endsAt)}
                 </Text>
               ))}
-              {!data?.windows.length && <Text style={styles.muted}>当天没有达到 30 分钟的共同空档。</Text>}
+              {!data?.windows.length && <Text style={styles.muted}>已纳入的日程中，未找到 30 分钟以上的时间段。</Text>}
             </View>
           )}
         </>
@@ -238,17 +240,17 @@ function EventEditor({ initial, date, onClose }: { initial?: Entry; date: Date; 
   const [removing, setRemoving] = useState(false);
   return (
     <Sheet title={initial ? '编辑日程' : '添加日程'} onClose={onClose}>
-      <Field title="日程名称" value={title} onChangeText={setTitle} />
+      <Field title={visible === 'busy' ? '私人名称（选填）' : '日程名称'} value={title} onChangeText={setTitle} />
       <Field title="开始时间" value={start} onChangeText={setStart} />
       <Field title="结束时间" value={end} onChangeText={setEnd} />
       <Field title="备注（选填）" value={details} onChangeText={setDetails} multiline />
       <Choices labels={visibility} value={visible} set={setVisible} />
-      <Text style={styles.muted}>仅自己可见的日程也不会占用好友眼里的空闲时间。</Text>
+      <Text style={styles.muted}>选择「只分享忙闲」，已获授权的好友只会看到这段时间标为忙碌。仅自己可见的日程不会纳入好友的推算。</Text>
       {!!error && <Notice>{error}</Notice>}
       <Button
         label="保存日程"
         variant="gradient"
-        disabled={!title.trim() || busy}
+        disabled={(visible !== 'busy' && !title.trim()) || busy}
         onPress={() =>
           void run(async () => {
             await request('/p2/calendar' + (initial ? '/' + initial.id : ''), {
@@ -300,7 +302,7 @@ function ShareEditor({ onClose }: { onClose: () => void }) {
     request('/p2/calendar-shares', { method: 'POST', body: { action, userId, access: level } });
   return (
     <Sheet title="共享日程" onClose={onClose}>
-      <Text style={{ color: colors.muted }}>好友接受后才可查看。忙闲模式只显示时间段。</Text>
+      <Text style={{ color: colors.muted }}>好友接受后才可查看。「只分享忙闲」只提供忙碌时段，名称和备注保留给自己。</Text>
       {data?.shares.map((item) => {
         const own = item.ownerId === me;
         return (

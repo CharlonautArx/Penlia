@@ -46,6 +46,29 @@ export async function memorySources(user, query) {
   return { sources: rows };
 }
 
+export async function memoryCandidates(user) {
+  const authorized = Object.entries(sources)
+    .map(([kind, sql]) => `SELECT '${kind}' AS kind,source.* FROM (${sql('$1::uuid')}) source`)
+    .join(' UNION ALL ');
+  const { rows } = await pool.query(
+    `WITH local_day AS (
+      SELECT (now() AT TIME ZONE coalesce((SELECT zone FROM privacy_preferences WHERE user_id=$1),'Asia/Shanghai'))::date AS today
+    ), eligible AS (
+      SELECT s.*,CASE
+        WHEN s.day<date_trunc('year',d.today)::date AND to_char(s.day,'MM-DD')=to_char(d.today,'MM-DD')
+          THEN 'anniversary'
+        WHEN s.day BETWEEN d.today-30 AND d.today THEN 'recent'
+      END AS reason
+      FROM (${authorized}) s CROSS JOIN local_day d
+      WHERE NOT EXISTS(SELECT 1 FROM p2_memories m WHERE m.owner_id=$1 AND m.source_kind=s.kind AND m.source_id=s.id)
+    )
+    SELECT kind AS "sourceKind",id,title,day::text AS day,reason FROM eligible
+    WHERE reason IS NOT NULL ORDER BY reason,eligible.day DESC,kind,id LIMIT 8`,
+    [user],
+  );
+  return { candidates: rows };
+}
+
 export async function memories(user) {
   const { rows } = await pool.query(
     `SELECT m.id,m.title,m.owner_id AS "ownerId",m.source_kind AS "sourceKind",

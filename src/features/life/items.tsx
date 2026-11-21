@@ -32,6 +32,7 @@ type Item = {
   title: string;
   category: Category;
   notes: string;
+  city: string;
   location: string;
   tags: string[];
   state: keyof typeof marks;
@@ -50,6 +51,8 @@ type Item = {
   memoryId?: string | null;
 };
 type ItemPage = { items: Item[]; next: number | null };
+
+const addressOf = (item: Item) => [item.city, item.location].filter(Boolean).join(' · ');
 const tabs = { mine: '我的收藏', friends: '好友推荐' };
 const mapTabs = { mine: '我的地点', friends: '朋友分享' };
 
@@ -101,7 +104,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
       />
       {!itemId && (tab === 'mine' || space) && (
         <Button
-          label={kind === 'place' ? '标记地点' : '添加收藏'}
+          label={kind === 'place' ? '收藏地点' : '添加收藏'}
           variant="gradient"
           icon="add"
           onPress={() => setEditor('new')}
@@ -181,7 +184,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
                 pathname: '/gathering/new',
                 params: {
                   title: expanded.title,
-                  place: expanded.location || expanded.title,
+                  place: addressOf(expanded) || expanded.title,
                   category:
                     expanded.category === 'food'
                       ? 'food'
@@ -205,7 +208,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
                   params: {
                     section: 'wishes',
                     wishTitle: expanded.title,
-                    wishPlace: expanded.location || expanded.title,
+                    wishPlace: addressOf(expanded) || expanded.title,
                   },
                 });
               }}
@@ -268,11 +271,12 @@ function ItemCard({
   edit: () => void;
   remove: () => void;
 }) {
+  const address = addressOf(item);
   return (
     <View style={styles.card}>
       <Section title={item.title} detail={categories[item.category] + ' · ' + marks[item.state]} />
       {item.ownerId !== me && <Text style={styles.small}>{item.author} 分享</Text>}
-      {!!item.location && <Text style={styles.muted}>{item.location}</Text>}
+      {!!address && <Text style={styles.muted}>{address}</Text>}
       {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
       <MediaStrip media={item.media} />
       {!!item.tags.length && <Text style={styles.small}>{item.tags.map((tag) => '#' + tag).join('  ')}</Text>}
@@ -290,20 +294,21 @@ function ItemCard({
 }
 function ItemInformation({ item }: { item: Item }) {
   const [notice, setNotice] = useState('');
+  const address = addressOf(item);
   return (
     <>
       <Text style={styles.muted}>
         {categories[item.category]} · {marks[item.state]} · {item.author}
       </Text>
       {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
-      {!!item.location && <Text style={styles.muted}>{item.location}</Text>}
+      {!!address && <Text style={styles.muted}>{address}</Text>}
       {item.kind === 'place' && item.latitude !== null && item.longitude !== null && (
         <LocationBubble
           value={{
             latitude: item.latitude,
             longitude: item.longitude,
             name: item.title,
-            address: item.location,
+            address,
           }}
         />
       )}
@@ -448,6 +453,7 @@ function ItemEditor({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [category, setCategory] = useState<Category>(initial?.category ?? 'other');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [city, setCity] = useState(initial?.city ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const [tags, setTags] = useState(initial?.tags.join('、') ?? '');
   const [link, setLink] = useState(initial?.sourceUrl ?? '');
@@ -483,8 +489,14 @@ function ItemEditor({
   const scopesHere = project
     ? scopes
     : { private: scopes.private, selected: scopes.selected, group: scopes.group };
+  const latitude = lat.trim() ? Number(lat) : null;
+  const longitude = lon.trim() ? Number(lon) : null;
+  const coordinatesInvalid = isPlace && (latitude !== null || longitude !== null) && (
+    latitude === null || longitude === null || !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+    Math.abs(latitude) > 90 || Math.abs(longitude) > 180
+  );
   return (
-    <Sheet title={initial ? '编辑记录' : isPlace ? '标记地点' : '添加收藏'} onClose={onClose}>
+    <Sheet title={initial ? '编辑记录' : isPlace ? '收藏地点' : '添加收藏'} onClose={onClose}>
       <Field title={isPlace ? '地点名称' : '名称'} value={title} onChangeText={setTitle} />
       <Choices labels={categories} value={category} set={setCategory} />
       <Choices
@@ -494,16 +506,17 @@ function ItemEditor({
         value={mark}
         set={setMark}
       />
-      <Field title="地点或地址（选填）" value={location} onChangeText={setLocation} />
+      {isPlace && <Field title="城市（选填）" value={city} onChangeText={setCity} />}
+      <Field title={isPlace ? '地址（选填）' : '地点或地址（选填）'} value={location} onChangeText={setLocation} />
       {isPlace && (
         <>
-          <Text style={styles.muted}>手动输入 WGS‑84 经纬度，或主动获取一次位置。</Text>
+          <Text style={styles.muted}>只填写名称即可收藏。填写一对 WGS‑84 经纬度后，地点也会显示在示意图上。</Text>
           <View style={styles.row}>
             <View style={styles.grow}>
-              <Field title="纬度" value={lat} onChangeText={setLat} keyboardType="numbers-and-punctuation" />
+              <Field title="纬度（选填）" value={lat} onChangeText={setLat} keyboardType="numbers-and-punctuation" />
             </View>
             <View style={styles.grow}>
-              <Field title="经度" value={lon} onChangeText={setLon} keyboardType="numbers-and-punctuation" />
+              <Field title="经度（选填）" value={lon} onChangeText={setLon} keyboardType="numbers-and-punctuation" />
             </View>
           </View>
           <Button
@@ -512,6 +525,7 @@ function ItemEditor({
             icon="locate-outline"
             onPress={() => setLocating(true)}
           />
+          {coordinatesInvalid && <Notice>请同时填写有效的纬度和经度，或将两项留空。</Notice>}
         </>
       )}
       <Field title="备注或推荐理由（选填）" multiline value={notes} onChangeText={setNotes} />
@@ -607,7 +621,7 @@ function ItemEditor({
         disabled={
           busy ||
           !title.trim() ||
-          (isPlace && (!lat.trim() || !lon.trim())) ||
+          coordinatesInvalid ||
           (scope === 'selected' && !ids.length) ||
           (scope === 'group' && !group)
         }
@@ -622,6 +636,7 @@ function ItemEditor({
                 title,
                 category,
                 notes,
+                city: isPlace ? city : undefined,
                 location,
                 tags: tags
                   .split(/[、，,]/)
@@ -634,8 +649,8 @@ function ItemEditor({
                 groupId: group || undefined,
                 mediaIds,
                 spaceId: project || undefined,
-                latitude: isPlace ? Number(lat) : undefined,
-                longitude: isPlace ? Number(lon) : undefined,
+                latitude: isPlace ? latitude : undefined,
+                longitude: isPlace ? longitude : undefined,
                 wishId: wish || undefined,
                 tripId: trip || undefined,
                 memoryId: memory || undefined,
