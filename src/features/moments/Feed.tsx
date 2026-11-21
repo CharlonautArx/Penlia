@@ -1,13 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppearance } from '../../components/appearance';
 import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { errorMessage, type User } from '../../services/api';
 import { useSession } from '../../services/session';
-import { colors, contentWidth, space, styles } from '../../theme';
+import { colors, contentWidth, radius, space, styles, touch } from '../../theme';
 import { SpaceCollections, type AlbumTheme } from '../space/Collections';
 import { CoverEditor } from '../space/CoverEditor';
 import { emptySpace } from '../space/model';
@@ -29,7 +30,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const [items, setItems] = useState<Moment[]>();
   const [profile, setProfile] = useState<User>();
   const [count, setCount] = useState<number>();
-  const [panel, setPanel] = useState<'actions' | 'cover'>();
+  const [panel, setPanel] = useState<'publish' | 'timelineActions' | 'cover'>();
   const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -95,14 +96,19 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   function update(id: string, change: Partial<Moment>) {
     setItems((current) => current?.map((item) => item.id === id ? { ...item, ...change } : item));
   }
-  const header = <View style={local.header}>
+  function openPublish(collaboration = false) {
+    setPanel(undefined);
+    if (collaboration) router.push({ pathname: '/collection/new', params: { kind: 'collaboration' } });
+    else router.push('/private-moment');
+  }
+  const header = <View style={[local.header, home && local.homeHeader]}>
     {person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
       pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
       onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
       onCover={home || mine ? () => setPanel('cover') : undefined}
       counts={mine ? { thought: count, journal: journals, albums } : undefined} />}
     {pane === 'thought' ? <>
-      {home && <Button label="发布动态" icon="create-outline" variant="soft" onPress={() => router.push('/private-moment')} />}
+      {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
       <Section title={home ? '好友动态' : '动态记录'}>
         {archive && <Button label="本机旧动态" variant="quiet" onPress={() => router.push({
           pathname: '/space/[id]', params: { id: author!, archive: '1' },
@@ -114,12 +120,12 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   </View>;
 
   return <SafeAreaView style={local.safe} edges={home ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']}>
-    <TopBar title={home ? '动态' : mine ? '我的动态' : '好友动态'}
-      back={home ? undefined : () => router.canGoBack() ? router.back() : router.replace('/moments')}
-      actions={(home || mine) && <>
-        <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('actions')} />
-        <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => router.push('/private-moment')} />
-      </>} />
+    {!home && <TopBar title={mine ? '我的动态' : '好友动态'}
+      back={() => router.canGoBack() ? router.back() : router.replace('/moments')}
+      actions={mine && <>
+        <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
+        <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
+      </>} />}
     <FlatList data={pane === 'thought' ? items ?? [] : []} keyExtractor={(entry) => entry.id} initialNumToRender={5}
       contentContainerStyle={local.list} ListHeaderComponent={header} refreshing={pane === 'thought' && busy}
       onRefresh={pane === 'thought' ? () => void load() : undefined}
@@ -136,10 +142,12 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
       </View> : undefined}
     />
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} onClose={() => setPanel(undefined)} />}
-    {panel === 'actions' && <Sheet title="动态选项" onClose={() => setPanel(undefined)}>
-      <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => {
-        setPanel(undefined); router.push({ pathname: '/collection/new', params: { kind: 'collaboration' } });
-      }} />
+    {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
+      <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />
+      <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => openPublish(true)} separator={false} />
+    </Sheet>}
+    {!home && mine && panel === 'timelineActions' && <Sheet title="动态选项" onClose={() => setPanel(undefined)}>
+      <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => openPublish(true)} />
       <ListRow title="瞬间共鸣" left={<Icon name="camera-outline" />} onPress={() => {
         setPanel(undefined); router.push({ pathname: '/world', params: { kind: 'relay' } });
       }} />
@@ -150,9 +158,34 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   </SafeAreaView>;
 }
 
+function HomePublishBar({ onPublish }: { onPublish: () => void }) {
+  const { scheme } = useAppearance();
+  const surface = scheme === 'dark' ? local.publishDark : local.publishLight;
+  return <View style={local.publishRow}>
+    <Pressable accessibilityRole="button" accessibilityLabel="空间隐私" onPress={() => router.push('/space/privacy')}
+      style={({ pressed }) => [local.publishSurface, surface, local.privacyButton, pressed && local.pressed]}>
+      <Icon name="shield-checkmark-outline" size={21} />
+    </Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="发布动态" accessibilityHint="选择普通或共创发布方式"
+      onPress={onPublish} style={({ pressed }) => [local.publishSurface, surface, local.publishButton, pressed && local.pressed]}>
+      <Icon name="create-outline" size={19} />
+      <Text style={[styles.strong, local.publishLabel]}>发布动态</Text>
+    </Pressable>
+  </View>;
+}
+
 const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.backdrop },
   list: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', paddingBottom: space.xl },
   header: { gap: space.sm, padding: space.md },
+  homeHeader: { paddingTop: space.xs },
+  publishRow: { flexDirection: 'row', gap: space.xs },
+  publishSurface: { minHeight: touch + space.xxs, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  publishLight: { backgroundColor: '#FFFFFF', boxShadow: '0px 1px 6px rgba(35, 36, 42, 0.06)' },
+  publishDark: { backgroundColor: colors.panel },
+  privacyButton: { minWidth: touch + space.xxs },
+  publishButton: { ...styles.grow, flexDirection: 'row', gap: space.xs, paddingHorizontal: space.md, paddingVertical: space.xs },
+  publishLabel: { flexShrink: 1 },
+  pressed: { opacity: 0.72 },
   footer: { padding: space.md },
 });
