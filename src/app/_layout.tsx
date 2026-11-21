@@ -35,6 +35,7 @@ function AppNavigation() {
               <Stack.Protected guard={!!session && !isUiDemo}>
                 <Stack.Screen name="social" />
                 <Stack.Screen name="life" />
+                <Stack.Screen name="world" />
                 <Stack.Screen name="gathering/[id]" />
                 <Stack.Screen name="collection/[id]" />
                 <Stack.Screen name="journal-entry/[id]" />

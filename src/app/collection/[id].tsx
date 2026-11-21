@@ -15,6 +15,7 @@ import {
   type Category,
 } from '../../features/social/ui';
 import { useSession } from '../../services/session';
+import { RelatedRelays } from '../../features/world/related';
 import { styles } from '../../theme';
 
 type CollectionKind = 'journal' | 'collaboration';
@@ -34,13 +35,14 @@ type Detail = {
 };
 
 export default function CollectionScreen() {
-  const { id, kind, from, title } = useLocalSearchParams<{
+  const { id, kind, from, title, album } = useLocalSearchParams<{
     id: string;
     kind?: CollectionKind;
     from?: string;
     title?: string;
+    album?: string;
   }>();
-  return id === 'new' ? <Create kind={kind ?? 'journal'} from={from} title={title} /> : <Details id={id} />;
+  return id === 'new' ? <Create kind={kind ?? 'journal'} from={from} title={title} /> : <Details id={id} showAlbum={album === '1'} />;
 }
 
 function Create({ kind, from, title }: { kind: CollectionKind; from?: string; title?: string }) {
@@ -84,7 +86,7 @@ function Create({ kind, from, title }: { kind: CollectionKind; from?: string; ti
   );
 }
 
-function Details({ id }: { id: string }) {
+function Details({ id, showAlbum }: { id: string; showAlbum: boolean }) {
   const base = '/p1/collections/' + id;
   const [category, setCategory] = useState<Category>();
   const [from, setFrom] = useState('');
@@ -94,8 +96,7 @@ function Details({ id }: { id: string }) {
   const [cursor, setCursor] = useState<string | null>();
   const { data, error, busy, run, request, load } = useRecord<Detail>(base + filter);
   const { session } = useSession();
-  const [panel, setPanel] = useState<'entry' | 'invite' | 'publish' | 'album' | 'leave' | 'filter'>();
-  const [media, setMedia] = useState<(Media & { author: string; title: string })[]>([]);
+  const [panel, setPanel] = useState<'entry' | 'invite' | 'publish' | 'album' | 'leave' | 'filter' | undefined>(showAlbum ? 'album' : undefined);
   const [ids, setIds] = useState<string[]>([]);
   const [group, setGroup] = useState('');
   const [scope, setScope] = useState<Audience>('private');
@@ -149,18 +150,13 @@ function Details({ id }: { id: string }) {
           label="共同相册"
           variant="soft"
           icon="images-outline"
-          onPress={() =>
-            void run(async () => {
-              const result = await request<{ media: typeof media }>(base + '/album');
-              setMedia(result.media);
-              open('album');
-            }, false)
-          }
+          onPress={() => open('album')}
         />
         {coll.kind === 'journal' && (
           <Button label="筛选日期与活动" variant="soft" onPress={() => open('filter')} />
         )}
       </View>
+      <RelatedRelays kind={coll.kind} id={id} />
       {coll.canWrite && coll.kind === 'journal' && (
         <Button
           label="添加经历"
@@ -291,19 +287,7 @@ function Details({ id }: { id: string }) {
               <Field title="结束日期（可选）" placeholder="年-月-日" value={until} onChangeText={setUntil} />
             </>
           )}
-          {panel === 'album' &&
-            (!media.length ? (
-              <Empty>还没有照片或视频。</Empty>
-            ) : (
-              media.map((item) => (
-                <View key={item.id} style={styles.card}>
-                  <Text style={styles.strong}>
-                    {item.title} · {item.author}
-                  </Text>
-                  <MomentMediaTile item={item} />
-                </View>
-              ))
-            ))}
+          {panel === 'album' && <CollectionAlbum id={id} />}
           {panel === 'leave' && (
             <Text style={styles.muted}>
               退出后失去成员访问权限。已发布动态另按发起者设置的范围开放。你仍可在「我贡献的内容」撤回自己上传的记录。
@@ -366,4 +350,19 @@ function Details({ id }: { id: string }) {
       )}
     </Screen>
   );
+}
+
+function CollectionAlbum({ id }: { id: string }) {
+  const { data, error, load } = useRecord<{ media: (Media & { author: string; title: string })[] }>(
+    '/p1/collections/' + id + '/album',
+  );
+  if (error) return <Notice action="重试" onAction={() => void load()}>{error}</Notice>;
+  if (!data) return <Empty busy>正在读取相册…</Empty>;
+  if (!data.media.length) return <Empty>还没有照片或视频。</Empty>;
+  return data.media.map((item) => (
+    <View key={item.id} style={styles.card}>
+      <Text style={styles.strong}>{item.title} · {item.author}</Text>
+      <MomentMediaTile item={item} />
+    </View>
+  ));
 }

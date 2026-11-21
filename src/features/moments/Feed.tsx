@@ -106,6 +106,7 @@ export function PrivateFeed({ mine, author }: { mine?: string; author?: string }
           onPress={() => router.setParams({ mine: '1', author: '' })}
         />
         <Button label="共创动态" variant="soft" onPress={() => router.push({pathname:'/collection/new',params:{kind:'collaboration'}})} />
+        <Button label="瞬间共鸣" variant="soft" onPress={() => router.push({pathname:'/world',params:{kind:'relay'}})} />
         {author && mine !== '1' && <Text style={styles.small}>查看好友</Text>}
       </View>
       {!!error && (

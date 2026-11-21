@@ -62,6 +62,8 @@ const eventLabels: Record<string, string> = {
   p2_map_invited:'收到共同地图邀请',
   p2_capsule_invited:'收到时光胶囊邀请',
   p2_trip_journal:'旅行已关联共同日记',
+  p3_relay_invited:'收到瞬间接力邀请',
+  p3_world_invited:'收到共同世界邀请',
 };
 type Gathering = { id: string; title: string; mode: 'all' | 'open'; state: string; directProposal:boolean };
 type Collection = {
@@ -367,6 +369,8 @@ function Events() {
             if (event.kind === 'wish_match') router.setParams({ section: 'wishes' });
             else if(event.kind==='p2_calendar_invited')router.push({pathname:'/life/calendar',params:{sharing:'1'}});
             else if(event.kind==='p2_trip_journal')router.push({pathname:'/life/project/[id]',params:{id:event.subjectId,kind:'trip'}});
+            else if(event.kind==='p3_world_invited'||event.kind==='p3_relay_invited')
+              router.push({pathname:'/world',params:{kind:event.kind==='p3_relay_invited'?'relay':'world'}});
             else if(/^p2_(trip|list|map|capsule)_invited$/.test(event.kind))router.push({pathname:'/life/projects',params:{kind:event.kind.split('_')[1]}});
             else if (event.kind === 'group_call') {
               if (event.groupId)

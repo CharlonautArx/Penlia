@@ -102,3 +102,19 @@ test('P2 follow-up checks the 006 ledger before changing coordinates, without ex
   assert.match(statements.at(-2), /007_p2_life_followup\.sql/);
   assert.equal(statements.at(-1), 'COMMIT');
 });
+
+test('P3 flat DMS release requires 007 and limits the runtime role to scoped data writes', () => {
+  const output = execFileSync(process.execPath, [fileURLToPath(file('dms-migration.mjs')), '--p3'], { encoding:'utf8' });
+  assert.equal(output, readFileSync(file('penlia-p3-dms.sql'),'utf8'));
+  assert.doesNotMatch(output, /\$(?:[a-zA-Z_][a-zA-Z_0-9]*)?\$/);
+  const steps = output.trim().split(';').map((line) => line.trim()).filter(Boolean);
+  assert.equal(steps[0], 'BEGIN');
+  assert.equal(steps.at(-1), 'COMMIT');
+  assert.match(steps.at(-2), /008_shared_world_p3\.sql/);
+  assert.ok(steps.findIndex((line) => line.includes('007_p2_life_followup.sql')) < steps.findIndex((line) => line.startsWith('CREATE TABLE IF NOT EXISTS p3_spaces')));
+  assert.deepEqual(steps.filter((line) => line.startsWith('GRANT')), [
+    'GRANT SELECT, INSERT, UPDATE ON p3_spaces, p3_members TO penlia_app',
+    'GRANT SELECT, INSERT, UPDATE ON p3_records TO penlia_app',
+    'GRANT SELECT, INSERT, DELETE ON p3_record_viewers, p3_media TO penlia_app',
+  ]);
+});

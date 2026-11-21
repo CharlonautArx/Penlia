@@ -1,4 +1,5 @@
 import { p2MediaVisible } from '../p2/access.mjs';
+import { p3MediaVisible } from '../p3/access.mjs';
 import { randomUUID } from 'node:crypto';
 import { cleanText, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
@@ -265,7 +266,8 @@ export async function getMedia(userId, id, range, head) {
       EXISTS(SELECT 1 FROM p1_contribution_media link JOIN p1_contributions pc ON pc.id=link.contribution_id
         JOIN p1_entries pe ON pe.id=pc.entry_id JOIN p1_collections coll ON coll.id=pe.collection_id
         WHERE link.media_id=b.id AND ${collectionReadable('coll','$1::uuid')} AND
-        ${contributionReadable('pc','$1::uuid')} AND ${contributionScope('pc','coll','$1::uuid')} AND NOT ${blocked('pe.author_id','$1::uuid')}) OR ${p2MediaVisible('b','$1::uuid')})`;
+        ${contributionReadable('pc','$1::uuid')} AND ${contributionScope('pc','coll','$1::uuid')} AND NOT ${blocked('pe.author_id','$1::uuid')})
+      OR ${p2MediaVisible('b','$1::uuid')} OR ${p3MediaVisible('b','$1::uuid')})`;
   const {
     rows: [metadata],
   } = await pool.query('SELECT b.mime,octet_length(b.data) AS bytes ' + acl, [userId, id]);

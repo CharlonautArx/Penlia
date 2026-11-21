@@ -5,10 +5,11 @@ import { blocked, idsOf, lockUsers, verifyFriends } from '../p0/access.mjs';
 import { activeMember, momentVisible } from '../p1/collection-access.mjs';
 import { assertAllowed, choose, dateOf, invalid, missing } from '../p1/common.mjs';
 import { known, member, opened } from './access.mjs';
+import { member as relayMember } from '../p3/access.mjs';
 
 const gatheringView = (g, v) => `(${g}.state='completed' AND NOT ${blocked(g + '.owner_id', v)}
   AND EXISTS(SELECT 1 FROM p1_gathering_members gm WHERE gm.gathering_id=${g}.id AND gm.user_id=${v} AND gm.confirmed))`;
-const kindNames = ['gathering', 'journal', 'moment', 'trip', 'capsule', 'birthday'];
+const kindNames = ['gathering', 'journal', 'moment', 'trip', 'capsule', 'relay', 'birthday'];
 const sources = {
   gathering: (v) => `SELECT g.id,g.title,(o.starts_at AT TIME ZONE 'UTC')::date AS day FROM p1_gatherings g
       JOIN p1_gathering_options o ON o.id=g.choice_id WHERE ${gatheringView('g', v)}`,
@@ -25,6 +26,7 @@ const sources = {
       WHERE t.completed_at IS NOT NULL AND ${member('s', v)}`,
   capsule: (v) => `SELECT s.id,s.title,(c.opens_at AT TIME ZONE 'UTC')::date AS day FROM p2_capsules c
       JOIN p2_spaces s ON s.id=c.space_id WHERE ${opened('c')} AND ${member('s', v)}`,
+  relay: (v) => `SELECT s.id,s.title,s.event_day AS day FROM p3_spaces s WHERE s.kind='relay' AND ${relayMember('s', v)}`,
 };
 const sourceVisible = (m, v) =>
   `(${m}.source_kind='birthday' OR ${Object.entries(sources)

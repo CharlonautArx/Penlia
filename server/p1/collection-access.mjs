@@ -21,7 +21,8 @@ export const contributionReadable = (contribution, viewer) => `(${contribution}.
 
 export const unusedMedia = (alias) => `(${alias}.moment_id IS NULL AND ${alias}.group_message_id IS NULL
  AND NOT EXISTS(SELECT 1 FROM p1_contribution_media link WHERE link.media_id=${alias}.id)
- AND NOT EXISTS(SELECT 1 FROM p2_assets pa WHERE pa.media_id=${alias}.id))`;
+ AND NOT EXISTS(SELECT 1 FROM p2_assets pa WHERE pa.media_id=${alias}.id)
+ AND NOT EXISTS(SELECT 1 FROM p3_media px WHERE px.media_id=${alias}.id))`;
 
 // A collaboration member and a feed viewer need separate, author-issued grants.
 export const workspaceGrant = (

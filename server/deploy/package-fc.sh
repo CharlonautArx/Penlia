@@ -16,6 +16,8 @@ mkdir "$staging/p1"
 cp "$server_dir"/p1/{routes,common,collection-access,contribution-consent,collections,enforcement-access,gatherings,moderation,rtc,wishes}.mjs "$staging/p1/"
 mkdir "$staging/p2"
 cp "$server_dir"/p2/{access,calendar,capsules,common,contact-cleanup,items,memories,routes,spaces,status,trips}.mjs "$staging/p2/"
+mkdir "$staging/p3"
+cp "$server_dir"/p3/{access,contact-cleanup,records,routes,sources,spaces}.mjs "$staging/p3/"
 mkdir "$staging/phone"
 cp "$server_dir"/phone/{policy,services}.mjs "$staging/phone/"
 if [[ -n "${PENLIA_RDS_CA_FILE:-}" ]]; then
@@ -24,7 +26,7 @@ fi
 npm ci --prefix "$staging" --omit=dev
 (
   cd "$staging"
-  zip -qr Penlia-api.zip index.mjs http.mjs api.mjs core.mjs db.mjs im.mjs migrate.mjs migration-files.mjs migrations phone p0 p1 p2 package.json package-lock.json node_modules
+  zip -qr Penlia-api.zip index.mjs http.mjs api.mjs core.mjs db.mjs im.mjs migrate.mjs migration-files.mjs migrations phone p0 p1 p2 p3 package.json package-lock.json node_modules
   if [[ -f rds-ca.pem ]]; then
     zip -q Penlia-api.zip rds-ca.pem
   fi
@@ -35,5 +37,6 @@ node "$server_dir/deploy/dms-migration.mjs" --p1 > "$output_dir/penlia-p1-dms.sq
 node "$server_dir/deploy/dms-migration.mjs" --p1-followup > "$output_dir/penlia-p1-followup-dms.sql"
 node "$server_dir/deploy/dms-migration.mjs" --p2 > "$output_dir/penlia-p2-dms.sql"
 node "$server_dir/deploy/dms-migration.mjs" --p2-followup > "$output_dir/penlia-p2-followup-dms.sql"
+node "$server_dir/deploy/dms-migration.mjs" --p3 > "$output_dir/penlia-p3-dms.sql"
 mv "$staging/Penlia-api.zip" "$output_dir/Penlia-api.zip"
-printf '%s\n' "$output_dir/Penlia-api.zip" "$output_dir/penlia-dms.sql" "$output_dir/penlia-p0-dms.sql" "$output_dir/penlia-p1-dms.sql" "$output_dir/penlia-p1-followup-dms.sql" "$output_dir/penlia-p2-dms.sql" "$output_dir/penlia-p2-followup-dms.sql"
+printf '%s\n' "$output_dir/Penlia-api.zip" "$output_dir/penlia-dms.sql" "$output_dir/penlia-p0-dms.sql" "$output_dir/penlia-p1-dms.sql" "$output_dir/penlia-p1-followup-dms.sql" "$output_dir/penlia-p2-dms.sql" "$output_dir/penlia-p2-followup-dms.sql" "$output_dir/penlia-p3-dms.sql"

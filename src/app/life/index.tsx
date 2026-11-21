@@ -30,6 +30,10 @@ export default function Life() {
         onPress={() => router.push({ pathname: '/life/items', params: { kind: 'place' } })}
       />
       <Section title="收藏与记忆" />
+      <ListRow title="瞬间共鸣" detail="用各自的照片、视频和感受接力记录同一刻"
+        left={<Icon name="camera-outline" />} onPress={() => router.push({pathname:'/world',params:{kind:'relay'}})} />
+      <ListRow title="共同世界" detail="和朋友布置小屋，珍藏共同经历"
+        left={<Icon name="sparkles-outline" />} onPress={() => router.push({pathname:'/world',params:{kind:'world'}})} />
       <ListRow
         title="我的收藏与好友推荐"
         detail="自由记录名称、备注、图片和链接"

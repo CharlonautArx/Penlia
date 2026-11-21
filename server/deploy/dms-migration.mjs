@@ -2,13 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { readMigrations } from '../migration-files.mjs';
 
 const p2 = process.argv.includes('--p2');
+const p3 = process.argv.includes('--p3');
 const p2Followup = process.argv.includes('--p2-followup');
 const followup = process.argv.includes('--p1-followup');
 const p1 = process.argv.includes('--p1');
 const p0 = process.argv.includes('--p0');
-const migrations = (await readMigrations()).filter(({ name }) => name === (p2Followup ? '007_p2_life_followup.sql' : p2 ? '006_life_p2.sql' : followup ? '005_p1_privacy_followup.sql' : p1 ? '004_social_p1.sql' : p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
+const migrations = (await readMigrations()).filter(({ name }) => name === (p3 ? '008_shared_world_p3.sql' : p2Followup ? '007_p2_life_followup.sql' : p2 ? '006_life_p2.sql' : followup ? '005_p1_privacy_followup.sql' : p1 ? '004_social_p1.sql' : p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
 if (migrations.length !== 1) throw new Error('Expected one DMS migration');
-const grants = (await readFile(new URL(p2 ? '../p2/grants.sql' : followup ? '../p1/followup-grants.sql' : p1 ? '../p1/grants.sql' : p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
+const grants = (await readFile(new URL(p3 ? '../p3/grants.sql' : p2 ? '../p2/grants.sql' : followup ? '../p1/followup-grants.sql' : p1 ? '../p1/grants.sql' : p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
 const schemaCheck = (await readFile(new URL('./dms-schema-check.sql', import.meta.url), 'utf8')).trim();
 
 function repeatableStatements({ name, sql }) {
@@ -33,6 +34,10 @@ function repeatableStatements({ name, sql }) {
       /^ALTER TABLE p2_items DROP CONSTRAINT IF EXISTS p2_items_(?:check|coordinates)$/.test(ddl) ||
       ddl.startsWith('ALTER TABLE p2_items ADD CONSTRAINT p2_items_coordinates CHECK (')
     )) return ddl + ';';
+    if (name === '008_shared_world_p3.sql' && (
+      ddl === 'ALTER TABLE p2_memories DROP CONSTRAINT IF EXISTS p2_memories_source_kind_check' ||
+      ddl.startsWith('ALTER TABLE p2_memories ADD CONSTRAINT p2_memories_source_kind_check\n  CHECK (')
+    )) return ddl + ';';
     if (!create) {
       throw new Error(`${name} contains a statement that cannot be safely replayed by DMS`);
     }
@@ -54,8 +59,9 @@ const steps = [
   ...(followup ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '004_social_p1.sql') THEN '1' ELSE 'Apply the first Penlia P1 migration' END::integer AS p1_check;"] : []),
   ...(p2 ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '005_p1_privacy_followup.sql') THEN '1' ELSE 'Apply the Penlia P1 privacy followup' END::integer AS p1_followup_check;"] : []),
   ...(p2Followup ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '006_life_p2.sql') THEN '1' ELSE 'Apply the Penlia P2 migration first' END::integer AS p2_check;"] : []),
+  ...(p3 ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '007_p2_life_followup.sql') THEN '1' ELSE 'Apply the Penlia P2 followup first' END::integer AS p2_followup_check;"] : []),
   ...migrations.flatMap(repeatableStatements),
-  ...(!p0 && !p1 && !followup && !p2 && !p2Followup ? [schemaCheck] : []),
+  ...(!p0 && !p1 && !followup && !p2 && !p2Followup && !p3 ? [schemaCheck] : []),
   ...(!p2Followup ? [grants] : []),
   ...migrations.map(({ name }) =>
     `INSERT INTO public.schema_migrations (name) VALUES ('${name}') ON CONFLICT (name) DO NOTHING;`),

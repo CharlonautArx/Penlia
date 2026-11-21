@@ -16,6 +16,7 @@ const kinds = {
   moment: '获授权的生活动态',
   trip: '已完成的旅行',
   capsule: '已开启的胶囊',
+  relay: '瞬间共鸣',
   birthday: '生日或纪念日',
 };
 const periods = {
@@ -76,6 +77,8 @@ export default function MemoriesScreen() {
         });
       case 'moment':
         return router.push({ pathname: '/life/moment/[id]', params: { id: item.sourceId } });
+      case 'relay':
+        return router.push({ pathname: '/world/[id]', params: { id: item.sourceId } });
     }
   }
   return (

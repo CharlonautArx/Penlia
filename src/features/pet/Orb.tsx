@@ -35,7 +35,9 @@ function Eye({ size, expression, far }: { size: number; expression: Expression; 
   return <View style={[local.eyeDot, { width, height, borderRadius: width / 2, transform: [{ rotate: expression === 'curious' ? '-10deg' : '0deg' }] }]} />;
 }
 
-export function PetOrb({ vitality, fed }: { vitality: number; fed: number }) {
+export function PetOrb({ vitality, fed, size = 166, onPet }: {
+  vitality: number; fed: number; size?: number; onPet?: () => void;
+}) {
   const focus = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState !== 'background');
   const [reduce, setReduce] = useState(true);
@@ -106,14 +108,14 @@ export function PetOrb({ vitality, fed }: { vitality: number; fed: number }) {
   }, [fed]);
 
   return <Pressable accessibilityRole="button" accessibilityLabel={'轻触小宠物，当前表情' + names[expression]}
-    onPress={() => react('surprised', 1100)} style={local.stage}>
+    onPress={() => { react('surprised', 1100); onPet?.(); }} style={local.stage}>
     <View style={local.shadow} />
     <Animated.View style={moving ? { transform: [
       { translateY: bump.interpolate({ inputRange: [0, 1], outputRange: [0, -9] }) },
       { rotate: pulse.interpolate({ inputRange: [0, 1], outputRange: ['0deg', expression === 'curious' ? '-4deg' : '0deg'] }) },
       { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, vitality >= 80 ? 1.04 : 1.022] }) },
     ] } : undefined}>
-      <OrbFace size={166} expression={expression} />
+      <OrbFace size={size} expression={expression} />
     </Animated.View>
   </Pressable>;
 }

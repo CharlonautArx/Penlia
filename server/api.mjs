@@ -8,6 +8,7 @@ import { areFriends, beforeImSend, blocked, lockUsers, preferences, restricted, 
 import { p0Routes } from './p0/routes.mjs';
 import { p1Routes } from './p1/routes.mjs';
 import { p2Routes } from './p2/routes.mjs';
+import { p3Routes } from './p3/routes.mjs';
 import { lifeWorkerAuthorized, runLifeReminders } from './p2/memories.mjs';
 import { assertAllowed } from './p1/enforcement-access.mjs';
 import { runEnforcement, workerAuthorized } from './p1/moderation.mjs';
@@ -273,6 +274,8 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
     if (p1 !== undefined) return Buffer.isBuffer(p1.binary) ? p1 : json(200,p1);
     const p2 = await p2Routes(method,path,{user,query,readBody,headers,rateLimit});
     if(p2!==undefined)return Buffer.isBuffer(p2.binary)?p2:json(200,p2);
+    const p3 = await p3Routes(method,path,{user,query,readBody,rateLimit});
+    if (p3!==undefined) return json(200,p3);
     switch (route) {
       case 'POST /v1/logout':
         await pool.query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);
