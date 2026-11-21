@@ -16,7 +16,18 @@ ARM64 A 与仅关闭 R8 的 ARM64 B 中，内嵌 JS bundle、Hermes、Worklets �
 - ARM64 交付包和 x86_64 受测包的 DEX 和 Hermes JS 逐字节相同。ARM64 做了原生 Release 编译、签名、16 KB ZIP 对齐和 GitHub 回下载校验，暂无 ARM64 真机启动日志。
 - TypeScript、自动链接演示／正式两种配置以及 20 项单元与迁移静态检查通过。
 
-[原始源码的 R8 A/B 模拟器日志](https://github.com/CharlonautArx/Penlia/actions/runs/44887775620)
+### 原版运行对照
+
+[原始源码的 R8 A/B 模拟器日志](https://github.com/CharlonautArx/Penlia/actions/runs/44890610899) 使用预编译的同源 x86_64 Release A 和 B。A 开启 R8，启动后出现目标应用原生崩溃。Logcat 记录：
+
+```text
+Pending exception java.lang.ClassNotFoundException: com.chatsdk.dispatch.ExtSdkDispatch
+JNI DETECTED ERROR IN APPLICATION: java_class == null
+Fatal signal 6 (SIGABRT)
+base.apk!libext_sdk.so (JNI_OnLoad+82)
+```
+
+B 仅关闭 R8，完成 5 次冷启动、打开五栏、共享日程和共同世界。修复包重新保持 R8 开启，同样完成 5 次冷启动。
 
 ## 安装
 
