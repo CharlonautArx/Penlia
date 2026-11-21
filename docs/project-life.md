@@ -65,9 +65,12 @@
 | --- | --- |
 | TypeScript 和 Expo 依赖版本 | `npm run typecheck`、`npx expo install --check` 通过。 |
 | Expo Doctor | 20/20 项通过。补齐 `expo-audio` 对已安装的 `expo-asset` 直接依赖声明，沿用锁文件中的 58.0.21。 |
+| Android ARM64 Release | JDK 17、Android SDK 37、Gradle 9.4.1 运行 `:app:assembleRelease`，保留项目默认 R8 设置。构建成功，`apksigner` 验证 v2 签名通过。包名 `app.penlia.mobile`，架构 `arm64-v8a`，文件 51,961,991 字节。 |
 | 设计与单元测试 | `node --test tests/*.test.mjs server/deploy/dms-migration.test.mjs` 通过，20/20，包括语义色和 WCAG AA 对比度。 |
 | 本地业务与迁移 | PostgreSQL 17 上 P0 8/8、P1 8/8、P2 12/12、P3 8/8、手机号安全 8/8。隔离数据库应用并重新执行 003–008 DMS 脚本。短信、RTC 等测试使用已有测试替身。 |
 | 正式 Web 路径 | 真账号流程登录、接受群邀请、群消息收发、打开受保护动态链接、全屏看图、图库选图及发布仅自己可见的纯图片动态、好友申请处理、打开日记与世界、显示忙闲范围且不泄露私人日程标题、地图无坐标场景、默认手机号查找关闭、在资料页选择并裁剪本机头像、跨页面深色持久化均跑通。 |
 | 独立演示路径 | 先完成手动滑块，再获取模拟短信并登录。会话打开、演示文本发送、附件菜单和表情操作均跑通。 |
+
+本机 Release APK 的 SHA-256 为 `cdafdc5bef8eef52282afe737723090b4e9dc02cf9b26a212ca9ba0c0ef9a75f`，使用项目的本地签名配置。
 
 仍需用 Android 和 iPhone 真机检查系统字体放大、刘海与底部手势区、软键盘、系统相册权限、后台上传、弱网与通话。环信单聊、厂商通知和 RTC 服务等待配置后的真实双端验证。正式动态 API 当前没有点赞与评论契约，本机空间原有互动继续可用。聊天列表未批量加载好友图片状态，已授权的状态继续在好友资料展示。次级路由逐页布局、系统大字号和各页面全部异常状态尚未完成独立验收。
