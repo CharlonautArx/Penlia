@@ -44,8 +44,8 @@ locate() {
   local label="$1" xy tree="$results/ui.xml"
   for attempt in $(seq 1 10); do
     assert_pid
-    if adb shell uiautomator dump /sdcard/penlia-smoke.xml >/dev/null 2>&1; then
-      adb pull /sdcard/penlia-smoke.xml "$tree" >/dev/null
+    if adb shell uiautomator dump /sdcard/penlia-smoke.xml >/dev/null 2>&1 &&
+      adb pull /sdcard/penlia-smoke.xml "$tree" >/dev/null && [ -s "$tree" ]; then
       xy=$(python3 - "$tree" "$label" <<'PY'
 import re
 import sys
