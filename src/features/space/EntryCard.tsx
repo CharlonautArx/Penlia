@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Avatar, Button, Icon, IconButton, ListRow, Sheet } from '../../components/ui';
+import { Avatar, Button, Icon, IconButton, ListRow, Sheet, Tag } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { colors, styles, type } from '../../theme';
 import { localId } from '../local/document';
@@ -88,7 +88,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
         <Text style={styles.strong}>{author.name}</Text>
         <Text style={styles.small}>{createdTime(entry.at)}{entry.editedAt ? ' · 已编辑' : ''}</Text>
       </View>
-      {mine && !viewer && <Text style={local.audience}>{audienceName(entry.audience)}</Text>}
+      {mine && !viewer && <Tag>{audienceName(entry.audience)}</Tag>}
       {mine && !viewer && <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setSheet('options')} />}
     </View>
     {entry.kind === 'journal' && !full
@@ -203,7 +203,6 @@ const local = StyleSheet.create({
     borderBottomWidth: 5, borderBottomColor: colors.backdrop },
   full: { marginHorizontal: -16, borderBottomWidth: 0 },
   kind: { ...styles.small, color: colors.accent },
-  audience: { ...styles.small, color: colors.accent, backgroundColor: colors.pink, paddingHorizontal: 6, borderRadius: 5, overflow: 'hidden' },
   articleTitle: { ...type.article, color: colors.text, marginTop: 7 },
   paragraph: { ...styles.body, fontSize: 16, lineHeight: 27, marginBottom: 5 },
   location: { ...styles.row, gap: 5 },

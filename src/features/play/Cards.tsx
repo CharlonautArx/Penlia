@@ -1,22 +1,27 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Icon } from '../../components/ui';
-import { colors, styles, type } from '../../theme';
+import { GlassLayer } from '../../components/material';
+import { Icon, Tag } from '../../components/ui';
+import { colors, radius, space, styles, touch, type } from '../../theme';
 import type { Game } from './games';
 import { disclosure, type Place } from './places';
 
-export function Chips<T extends string>({ items, value, onChange }: {
-  items: readonly T[]; value?: T; onChange: (value: T) => void;
+export function Chips<T extends string>({ items, value, onChange, horizontal = false }: {
+  items: readonly T[]; value?: T; onChange: (value: T) => void; horizontal?: boolean;
 }) {
-  return <View style={local.chips}>
-    {items.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={item}
+  const choices = items.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={item}
       accessibilityState={{ selected: value === item }} onPress={() => onChange(item)}
-      style={({ pressed }) => [local.chip, value === item && local.chosen, pressed && local.pressed]}>
+      style={({ pressed }) => [local.chip, pressed && local.pressed]}>
+      {value === item && <GlassLayer tone="control" roundness={radius.pill} />}
       <Text style={[styles.muted, value === item && local.chosenText]}>{item}</Text>
-    </Pressable>)}
-  </View>;
+    </Pressable>);
+  return horizontal
+    ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={local.chipsHorizontal}>
+      {choices}
+    </ScrollView>
+    : <View style={local.chips}>{choices}</View>;
 }
 
 export function GameCard({ game, featured = false }: { game: Game; featured?: boolean }) {
@@ -50,8 +55,8 @@ export function PlaceCard({ place, compact = false }: { place: Place; compact?: 
     {place.image && <Image source={place.image} style={compact ? local.thumbnail : local.placePhoto} />}
     <View style={[local.placeCopy, compact && styles.grow]}>
       <View style={local.placeHeading}>
-        <Text style={[styles.strong, styles.grow]} numberOfLines={1}>{place.title}</Text>
-        <Text style={local.tag}>{disclosure(place)}</Text>
+        <Text style={[styles.strong, styles.grow]} numberOfLines={2}>{place.title}</Text>
+        <Tag>{disclosure(place)}</Tag>
       </View>
       <Text style={styles.small}>{place.city} · {place.district}　|　{place.category}　|　{place.group}</Text>
       <Text style={styles.muted} numberOfLines={compact ? 1 : 2}>{place.intro}</Text>
@@ -60,11 +65,12 @@ export function PlaceCard({ place, compact = false }: { place: Place; compact?: 
 }
 
 const local = StyleSheet.create({
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  chip: { minHeight: 44, minWidth: 47, paddingHorizontal: 10, borderRadius: 10, justifyContent: 'center',
-    alignItems: 'center', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
-  chosen: { backgroundColor: colors.pink, borderColor: '#F2C8D4' },
-  chosenText: { ...type.control, color: colors.accent },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  chipsHorizontal: { gap: space.xs },
+  chip: { minHeight: touch, minWidth: touch, paddingHorizontal: space.sm, paddingVertical: space.xxs,
+    borderRadius: radius.pill, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: colors.panel, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  chosenText: { ...type.control, color: colors.ink },
   pressed: { opacity: 0.7 },
   hero: { minHeight: 127, borderRadius: 14, backgroundColor: '#3B2843', overflow: 'hidden', justifyContent: 'center' },
   heroImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
@@ -77,10 +83,10 @@ const local = StyleSheet.create({
     borderColor: colors.border, borderWidth: 1, borderRadius: 12 },
   square: { width: 54, height: 45, borderRadius: 8, backgroundColor: colors.lavender },
   thumbnail: { width: 84, height: '100%', minHeight: 94, backgroundColor: colors.lavender },
-  place: { borderRadius: 14, backgroundColor: colors.panel, borderColor: colors.border, borderWidth: 1, overflow: 'hidden' },
+  place: { borderRadius: radius.surface, backgroundColor: colors.panel, borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   placeCompact: { flexDirection: 'row' },
-  placePhoto: { width: '100%', height: 143, resizeMode: 'cover', backgroundColor: colors.lavender },
-  placeCopy: { padding: 11, gap: 4 },
+  placePhoto: { width: '100%', height: 168, resizeMode: 'cover', backgroundColor: colors.lavender },
+  placeCopy: { padding: space.sm, gap: space.xxs },
   placeHeading: { ...styles.row, gap: 4 },
-  tag: { paddingHorizontal: 5, borderRadius: 5, overflow: 'hidden', lineHeight: 17, fontSize: 10, color: colors.accent, backgroundColor: colors.pink },
 });

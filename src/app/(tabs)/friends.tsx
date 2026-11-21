@@ -2,7 +2,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Section, Sheet } from '../../components/ui';
+import { GlassLayer } from '../../components/material';
+import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Section, Sheet, Tag } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { QRImage, ScanCode } from '../../features/privacy/CodeSheet';
 import { demoPortrait } from '../../demo/visuals';
@@ -84,9 +85,9 @@ export default function FriendsScreen() {
         {!!listError && <Notice action="重试" onAction={() => void reload()}>{listError}</Notice>}
       </View>
       <ListRow title="新的朋友" detail={incoming.length ? '有好友申请待处理' : '查看好友申请'}
-        left={<View style={local.requestsIcon}><Icon name="people-outline" color={colors.accent} /></View>}
+        left={<View style={local.requestsIcon}><GlassLayer /><Icon name="people-outline" /></View>}
         trailing={<View style={styles.row}>
-          {incoming.length > 0 && <Text style={local.counter}>{incoming.length}</Text>}
+          {incoming.length > 0 && <Tag>{String(incoming.length)}</Tag>}
           <Icon name="chevron-forward" size={16} color={colors.quiet} />
         </View>} onPress={() => openSheet('requests')} />
       <View style={local.section}><Section title="我的好友" detail={relationships ? friends.length + ' 位' : undefined} /></View>
@@ -151,8 +152,7 @@ export default function FriendsScreen() {
 const local = StyleSheet.create({
   control: { paddingHorizontal: space.md, paddingTop: space.xxs, paddingBottom: space.sm, gap: space.xs },
   section: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
-  requestsIcon: { width: 44, height: 44, borderRadius: radius.control, backgroundColor: colors.pink, alignItems: 'center', justifyContent: 'center' },
-  counter: { ...type.caption, color: colors.accent, backgroundColor: colors.pink, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 2 },
+  requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   contact: { ...styles.row, gap: 0, paddingRight: 6 },
   requestActions: { flexDirection: 'row' },
 });

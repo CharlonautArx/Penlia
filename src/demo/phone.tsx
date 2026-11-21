@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GlassLayer } from '../components/material';
 import { AvatarEditor } from '../features/media/AvatarEditor';
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Sheet } from '../components/ui';
 import { brandGradient, colors, radius, space, styles, touch, type } from '../theme';
@@ -214,7 +215,7 @@ function SliderPreview({ onClose, onSuccess }: { onClose: () => void; onSuccess:
       </View>
     </View>
     <View style={local.slider}>
-      <View style={[local.sliderTrail, { width: position + 22 }]} />
+      <View style={[local.sliderTrail, { width: position + 22 }]}><GlassLayer tone="control" /></View>
       <Text style={local.sliderText}>拖动完成拼图</Text>
       <View {...drag.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="拖动拼图滑块"
         accessibilityValue={{ min: 0, max: 100, now: travel > 0 ? Math.round(position / travel * 100) : 0 }}
@@ -263,7 +264,7 @@ const local = StyleSheet.create({
   pieceImage: { position: 'absolute', top: -52, height: 147, resizeMode: 'cover' },
   slider: { minHeight: 48, borderRadius: 11, overflow: 'hidden', justifyContent: 'center', backgroundColor: colors.backdrop },
   sliderText: { ...styles.muted, textAlign: 'center', paddingLeft: 45 },
-  sliderTrail: { position: 'absolute', height: '100%', backgroundColor: colors.pink },
+  sliderTrail: { position: 'absolute', height: '100%' },
   thumb: { position: 'absolute', width: 48, height: 48, borderRadius: 11, overflow: 'hidden' },
   thumbGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   puzzleFooter: { ...styles.row, justifyContent: 'space-between' },

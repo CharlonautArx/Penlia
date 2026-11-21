@@ -1,8 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
 import {
-  ActivityIndicator, Animated, Image, type ImageSourcePropType, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Animated, Easing, Image, type ImageSourcePropType, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
   type ScrollViewProps, StyleSheet, Text, TextInput, type TextInputProps, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,8 +9,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
 import { isUiDemo } from '../demo/mode';
-import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
+import { colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useAppearance } from './appearance';
+import { GlassLayer } from './material';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -25,8 +25,9 @@ export function IconButton({ label, icon, onPress, tinted = false, disabled = fa
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
       accessibilityState={{ disabled }} onPress={onPress}
-      style={({ pressed }) => [ui.iconButton, tinted && ui.tinted, pressed && ui.pressed, disabled && ui.disabled]}>
-      <Icon name={icon} color={tinted ? colors.accent : colors.ink} />
+      style={({ pressed }) => [ui.iconButton, pressed && ui.pressed, disabled && ui.disabled]}>
+      {tinted && <GlassLayer tone="control" roundness={radius.pill} />}
+      <Icon name={icon} />
     </Pressable>
   );
 }
@@ -60,7 +61,14 @@ export function TopBar({ title, actions, back }: { title: string; actions?: Reac
 }
 
 export function DemoLabel() {
-  return isUiDemo ? <Text style={ui.demoLabel}>演示</Text> : null;
+  return isUiDemo ? <Tag>演示</Tag> : null;
+}
+
+export function Tag({ children }: { children: string }) {
+  return <View style={ui.tag}>
+    <GlassLayer roundness={radius.small} />
+    <Text style={ui.tagText}>{children}</Text>
+  </View>;
 }
 
 export function BrandMark({ size = 54 }: { size?: number }) {
@@ -74,7 +82,7 @@ export function Avatar({ name, source, size = 46, userId, localPhotoId }: {
   const accountPhoto = useAccountPhoto(userId);
   const uri = useLocalPhotoUri(localPhotoId ?? accountPhoto);
   const imageSource = uri ? { uri } : source;
-  const shades = [colors.pink, colors.lavender, colors.ice, colors.search];
+  const shades = [colors.tint, colors.lavender, colors.ice, colors.search];
   const color = shades[(name.codePointAt(0) ?? 0) % shades.length];
   const frame = { width: size, height: size, borderRadius: size / 2 };
   return imageSource
@@ -88,16 +96,16 @@ export function Button({ label, icon, onPress, disabled, variant = 'primary' }: 
   label: string; icon?: IconName; onPress: () => void; disabled?: boolean;
   variant?: 'primary' | 'soft' | 'danger' | 'gradient' | 'quiet';
 }) {
-  const foreground = variant === 'primary' ? fixed.onAction : variant === 'danger' ? colors.danger : variant === 'gradient' ? fixed.onBrand : colors.ink;
+  const primary = variant === 'primary' || variant === 'gradient';
+  const foreground = variant === 'danger' ? colors.danger : colors.ink;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }}
       disabled={disabled} onPress={onPress}
       style={({ pressed }) => [
-        ui.button, variant === 'primary' && ui.primary, variant === 'soft' && ui.soft,
+        ui.button, variant === 'soft' && ui.soft,
         variant === 'danger' && ui.danger, pressed && ui.pressed, disabled && ui.disabled,
       ]}>
-      {variant === 'gradient' && <LinearGradient colors={brandGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
-        style={StyleSheet.absoluteFill} />}
+      {primary && <GlassLayer tone={variant === 'gradient' ? 'feature' : 'control'} />}
       {icon && <Icon name={icon} size={17} color={foreground} />}
       <Text style={[ui.buttonText, { color: foreground }]}>{label}</Text>
     </Pressable>
@@ -158,7 +166,7 @@ export function Sheet({ title, onClose, children, footer, ...props }: ScrollView
   title: string; onClose: () => void; children: ReactNode; footer?: ReactNode;
 }) {
   const { reduced } = useAppearance();
-  const entering = useRef(new Animated.Value(1)).current;
+  const entering = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) {
       entering.setValue(1);
@@ -166,7 +174,7 @@ export function Sheet({ title, onClose, children, footer, ...props }: ScrollView
     }
     entering.setValue(0);
     const transition = Animated.timing(entering, {
-      toValue: 1, duration: motion.sheet, useNativeDriver: Platform.OS !== 'web', isInteraction: false,
+      toValue: 1, duration: motion.sheet, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== 'web', isInteraction: false,
     });
     transition.start();
     return () => transition.stop();
@@ -178,6 +186,7 @@ export function Sheet({ title, onClose, children, footer, ...props }: ScrollView
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
       }]}>
       <SafeAreaView edges={['bottom', 'left', 'right']} style={ui.sheet}>
+        <GlassLayer tone="chrome" roundness={radius.sheet} />
         <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
           <Text accessibilityRole="header" style={[styles.section, styles.grow]}>{title}</Text>
@@ -210,6 +219,7 @@ export function Segments<T extends string>({ options, value, onChange, label }: 
     {options.map((option) => <Pressable key={option.id} accessibilityRole="button"
       accessibilityState={{ selected: option.id === value }} onPress={() => onChange(option.id)}
       style={({ pressed }) => [ui.segment, option.id === value && ui.activeSegment, pressed && ui.pressed]}>
+      {option.id === value && <GlassLayer roundness={radius.small} />}
       <Text style={option.id === value ? ui.activeSegmentText : styles.muted}>{option.label}</Text>
     </Pressable>)}
   </View>;
@@ -234,18 +244,16 @@ const ui = StyleSheet.create({
   title: { flexShrink: 1, ...type.title, color: colors.text },
   pageTitle: { ...type.heading },
   actions: { flexDirection: 'row', alignItems: 'center' },
-  demoLabel: { color: colors.accent, backgroundColor: colors.pink, borderRadius: radius.small, overflow: 'hidden',
-    paddingHorizontal: space.xs, paddingVertical: space.xxs, ...type.tag },
+  tag: { alignSelf: 'center', borderRadius: radius.small, flexShrink: 0, paddingHorizontal: space.xs, paddingVertical: 2 },
+  tagText: { ...type.tag, color: colors.ink },
   avatar: { alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontWeight: weight.medium },
   iconButton: { width: touch, minHeight: touch, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  tinted: { backgroundColor: colors.pink },
   button: { minHeight: touch, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, gap: space.xs,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 1 },
-  primary: { backgroundColor: colors.action },
   soft: { backgroundColor: colors.search },
-  danger: { backgroundColor: colors.pink },
-  pressed: { opacity: 0.65 },
+  danger: { backgroundColor: colors.dangerSurface },
+  pressed: { opacity: 0.76 },
   disabled: { opacity: 0.48 },
   buttonText: { ...type.control, flexShrink: 1, textAlign: 'center' },
   search: { minHeight: touch, borderRadius: radius.control, backgroundColor: colors.search, flexDirection: 'row',
@@ -269,9 +277,9 @@ const ui = StyleSheet.create({
   skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.search },
   skeletonLine: { height: 8, borderRadius: 4, marginVertical: space.xxs, backgroundColor: colors.search },
   segments: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, rowGap: 0, ...styles.divider },
-  segment: { minHeight: touch, justifyContent: 'center', borderBottomWidth: 2, borderColor: 'transparent' },
-  activeSegment: { borderBottomColor: colors.accent },
-  activeSegmentText: { ...type.control, color: colors.accent },
+  segment: { minHeight: touch, justifyContent: 'center', paddingHorizontal: space.xs, paddingVertical: space.xxs },
+  activeSegment: { borderRadius: radius.small },
+  activeSegmentText: { ...type.control, color: colors.ink },
   settings: { gap: space.xs },
   settingLabel: { paddingHorizontal: space.xxs },
   settingRows: { borderRadius: radius.surface, backgroundColor: colors.panel, overflow: 'hidden' },

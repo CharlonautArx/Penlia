@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { GlassLayer } from '../../components/material';
 import { Avatar, Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { OrbFace, PetOrb, type Expression } from '../../features/pet/Orb';
@@ -11,7 +12,7 @@ import { usePets } from '../../features/pet/store';
 import { createdTime } from '../../features/space/model';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { brandGradient, colors, styles, type } from '../../theme';
+import { brandGradient, colors, radius, styles, type } from '../../theme';
 
 const newborn = emptyPet();
 
@@ -87,6 +88,7 @@ export default function PetScreen() {
             </View>
           </View>
           <View style={local.energy}>
+            <GlassLayer roundness={radius.surface} />
             <Text style={styles.small}>聊天能量</Text>
             <Text style={local.value}>{pet.energy}</Text>
           </View>
@@ -100,7 +102,8 @@ export default function PetScreen() {
         <View style={local.foods}>{foods.map((food) => <Pressable key={food.id} accessibilityRole="button" accessibilityLabel={food.name}
           accessibilityState={{ selected: selected?.id === food.id }}
           onPress={() => { setSelected(food); setFeedback(''); }}
-          style={({ pressed }) => [local.food, selected?.id === food.id && local.foodSelected, pressed && local.pressed]}>
+          style={({ pressed }) => [local.food, pressed && local.pressed]}>
+          {selected?.id === food.id && <GlassLayer tone="control" roundness={radius.control} />}
           <Text style={local.emoji}>{food.emoji}</Text>
           <Text style={styles.strong}>{food.name}</Text>
           <Text style={styles.small}>{food.cost} 能量</Text>
@@ -173,7 +176,7 @@ const local = StyleSheet.create({
   inline: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   stats: { flexDirection: 'row', gap: 9 },
   vital: { ...styles.card, flex: 1, padding: 10, gap: 4 },
-  energy: { ...styles.card, width: 110, padding: 10, gap: 4, backgroundColor: colors.pink },
+  energy: { ...styles.card, width: 110, padding: 10, gap: 4 },
   value: { ...type.metric, color: colors.ink },
   track: { height: 6, borderRadius: 4, backgroundColor: colors.lavender, overflow: 'hidden' },
   progress: { height: '100%', borderRadius: 4 },
@@ -182,7 +185,6 @@ const local = StyleSheet.create({
   food: { width: '31.7%', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel,
     minHeight: 78, alignItems: 'center', justifyContent: 'center', paddingVertical: 7 },
   faceTile: { width: '31.7%', borderRadius: 12, backgroundColor: colors.backdrop, alignItems: 'center', paddingVertical: 9, gap: 6 },
-  foodSelected: { backgroundColor: colors.pink, borderColor: '#DA9CB0' },
   emoji: { fontSize: 20, marginBottom: 1 },
   pressed: { opacity: 0.67 },
   demoActions: { ...styles.card, gap: 9 },

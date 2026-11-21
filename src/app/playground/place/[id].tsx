@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, Linking, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet } from '../../../components/ui';
+import { Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet, Tag } from '../../../components/ui';
 import { discoveryCatalog } from '../../../features/play/catalog';
 import { InviteButton, useSavedPlaces } from '../../../features/play/Gather';
 import { bookingUrl, disclosure } from '../../../features/play/places';
@@ -27,7 +27,7 @@ export default function PlaceScreen() {
       <View style={local.identity}>
         <View style={styles.row}>
           <Text style={[local.title, styles.grow]}>{place.title}</Text>
-          <Text style={local.tag}>{disclosure(place)}</Text>
+          <Tag>{disclosure(place)}</Tag>
         </View>
         <View style={[styles.row, local.meta]}>
           <Icon name="location-outline" size={17} color={colors.accent} />
@@ -70,8 +70,6 @@ const local = StyleSheet.create({
   image: { width: '100%', height: 215, borderRadius: 15, backgroundColor: colors.lavender },
   identity: { gap: 7 },
   title: { ...type.article, color: colors.text },
-  tag: { color: colors.accent, backgroundColor: colors.pink, paddingHorizontal: 8, borderRadius: 6,
-    overflow: 'hidden', fontSize: 11, lineHeight: 20 },
   meta: { gap: 7 },
   block: { ...styles.card, gap: 8 },
 });

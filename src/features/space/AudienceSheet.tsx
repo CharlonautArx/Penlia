@@ -1,3 +1,4 @@
+import { GlassLayer } from '../../components/material';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -46,6 +47,7 @@ export function Choice({ label, detail, picked, onPress, left }: {
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: picked }}
     onPress={onPress} style={({ pressed }) => [local.choice, pressed && local.pressed]}>
+    {picked && <GlassLayer roundness={0} />}
     {left}
     <View style={styles.grow}>
       <Text style={styles.strong}>{label}</Text>
@@ -60,5 +62,5 @@ const local = StyleSheet.create({
   footer: { gap: 5 },
   options: { borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   choice: { ...styles.row, ...styles.divider, minHeight: 48, paddingHorizontal: 12, paddingVertical: 8 },
-  pressed: { backgroundColor: colors.pink },
+  pressed: { opacity: 0.72 },
 });

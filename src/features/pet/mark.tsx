@@ -27,7 +27,7 @@ function PetMark({ size }: { size: number }) {
 }
 
 const local = StyleSheet.create({
-  button: { width: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, backgroundColor: colors.pink },
+  button: { width: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, backgroundColor: colors.tint },
   pressed: { opacity: 0.72 },
-  frame: { overflow: 'hidden', backgroundColor: colors.pink, justifyContent: 'center', alignItems: 'center' },
+  frame: { overflow: 'hidden', backgroundColor: colors.tint, justifyContent: 'center', alignItems: 'center' },
 });

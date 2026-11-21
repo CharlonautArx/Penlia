@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { GlassLayer } from '../../components/material';
 import { Icon, type IconName } from '../../components/ui';
 import { colors, radius, space, styles, touch, type } from '../../theme';
 
 export function LifeLead({ title, detail, icon, tone = 'paper', children }: {
   title: string; detail?: string; icon?: IconName; tone?: 'paper' | 'rose' | 'mint'; children?: ReactNode;
 }) {
-  return <View style={[local.lead, tone === 'rose' && local.rose, tone === 'mint' && local.mint]}>
+  return <View style={[local.lead, tone === 'mint' && local.mint]}>
+    {tone === 'rose' && <GlassLayer roundness={radius.surface} />}
     {!!icon && <View style={local.leadIcon}><Icon name={icon} color={colors.accent} size={22} /></View>}
     {!!detail && <Text style={styles.muted}>{detail}</Text>}
     <Text accessibilityRole="header" style={local.title}>{title}</Text>
@@ -40,7 +42,8 @@ export function CalendarCell({ date, selected, today, count, weekday, onPress }:
     + (today ? '，今天' : '') + (count ? '，' + count + ' 项已显示日程' : '');
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={{ selected }} onPress={onPress}
-    style={({ pressed }) => [local.cell, selected && local.selected, pressed && local.pressed]}>
+    style={({ pressed }) => [local.cell, pressed && local.pressed]}>
+    {selected && <GlassLayer tone="control" roundness={radius.small} />}
     {!!weekday && <Text style={styles.small}>{weekday}</Text>}
     <Text style={[local.day, (today || selected) && local.today]}>{date.getDate()}</Text>
     {count > 0 && <View style={local.marker} />}
@@ -49,7 +52,6 @@ export function CalendarCell({ date, selected, today, count, weekday, onPress }:
 
 const local = StyleSheet.create({
   lead: { backgroundColor: colors.panel, padding: space.md, gap: space.xxs, borderRadius: radius.surface },
-  rose: { backgroundColor: colors.pink },
   mint: { backgroundColor: colors.ice },
   title: { ...type.title, color: colors.text },
   leadIcon: { alignSelf: 'flex-start', paddingBottom: space.xxs },
@@ -62,7 +64,6 @@ const local = StyleSheet.create({
   pin: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
   timelineContent: { ...styles.grow, paddingBottom: space.xs },
   cell: { minHeight: touch, minWidth: 0, borderRadius: radius.small, justifyContent: 'center', alignItems: 'center', gap: 1 },
-  selected: { backgroundColor: colors.pink },
   pressed: { opacity: 0.7 },
   day: { ...type.emphasis, color: colors.text },
   today: { color: colors.accent },

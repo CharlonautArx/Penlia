@@ -2,6 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { GlassLayer } from '../../components/material';
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Screen, SettingGroup, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { demoPortrait } from '../../demo/visuals';
@@ -44,6 +45,7 @@ export default function PersonScreen() {
     {friend && (isUiDemo||profile) ? <>
       <View style={local.profile}>
         <View style={local.avatarFrame}>
+          <GlassLayer tone="control" roundness={radius.pill} />
           <Avatar name={friend.name} source={demoPortrait(friend.username)} size={76} />
         </View>
         <View style={styles.grow}>
@@ -90,7 +92,7 @@ function FriendLifeStatus({id}:{id:string}){
 
 const local = StyleSheet.create({
   profile: { ...styles.row, padding: space.md, backgroundColor: colors.panel, borderRadius: radius.surface, gap: space.md },
-  avatarFrame: { padding: space.xxs, borderRadius: radius.pill, backgroundColor: colors.pink },
+  avatarFrame: { padding: space.xxs, borderRadius: radius.pill },
   shortcuts: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   name: { ...type.title, color: colors.text },
   bio: { paddingHorizontal: space.xxs },

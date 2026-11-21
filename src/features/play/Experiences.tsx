@@ -1,4 +1,4 @@
-import { LinearGradient } from 'expo-linear-gradient';
+import { GlassLayer } from '../../components/material';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -99,11 +99,12 @@ export function PromptGame() {
   }
 
   return <View style={game.body}>
-    <LinearGradient colors={['#FDE8EF', '#F4EDF7', '#E4F9F6']} style={game.prompt}>
+    <View style={game.prompt}>
+      <GlassLayer tone="feature" />
       <Icon name="chatbubble-ellipses-outline" size={27} color={colors.accent} />
       <Text accessibilityLiveRegion="polite" style={game.question}>{index === undefined ? '今天从哪句话开始？' : prompts[index]}</Text>
       <Text style={styles.small}>{draws ? `已抽 ${draws} 张 · 轮到下一位朋友回答` : '轮流抽卡，想答就答。'}</Text>
-    </LinearGradient>
+    </View>
     <Button label={index === undefined ? '抽一张' : '换一题'} icon="shuffle" variant="gradient" onPress={draw} />
   </View>;
 }
@@ -175,6 +176,6 @@ const game = StyleSheet.create({
   prompt: { borderRadius: 15, padding: 18, gap: 12 },
   question: { ...type.hero, color: colors.ink },
   target: { minHeight: 155, borderRadius: 15, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: colors.lavender, padding: 15 },
-  waiting: { backgroundColor: colors.pink },
+  waiting: { backgroundColor: colors.tint },
   active: { backgroundColor: '#AEFFF8' },
 });

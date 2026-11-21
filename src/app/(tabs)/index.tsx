@@ -13,6 +13,7 @@ import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { space } from '../../theme';
 import { ConversationRow } from '../../features/chat/ui';
+import { useReportConversationUnread } from '../../features/chat/unread';
 
 type Thread = { person: Relationship; last: RichMessage; unread: number; pinned?: boolean; pinnedTime?: number };
 
@@ -70,6 +71,10 @@ export default function ChatsScreen() {
       return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
     }).sort((a, b) => b.last.timestamp - a.last.timestamp)
     : threads.filter(({ person }) => relationships?.some((contact) => contact.userId === person.userId && contact.status === 'accepted'));
+
+  const reportUnread = useReportConversationUnread();
+  const unreadTotal = visibleThreads.reduce((sum, thread) => sum + thread.unread, 0);
+  useEffect(() => { reportUnread(unreadTotal); }, [reportUnread, unreadTotal]);
 
   const term = query.trim().toLowerCase();
   const filtered = visibleThreads.filter(({ person, last }) =>

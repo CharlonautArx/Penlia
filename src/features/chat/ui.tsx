@@ -3,8 +3,9 @@ import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Button, Icon, IconButton, Sheet } from '../../components/ui';
-import { colors, fixed, radius, space, styles, touch, type } from '../../theme';
+import { colors, radius, space, styles, touch, type } from '../../theme';
 import { momentShareCaption, momentSharePath } from '../moments/model';
 
 export const chatLayout = StyleSheet.create({
@@ -33,9 +34,7 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
       <View style={ui.line}>
         {silent && <Icon name="moon-outline" size={13} color={colors.moon} />}
         <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{preview}</Text>
-        {unread > 0 && <View style={ui.unread}>
-          <Text style={ui.unreadText}>{unread > 99 ? '99+' : unread}</Text>
-        </View>}
+        <UnreadMark count={unread} />
       </View>
     </View>
   </Pressable>;
@@ -126,7 +125,8 @@ export function MessageComposer({ label, placeholder, value, onChange, editable,
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={sendLabel} accessibilityState={{ disabled: sendDisabled, busy: sendLabel !== '发送' }}
         disabled={sendDisabled} onPress={onSend} style={({ pressed }) => [ui.send, sendDisabled && ui.sendDisabled, pressed && ui.pressedBubble]}>
-        <Icon name="arrow-up" size={21} color={sendDisabled ? colors.quiet : fixed.onAction} />
+        {!sendDisabled && <GlassLayer tone="control" roundness={radius.pill} />}
+        <Icon name="arrow-up" size={21} color={sendDisabled ? colors.quiet : colors.ink} />
       </Pressable>
     </View>
   </View>;
@@ -140,8 +140,6 @@ const ui = StyleSheet.create({
   line: { ...styles.row, gap: space.xs },
   time: { ...type.time, color: colors.quiet },
   pressedRow: { backgroundColor: colors.backdrop },
-  unread: { minWidth: 20, minHeight: 20, borderRadius: radius.pill, backgroundColor: colors.pink, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xxs },
-  unreadText: { ...type.tag, color: colors.accent },
   timestamp: { alignItems: 'center', paddingTop: space.md, paddingBottom: space.xs },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 3, gap: space.xs },
   firstMessage: { paddingTop: space.xs },
@@ -163,6 +161,6 @@ const ui = StyleSheet.create({
   composerControls: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xxs },
   composerEntry: { ...styles.grow, flexDirection: 'row', alignItems: 'flex-end', backgroundColor: colors.search, borderRadius: radius.surface },
   composerInput: { ...styles.grow, ...type.body, color: colors.text, minHeight: touch, maxHeight: 124, paddingHorizontal: space.sm, paddingVertical: 11 },
-  send: { width: touch, minHeight: touch, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.action, borderRadius: radius.pill },
+  send: { width: touch, minHeight: touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
   sendDisabled: { backgroundColor: colors.search },
 });

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { type, weight } from '../src/typography.ts';
+import { glass, glassStops, unread } from '../src/material.ts';
 
 const palettes = JSON.parse(readFileSync(new URL('../src/palette.json', import.meta.url)));
 function luminance(hex) {
@@ -25,7 +26,7 @@ test('body, secondary labels, buttons and message colors meet normal-text AA con
   const pairs = [
     ['text','backdrop'], ['text','panel'], ['text','lavender'], ['text','search'],
     ['muted','panel'], ['muted','backdrop'], ['muted','ice'], ['quiet','panel'], ['quiet','search'],
-    ['accent','panel'], ['accent','pink'], ['danger','pink'], ['moon','lavender'], ['#FFFFFF','action'],
+    ['accent','panel'], ['accent','tint'], ['danger','dangerSurface'], ['moon','lavender'], ['#FFFFFF','action'],
   ];
   for (const [mode, palette] of Object.entries(palettes)) {
     for (const [foreground, surface] of pairs) {
@@ -49,4 +50,23 @@ test('system typography separates regular body text, medium labels, and the game
     assert.ok(style.lineHeight > style.fontSize, role);
     assert.equal(style.fontFamily, undefined, role);
   }
+});
+
+test('glass text and unread digits retain AA contrast against every gradient stop', () => {
+  function flatten(rgba, background) {
+    const opacity = Number.parseInt(rgba.slice(7), 16) / 255;
+    return '#' + [1, 3, 5].map((offset) => {
+      const top = Number.parseInt(rgba.slice(offset, offset + 2), 16);
+      const bottom = Number.parseInt(background.slice(offset, offset + 2), 16);
+      return Math.round(top * opacity + bottom * (1 - opacity)).toString(16).padStart(2, '0');
+    }).join('');
+  }
+  for (const [mode, material] of Object.entries(glass)) {
+    for (const tone of Object.keys(material.opacity)) {
+      for (const stop of glassStops(mode, tone)) {
+        assert.ok(contrast(palettes[mode].ink, flatten(stop, material.base)) >= 4.5, mode + ' ' + tone);
+      }
+    }
+  }
+  for (const stop of unread.stops) assert.ok(contrast(unread.ink, stop) >= 4.5);
 });

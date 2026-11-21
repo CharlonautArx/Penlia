@@ -4,7 +4,7 @@ import { type } from './typography';
 
 export { palette };
 export { type, weight } from './typography';
-export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
+export { brandGradient } from './material';
 export const colorNames = Object.keys(palette.light) as (keyof typeof palette.light)[];
 type ColorName = typeof colorNames[number];
 export const colors = Object.fromEntries(colorNames.map((name) => [

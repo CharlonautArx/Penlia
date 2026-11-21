@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import { GlassLayer } from '../../components/material';
 import { useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -55,7 +56,7 @@ export function LocationComposer({ online, onClose, onConfirm, purpose = 'chat' 
 
 function LocationFace({ value }: { value: LocationValue }) {
   return <View style={local.card}>
-    <View style={local.icon}><Icon name="location-outline" color={colors.accent} size={23} /></View>
+    <View style={local.icon}><GlassLayer roundness={11} /><Icon name="location-outline" color={colors.accent} size={23} /></View>
     <View style={styles.grow}>
       <Text style={styles.strong}>{value.name || '当前位置'}</Text>
       {!!value.address && <Text numberOfLines={2} style={styles.muted}>{value.address}</Text>}
@@ -89,5 +90,5 @@ export function LocationBubble({ value }: { value: LocationValue }) {
 
 const local = StyleSheet.create({
   card: { ...styles.row, minWidth: 203, padding: 8, gap: 9 },
-  icon: { width: 39, height: 39, borderRadius: 11, backgroundColor: colors.pink, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 39, height: 39, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
 });
