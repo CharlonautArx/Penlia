@@ -23,7 +23,9 @@ P3 开发分支为 `codex/penlia-p3-world`，起点为已验收的 P2 提交 `f5
 | P3 HTTP 和 PostgreSQL 17 | **8/8**，含套件入口及 7 个场景。验证邀请确认与拒绝，文本、PNG、MP4，媒体 Range、撤权、旧成员版本和新成员隔离，摆放、场景的并发版本、共享宠物状态，来源权限和退出后的作者撤回。另验证 008 在已有 P2 和接力回忆及撤回记录时安全重放。 |
 | 核心回归 | **P0 8/8 · P1 8/8 · P2 12/12 · 手机号 8/8**。回环 HTTP 及隔离 PostgreSQL，测试替身用于 RTC、滑块和短信。 |
 | 单元、迁移和打包 | **18/18**。003 至 008 DMS 用隔离账号及 PostgreSQL 17 各运行两遍。FC ZIP 解压后本地启动成功，`/health` 返回 `{"ok":true}`。 |
-| App 构建与操作 | TypeScript、Expo SDK 58 依赖检查、Android Hermes bundle 和本地 Expo Web 导出通过。浏览器登录两个测试账号中的一个，实际接受接力与世界邀请、保存投稿、打开日记反向连结、与宠物互动并查看纪念物。[实际操作截图](../demo-preview/p3/README.md) |
+| App 构建与操作 | TypeScript、Expo SDK 58 依赖检查、Android Hermes bundle 和本地 Expo Web 导出通过。Gradle 9.4.1 与 JDK 17 完成 ARM64 Release，APK 本地测试签名通过 apksigner 校验。浏览器登录两个测试账号中的一个，实际接受接力与世界邀请、保存投稿、打开日记反向连结、与宠物互动并查看纪念物。[实际操作截图](../demo-preview/p3/README.md) |
+
+本次本地测试 APK 的 SHA-256 为 `4351601568e804e87d376b3eda11e89b47424ca25fdba690f17f250b183e813b`。编译和签名校验属于本地验证，正式签名、APK 分发和真机通信列入集中联调。
 
 重跑 P3 时使用 `127.0.0.1:55xxx` 的隔离 PostgreSQL 17，数据库名为 `penlia_p3_test`，HTTP 业务角色为 `penlia_app`。先应用 001 至 008 所需的脚本和授权，提供合成视频及临时迁移密码 `PENLIA_P0_VIDEO_FIXTURE`、`PENLIA_P0_TEST_ADMIN_PASSWORD`。P0、P1、P2 和手机号使用各自命名的隔离库和现有 fixture。以下构建与测试命令从仓库根目录执行。
 

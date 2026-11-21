@@ -37,7 +37,7 @@ P3 见 [开发与验收](docs/penlia-p3.md)。P2 见 [开发与验收](docs/penl
 
 **DeepSeek 辅助审核 · 已预留默认关闭的脱敏输入接口。** 将来需先确认主动提交证据的用户允许用于辅助审核，案件证据已核验，授权审核员选择片段并确认姓名、地址等必要脱敏。接口从已提交材料生成文本，遮盖常见号码、邮箱、链接和账号。传输内容仅包含案件分类、政策版本、角色类别、脱敏文本和媒体类型。原件、附件地址、账号和工单 ID 留在朋聊服务端。联调前核对数据处理地域、保留、超时、单价及预算。缺少适配器、同意或脱敏确认时应拒绝请求。审核建议只能提供复核方向，人工裁决保留审计。 [P1 审核说明](docs/penlia-p1.md)
 
-**Android 安装包 · P0、P1 与 P2 初次交付的本机 ARM64 Release 编译与测试签名验证通过。** 007 收尾复测通过了 Android Hermes bundle 导出，最新原生包与实机安装留到集中联调。用最终提交构建内部测试 APK，核对包名、版本、签名和发布渠道。现有 EAS `preview` 配置生成 APK；联调构建使用 `EXPO_PUBLIC_API_URL`、公开 IM App Key 和 `EXPO_PUBLIC_PENLIA_UI_DEMO=0`。保持签名连续性，并核对 EAS 配额。至少两台 Android 手机验证全新安装、覆盖升级、弱网、权限拒绝、扫码、相册、视频、消息与推送，记录设备、系统版本及 APK 摘要。 [EAS 配置](eas.json) · [Android APK 构建](https://docs.expo.dev/build-reference/apk/)
+**Android 安装包 · P0–P3 的本机 ARM64 Release 编译与测试签名验证通过。** P3 原生使用 Gradle 9.4.1 和 JDK 17，通过 apksigner 校验，实机安装及联调版签发待授权。用最终提交构建内部测试 APK，核对包名、版本、签名和发布渠道。现有 EAS `preview` 配置生成 APK；联调构建使用 `EXPO_PUBLIC_API_URL`、公开 IM App Key 和 `EXPO_PUBLIC_PENLIA_UI_DEMO=0`。保持签名连续性，并核对 EAS 配额。至少两台 Android 手机验证全新安装、覆盖升级、弱网、权限拒绝、扫码、相册、视频、消息与推送，记录设备、系统版本及 APK 摘要。 [EAS 配置](eas.json) · [Android APK 构建](https://docs.expo.dev/build-reference/apk/)
 
 **生活提醒 · P2 已有应用内提醒和可选调度。** 回忆候选由 `GET /v1/p2/memory-candidates` 按打开页面时的授权生成，独立于提醒调度。验证撤销原始权限后候选消失，未保存的候选不产生提醒。使用独立的 `PENLIA_LIFE_JOB_TOKEN` 配置服务器间鉴权，获批后周期调用 `POST /ops/p2/reminders/run`。处理回执为已插入数量，同一用户、记录和日期幂等。回忆按用户时区，胶囊按约定绝对时间。配置后验收错过批次、并发重试、撤回、退出、停用、过期和离线后重新登录。通知文案只用通用提示，原内容在 App 重新鉴权后展示。费用核对触发器、函数请求、RDS 读写和推送配额。
 
