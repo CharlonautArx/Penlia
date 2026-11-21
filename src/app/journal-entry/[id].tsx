@@ -2,13 +2,13 @@ import { randomUUID } from 'expo-crypto';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Avatar, Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
 import {
   chooseMomentPhotos,
   chooseMomentVideo,
   DraftMediaTile,
   encodeMomentMedia,
-  MomentMediaTile,
+  MomentMediaGrid,
   type LocalMedia,
   type Media,
 } from '../../features/moments/media';
@@ -16,6 +16,7 @@ import { ContributionAudienceSheet } from '../../features/social/ContributionAud
 import { back, Field, formatTime, useRecord } from '../../features/social/ui';
 import { useSession } from '../../services/session';
 import { styles } from '../../theme';
+import { LifeLead, TimelineNode } from '../../features/life/Editorial';
 import type { CollectionInfo } from '../collection/[id]';
 
 type Contribution = {
@@ -64,7 +65,7 @@ export default function JournalEntry() {
   const me = session?.user.id ?? '';
   return (
     <Screen
-      title={data?.entry.title ?? '共同经历'}
+      title="共同经历"
       back={back}
       refreshing={busy}
       onRefresh={() => void load()}
@@ -74,21 +75,19 @@ export default function JournalEntry() {
           {error}
         </Notice>
       )}
+      {data && <LifeLead title={data.entry.title} detail={data.collection.title} tone="mint" />}
       {data?.collection.canWrite && (
         <Button label="补充文字、照片或视频" variant="gradient" icon="add" onPress={() => open('add')} />
       )}
       {data && !data.contributions.length && (
         <Empty icon="create-outline">还没有共同记录。可以先写一句话，或添加照片。</Empty>
       )}
-      {data?.contributions.map((line) => (
-        <View style={styles.card} key={line.id}>
-          <Section title={line.author} detail={formatTime(line.createdAt)} />
+      {data?.contributions.map((line, index) => (
+        <TimelineNode key={line.id} last={index === data.contributions.length - 1}>
+        <View style={styles.card}>
+          <View style={styles.row}><Avatar userId={line.authorId} name={line.author} size={36} /><Section title={line.author} detail={formatTime(line.createdAt)} /></View>
           {!!line.body && <Text style={styles.body}>{line.body}</Text>}
-          <View style={[styles.row, { flexWrap: 'wrap' }]}>
-            {line.media.map((image) => (
-              <MomentMediaTile key={image.id} item={image} />
-            ))}
-          </View>
+          {!!line.media.length && <MomentMediaGrid media={line.media} />}
           {data.collection.kind === 'collaboration' && line.authorId === me && (
             <Button label="管理这条贡献的读者" variant="soft" onPress={() => setAudienceId(line.id)} />
           )}
@@ -118,6 +117,7 @@ export default function JournalEntry() {
             </View>
           )}
         </View>
+        </TimelineNode>
       ))}
       {audienceId && (
         <ContributionAudienceSheet

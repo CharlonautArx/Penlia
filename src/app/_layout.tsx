@@ -1,5 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { PenliaAppearance, useAppearance } from '../components/appearance';
+import { LoadingSkeleton, Screen } from '../components/ui';
 
 import { isUiDemo } from '../demo/mode';
 import { PetProvider } from '../features/pet/store';
@@ -7,17 +9,22 @@ import { SpaceProvider } from '../features/space/store';
 import { FriendsProvider } from '../services/friends';
 import { ImProvider } from '../services/im';
 import { SessionProvider, useSession } from '../services/session';
-import { colors } from '../theme';
+import { colors, motion } from '../theme';
 
 function AppNavigation() {
-  const { session } = useSession();
+  const { session, loading } = useSession();
+  const { reduced } = useAppearance();
+
+  if (loading && !session) {
+    return <Screen title="朋聊"><LoadingSkeleton label="正在恢复登录" /></Screen>;
+  }
 
   return (
     <FriendsProvider key={session?.user.id ?? 'signed-out'}>
       <SpaceProvider>
         <PetProvider>
           <ImProvider>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.backdrop } }}>
+            <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default', animationDuration: motion.transition, contentStyle: { backgroundColor: colors.backdrop } }}>
               <Stack.Protected guard={!session}>
                 <Stack.Screen name="auth" />
               </Stack.Protected>
@@ -57,8 +64,12 @@ function AppNavigation() {
 export default function RootLayout() {
   return (
     <SessionProvider>
-      <StatusBar style="auto" />
-      <AppNavigation />
+      <PenliaAppearance><ThemedApp /></PenliaAppearance>
     </SessionProvider>
   );
+}
+
+function ThemedApp() {
+  const { scheme } = useAppearance();
+  return <><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} /><AppNavigation /></>;
 }

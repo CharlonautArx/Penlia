@@ -1,14 +1,15 @@
 import { useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { StyleSheet, Text, View } from 'react-native';
+import { Button, IconButton, ListRow, Notice, Screen, Section, Segments, Sheet } from '../../components/ui';
 import { MemberChoices } from '../../features/privacy/MemberChoices';
 import { back, Choices, dateTime, Field, formatTime, useRecord } from '../../features/social/ui';
 import { DataEmpty, daysText, formTime, localDay, moveDays } from '../../features/life/ui';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, radius, space, styles, type } from '../../theme';
+import { CalendarCell, TimelineNode } from '../../features/life/Editorial';
 
 const modes = { day: '日', week: '周', month: '月' };
 type Mode = keyof typeof modes;
@@ -63,28 +64,40 @@ export default function Calendar() {
   const { data, error, busy, load } = useRecord<Data>(path);
   const anyone = data?.calendars ?? [];
   const user = session?.user.id;
-  const entries = (data?.events ?? []).sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  const entries = [...(data?.events ?? [])].sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const move = (step: number) =>
     setDate(
       mode === 'month'
         ? new Date(date.getFullYear(), date.getMonth() + step, 1)
         : moveDays(date, (mode === 'week' ? 7 : 1) * step),
     );
+  const today = new Date();
+  const week = calendarBounds(date, 'week').days;
+  const countFor = (day: Date) => entries.filter((entry) => new Date(entry.startsAt) < moveDays(day, 1) && new Date(entry.endsAt) > day).length;
+  const selectDay = (day: Date) => { setDate(day); setMode('day'); };
   const describes = (line: Entry) => formatTime(line.startsAt) + ' 至 ' + formatTime(line.endsAt);
   return (
-    <Screen title="生活日程" back={back} refreshing={busy} onRefresh={() => void load()}>
-      <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}>
-        <Choices labels={modes} value={mode} set={setMode} />
+    <Screen title="生活日程" back={back} refreshing={busy} onRefresh={() => void load()}
+      actions={<IconButton label="共享设置" icon="people-outline" onPress={() => setSharing(true)} />}>
+      <Segments<Mode> label="日程视图" options={[
+        { id: 'day', label: '日' }, { id: 'week', label: '周' }, { id: 'month', label: '月' },
+      ]} value={mode} onChange={setMode} />
+      <View style={local.monthBar}>
+        <View style={styles.grow}>
+          <Text accessibilityRole="header" style={local.monthHeading}>{date.getMonth() + 1}月</Text>
+          <Text style={styles.small}>{date.getFullYear()}年{mode === 'day' ? ' · ' + date.getDate() + '日' : ''}</Text>
+        </View>
         <Button label="今天" variant="quiet" onPress={() => setDate(new Date())} />
-        <Button label="共享设置" icon="people-outline" variant="soft" onPress={() => setSharing(true)} />
+        <IconButton label="上一页" icon="chevron-back" onPress={() => move(-1)} />
+        <IconButton label="下一页" icon="chevron-forward" onPress={() => move(1)} />
       </View>
-      <View style={[styles.row, { justifyContent: 'space-between' }]}>
-        <Button label="上一页" variant="quiet" onPress={() => move(-1)} />
-        <Text style={styles.strong}>
-          {date.getFullYear()}年{date.getMonth() + 1}月{mode === 'day' ? date.getDate() + '日' : ''}
-        </Text>
-        <Button label="下一页" variant="quiet" onPress={() => move(1)} />
-      </View>
+      {mode !== 'month' && <View style={local.week}>
+        {week.map((day) => <View key={localDay(day)} style={local.day}>
+          <CalendarCell date={day} selected={localDay(day) === localDay(date)} today={localDay(day) === localDay(today)}
+            count={mode === 'week' || localDay(day) === localDay(date) ? countFor(day) : 0}
+            weekday={'日一二三四五六'[day.getDay()]} onPress={() => selectDay(day)} />
+        </View>)}
+      </View>}
       {!!anyone.length && (
         <View style={[styles.row, { flexWrap: 'wrap' }]}>
           {anyone.map((person, i) => (
@@ -97,43 +110,19 @@ export default function Calendar() {
           ))}
         </View>
       )}
-      {mode === 'month' && (
-        <View style={styles.card}>
-          <View style={{ flexDirection: 'row' }}>
-            {['一', '二', '三', '四', '五', '六', '日'].map((day) => (
-              <Text key={day} style={[styles.small, { width: '14.285%', textAlign: 'center' }]}>
-                {day}
-              </Text>
-            ))}
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {Array.from({ length: (from.getDay() + 6) % 7 }, (_, i) => (
-              <View key={'gap' + i} style={{ width: '14.285%' }} />
-            ))}
-            {days.map((day) => {
-              const end = moveDays(day, 1);
-              const count = entries.filter(
-                (entry) => new Date(entry.startsAt) < end && new Date(entry.endsAt) > day,
-              ).length;
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={daysText(day) + '，' + count + '项日程'}
-                  key={localDay(day)}
-                  onPress={() => {
-                    setDate(day);
-                    setMode('day');
-                  }}
-                  style={{ width: '14.285%', height: 46, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={styles.strong}>{day.getDate()}</Text>
-                  {!!count && <Text style={styles.small}>{count} 项</Text>}
-                </Pressable>
-              );
-            })}
-          </View>
+      {mode === 'month' && <View style={local.month}>
+        <View style={local.weekLabels}>
+          {['一', '二', '三', '四', '五', '六', '日'].map((day) =>
+            <Text key={day} style={[styles.small, local.dayLabel]}>{day}</Text>)}
         </View>
-      )}
+        <View style={{ flexDirection:'row', flexWrap:'wrap' }}>
+          {Array.from({ length: (from.getDay() + 6) % 7 }, (_, i) => <View key={'gap' + i} style={local.dayLabel} />)}
+          {days.map((day) => <View key={localDay(day)} style={local.dayLabel}>
+            <CalendarCell date={day} selected={localDay(day) === localDay(date)} today={localDay(day) === localDay(today)}
+              count={countFor(day)} onPress={() => selectDay(day)} />
+          </View>)}
+        </View>
+      </View>}
       <Button label="添加日程" variant="gradient" icon="add" onPress={() => setEditing('new')} />
       {!!error && (
         <Notice action="重试" onAction={() => void load()}>
@@ -173,12 +162,12 @@ export default function Calendar() {
           return events.length ? (
             <View key={localDay(day)} style={styles.card}>
               <Section title={daysText(day)} />
-              {events.map((line) => {
+              {events.map((line, index) => {
                 const i = anyone.findIndex((p) => p.id === line.ownerId);
                 return (
+                  <TimelineNode key={line.id} last={index === events.length - 1}>
                   <ListRow
-                    key={line.id}
-                    title={line.title}
+                    title={line.title} separator={false}
                     left={
                       <View
                         style={{
@@ -197,6 +186,7 @@ export default function Calendar() {
                     }
                     onPress={line.ownerId === user ? () => setEditing(line) : undefined}
                   />
+                  </TimelineNode>
                 );
               })}
             </View>
@@ -358,3 +348,13 @@ function ShareEditor({ onClose }: { onClose: () => void }) {
     </Sheet>
   );
 }
+
+const local = StyleSheet.create({
+  monthBar: { ...styles.row, gap: space.xxs },
+  monthHeading: { ...type.display, color: colors.text },
+  week: { flexDirection: 'row', backgroundColor: colors.panel, borderRadius: radius.surface, marginHorizontal: -space.xxs },
+  day: { flex: 1, minWidth: 0 },
+  month: { backgroundColor: colors.panel, borderRadius: radius.surface, paddingVertical: space.xs, marginHorizontal: -space.xxs },
+  weekLabels: { flexDirection: 'row', paddingVertical: space.xs },
+  dayLabel: { width: '14.285%', textAlign: 'center' },
+});

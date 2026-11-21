@@ -1,37 +1,19 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
-import { Avatar, Button, Empty, IconButton, Notice, Screen } from '../../components/ui';
+import { StyleSheet, Text, View } from 'react-native';
+import { Button, Empty, IconButton, ListRow, LoadingSkeleton, Notice, Screen, Segments, Sheet } from '../../components/ui';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
-import { styles } from '../../theme';
-import { MomentMediaTile, type Media } from './media';
+import { space, styles } from '../../theme';
+import type { Moment } from './model';
+import { PostCard } from './PostCard';
 
-export type Audience = 'private' | 'friends' | 'circle' | 'group' | 'selected';
-export const scopes: Record<Audience, string> = {
-  private: '仅自己',
-  friends: '全部好友',
-  circle: '亲密圈',
-  group: '自定义关系组',
-  selected: '指定好友',
-};
-export type Moment = {
-  id: string;
-  collaborationId?: string | null;
-  authorId: string;
-  author: string;
-  body: string;
-  createdAt: string;
-  revision: number;
-  scope: Audience | null;
-  groupId: string | null;
-  memberIds: string[] | null;
-  media: Media[];
-};
+export { scopes, type Audience, type Moment } from './model';
 
 export function PrivateFeed({ mine, author }: { mine?: string; author?: string }) {
   const { session, request } = useSession();
   const [items, setItems] = useState<Moment[]>();
+  const [actions, setActions] = useState(false);
   const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -79,12 +61,12 @@ export function PrivateFeed({ mine, author }: { mine?: string; author?: string }
 
   return (
     <Screen
-      title="动态"
+      title="动态" solid inset={false}
       refreshing={busy}
       onRefresh={() => void load()}
       actions={
         <>
-          <IconButton label="本机空间" icon="person-circle-outline" onPress={() => router.setParams({ local: '1' })} />
+          <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setActions(true)} />
           <IconButton
             label="发布私密动态"
             icon="create-outline"
@@ -94,60 +76,35 @@ export function PrivateFeed({ mine, author }: { mine?: string; author?: string }
         </>
       }
     >
-      <View style={[styles.row,{flexWrap:'wrap'}]}>
-        <Button
-          label="好友动态"
-          variant={!selection ? 'primary' : 'soft'}
-          onPress={() => router.setParams({ mine: '0', author: '' })}
-        />
-        <Button
-          label="我的动态"
-          variant={mine === '1' ? 'primary' : 'soft'}
-          onPress={() => router.setParams({ mine: '1', author: '' })}
-        />
-        <Button label="共创动态" variant="soft" onPress={() => router.push({pathname:'/collection/new',params:{kind:'collaboration'}})} />
-        <Button label="瞬间共鸣" variant="soft" onPress={() => router.push({pathname:'/world',params:{kind:'relay'}})} />
+      <View style={local.filters}>
+        <Segments label="动态来源" value={mine === '1' ? 'mine' : 'friends'}
+          options={[{ id: 'friends', label: '好友动态' }, { id: 'mine', label: '我的动态' }]}
+          onChange={(value) => router.setParams({ mine: value === 'mine' ? '1' : '0', author: '' })} />
         {author && mine !== '1' && <Text style={styles.small}>查看好友</Text>}
+        {!!error && <Notice action="重试" onAction={() => void load()}>{error}</Notice>}
       </View>
-      {!!error && (
-        <Notice action="重试" onAction={() => void load()}>
-          {error}
-        </Notice>
-      )}
-      {!items && !error && <Empty busy>正在读取生活动态…</Empty>}
+      {!items && !error && <LoadingSkeleton label="正在读取生活动态" />}
       {items?.length === 0 && !error && <Empty icon="image-outline">这里还没有你可以看到的动态。</Empty>}
-      {items?.map((item) => (
-        <View key={item.id} style={styles.card}>
-          <View style={styles.row}>
-            <Avatar name={item.author} size={43} />
-            <View style={styles.grow}>
-              <Text style={styles.strong}>{item.author}</Text>
-              <Text style={styles.small}>
-                {new Date(item.createdAt).toLocaleString('zh-CN')}
-                {item.scope ? ' · ' + scopes[item.scope] : ''}
-              </Text>
-            </View>
-            {item.authorId === session?.user.id && (
-              <IconButton
-                label="管理这条动态"
-                icon="ellipsis-horizontal"
-                onPress={() => router.push({ pathname: '/private-moment', params: { id: item.id } })}
-              />
-            )}
-          </View>
-          {!!item.body && <Text style={styles.body}>{item.body}</Text>}
-          {item.collaborationId && <Button label="查看共同创作" variant="soft"
-            onPress={() => router.push({pathname:'/collection/[id]',params:{id:item.collaborationId!}})} />}
-          {!!item.media.length && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {item.media.map((media) => (
-                <MomentMediaTile key={media.id} item={media} />
-              ))}
-            </View>
-          )}
-        </View>
-      ))}
+      {items?.map((item) => <PostCard key={item.id} item={item}
+        onManage={item.authorId === session?.user.id
+          ? () => router.push({ pathname: '/private-moment', params: { id: item.id } })
+          : undefined} />)}
+      {actions && <Sheet title="动态选项" onClose={() => setActions(false)}>
+        <ListRow title="共创动态" detail="邀请好友一起记录" onPress={() => {
+          setActions(false); router.push({ pathname: '/collection/new', params: { kind: 'collaboration' } });
+        }} />
+        <ListRow title="瞬间共鸣" detail="查看或发起接力" onPress={() => {
+          setActions(false); router.push({ pathname: '/world', params: { kind: 'relay' } });
+        }} />
+        <ListRow title="本机空间" detail="仅此设备" onPress={() => {
+          setActions(false); router.setParams({ local: '1' });
+        }} />
+      </Sheet>}
       {next && <Button label="加载更早动态" variant="soft" disabled={busy} onPress={() => void load(next)} />}
     </Screen>
   );
 }
+
+const local = StyleSheet.create({
+  filters: { paddingHorizontal: space.md, gap: space.xs },
+});

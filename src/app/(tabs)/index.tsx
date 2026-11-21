@@ -1,8 +1,8 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Avatar, Empty, Icon, IconButton, ListRow, Notice, Screen, SearchField, Sheet } from '../../components/ui';
+import { Avatar, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Sheet } from '../../components/ui';
 import { PetSignal } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
@@ -11,9 +11,10 @@ import { useFriends } from '../../services/friends';
 import { readPeerMessage, summaryOf, type RichMessage } from '../../features/media/messages';
 import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { space } from '../../theme';
+import { ConversationRow } from '../../features/chat/ui';
 
-type Thread = { person: Relationship; last: RichMessage; unread: number };
+type Thread = { person: Relationship; last: RichMessage; unread: number; pinned?: boolean; pinnedTime?: number };
 
 export default function ChatsScreen() {
   const { session } = useSession();
@@ -44,10 +45,12 @@ export default function ChatsScreen() {
           const [message, unread] = await Promise.all([item.getLatestMessage(), item.getUnreadCount()]);
           const last = readPeerMessage(connection!, message, imUserId(ownId!), item.convId);
           if (!last) return [];
-          return [{ person: accepted.get(item.convId)!, last, unread }];
+          return [{ person: accepted.get(item.convId)!, last, unread, pinned: item.isPinned, pinnedTime: item.pinnedTime }];
         }));
         if (active) {
-          setThreads(rows.flat().sort((a, b) => b.last.timestamp - a.last.timestamp));
+          setThreads(rows.flat().sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)
+            || (a.pinned && b.pinned ? (b.pinnedTime ?? 0) - (a.pinnedTime ?? 0) : 0)
+            || b.last.timestamp - a.last.timestamp));
           setListError('');
           setLoaded(true);
         }
@@ -59,7 +62,7 @@ export default function ChatsScreen() {
     return () => { active = false; };
   }, [connection, ownId, relationships, revision]);
 
-  const visibleThreads = demo
+  const visibleThreads: Thread[] = demo
     ? (relationships ?? []).flatMap((person) => {
       const lastText = demo.messages[person.userId]?.at(-1);
       const lastMedia = demo.media[person.userId]?.at(-1);
@@ -95,29 +98,15 @@ export default function ChatsScreen() {
         {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
         {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
       </View>
-      {filtered.map(({ person, last, unread }) => (
-        <Pressable key={person.userId} accessibilityRole="button"
-          accessibilityLabel={`${person.name}，${unread ? unread + ' 条未读消息，' : ''}${summaryOf(last)}`}
-          onPress={() => openChat(person.userId)} style={({ pressed }) => [local.thread, pressed && local.pressed]}>
-          <Avatar name={person.name} source={demoPortrait(person.username)} size={48} />
-          <View style={local.threadBody}>
-            <View style={local.line}>
-              <View style={[local.threadName, styles.grow]}>
-                <Text style={styles.strong} numberOfLines={1}>{person.name}</Text><PetSignal peer={person.userId} />
-              </View>
-              <Text style={styles.small}>{threadTime(last.timestamp)}</Text>
-            </View>
-            <View style={local.line}>
-              <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{last.mine ? '我：' : ''}{summaryOf(last).replace(/\s+/g, ' ')}</Text>
-              {unread > 0 && <View style={local.badge}>
-                <Text style={local.badgeText}>{unread > 99 ? '99+' : unread}</Text>
-              </View>}
-            </View>
-          </View>
-        </Pressable>
+      {filtered.map(({ person, last, unread, pinned }) => (
+        <ConversationRow key={person.userId} name={person.name}
+          avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
+          preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
+          time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent}
+          signal={<PetSignal peer={person.userId} />} onPress={() => openChat(person.userId)} />
       ))}
       {filtered.length === 0 && !(friendsError || listError) && (
-        !relationships || (!demo && connection && !loaded) ? <Empty busy>正在加载会话…</Empty> :
+        !relationships || (!demo && connection && !loaded) ? <LoadingSkeleton label="正在加载会话" /> :
           (demo || connection) && <Empty>{term ? '没有找到符合条件的会话。' : '还没有会话。点右上角，和好友聊聊。'}</Empty>
       )}
       {compose && <Sheet title="发起会话" onClose={() => setCompose(false)}>
@@ -146,13 +135,5 @@ function threadTime(timestamp: number) {
 }
 
 const local = StyleSheet.create({
-  controls: { gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 7 },
-  thread: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, gap: 12, minHeight: 71 },
-  threadBody: { ...styles.grow, ...styles.divider, alignSelf: 'stretch', justifyContent: 'center', gap: 4, paddingRight: 16, paddingVertical: 8 },
-  threadName: { ...styles.row, gap: 6 },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 19 },
-  badge: { minWidth: 18, height: 18, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#B83259', borderRadius: 10 },
-  badgeText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '800' },
-  pressed: { backgroundColor: colors.backdrop },
+  controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.xxs, paddingBottom: space.xs },
 });

@@ -2,14 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Screen, SearchField, Section, Sheet } from '../../components/ui';
+import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Section, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { QRImage, ScanCode } from '../../features/privacy/CodeSheet';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage, type User } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, radius, space, styles, type } from '../../theme';
 
 export default function FriendsScreen() {
   const { request } = useSession();
@@ -63,7 +63,7 @@ export default function FriendsScreen() {
   const friends = relationships?.filter((item) => item.status === 'accepted') ?? [];
 
   const key = filter.trim().toLowerCase().replace(/^@/, '');
-  const shown = friends.filter((friend) => !key || friend.name.includes(key) || friend.username.toLowerCase().includes(key));
+  const shown = friends.filter((friend) => !key || friend.name.toLowerCase().includes(key) || friend.username.toLowerCase().includes(key));
 
   async function reload() {
     setRefreshing(true);
@@ -90,7 +90,7 @@ export default function FriendsScreen() {
           <Icon name="chevron-forward" size={16} color={colors.quiet} />
         </View>} onPress={() => openSheet('requests')} />
       <View style={local.section}><Section title="我的好友" detail={relationships ? friends.length + ' 位' : undefined} /></View>
-      {!relationships && !listError && <Empty busy>正在加载好友…</Empty>}
+      {!relationships && !listError && <LoadingSkeleton label="正在加载好友" />}
       {relationships && !shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
       {shown.map((friend) => <View key={friend.id} style={local.contact}>
         <View style={styles.grow}><ListRow title={friend.name} detail={'@' + friend.username + (friend.bio ? ' · ' + friend.bio : '')}
@@ -149,10 +149,10 @@ export default function FriendsScreen() {
 }
 
 const local = StyleSheet.create({
-  control: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 9, gap: 8 },
-  section: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 7, backgroundColor: colors.backdrop },
-  requestsIcon: { width: 46, height: 46, borderRadius: 13, backgroundColor: colors.pink, alignItems: 'center', justifyContent: 'center' },
-  counter: { fontSize: 12, color: colors.accent, backgroundColor: colors.pink, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 2 },
+  control: { paddingHorizontal: space.md, paddingTop: space.xxs, paddingBottom: space.sm, gap: space.xs },
+  section: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
+  requestsIcon: { width: 44, height: 44, borderRadius: radius.control, backgroundColor: colors.pink, alignItems: 'center', justifyContent: 'center' },
+  counter: { ...type.caption, color: colors.accent, backgroundColor: colors.pink, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 2 },
   contact: { ...styles.row, gap: 0, paddingRight: 6 },
   requestActions: { flexDirection: 'row' },
 });

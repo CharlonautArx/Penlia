@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../components/ui';
+import { useAppearance } from '../../components/appearance';
 import { PetOrb } from '../pet/Orb';
 import { decorNames, type WorldRecord, type Space, type Decor } from './model';
 
@@ -8,24 +9,33 @@ export const decorIcons = {
   flower: 'flower-outline', lamp: 'bulb-outline', cushion: 'ellipse-outline',
   frame: 'images-outline', shell: 'leaf-outline', star: 'sparkles-outline',
 } as const;
-const shades = {
+const lightScenes = {
   garden: ['#FBEAF1', '#EAF7F1', '#C4E6D8'],
   coast: ['#FCE4E8', '#FFEEDB', '#BDEAE8'],
   night: ['#E6E3F6', '#BFCBE7', '#B0C9D6'],
+} as const;
+
+const darkScenes = {
+  garden: ['#292530', '#25352F', '#20453B'],
+  coast: ['#342833', '#393239', '#233E43'],
+  night: ['#2F293E', '#303B56', '#293E4B'],
 } as const;
 
 export function WorldScene({ space, records, choose, add, greet }: {
   space: Space; records: WorldRecord[]; choose: (record: WorldRecord) => void;
   add: (x: number, y: number) => void; greet: () => void;
 }) {
+  const { scheme } = useAppearance();
+  const dark = scheme === 'dark';
+  const sceneInk = dark ? '#F4EAF1' : '#3A3042';
   const greeted = space.greetedAt ? Date.parse(space.greetedAt) : 0;
   return (
-    <LinearGradient colors={shades[space.scene]} style={local.stage}>
+    <LinearGradient colors={(dark ? darkScenes : lightScenes)[space.scene]} style={local.stage}>
       <View style={local.sky}>
         <View style={local.pet}>
           <PetOrb size={92} vitality={61} fed={greeted} onPet={greet} />
         </View>
-        <Text style={local.petName}>{space.petName}</Text>
+        <Text style={[local.petName, { color: sceneInk }]}>{space.petName}</Text>
       </View>
       {[0,1,2].map((y) => (
         <View key={y} style={local.gridRow}>
@@ -36,9 +46,9 @@ export function WorldScene({ space, records, choose, add, greet }: {
               <Pressable key={x} accessibilityRole="button"
                 accessibilityLabel={record ? record.sourceTitle ?? record.body : `在第 ${y+1} 行第 ${x+1} 格放摆件`}
                 onPress={() => record ? choose(record) : add(x,y)}
-                style={({ pressed }) => [local.slot, !!record && local.occupied, pressed && local.pressed]}>
-                <Icon name={icon ? decorIcons[icon] : 'add-outline'} color={record ? '#564457' : '#756777'} />
-                {icon && <Text numberOfLines={1} style={local.label}>{record?.sourceId ? '纪念物' : decorNames[icon]}</Text>}
+                style={({ pressed }) => [local.slot, dark && local.darkSlot, !!record && (dark ? local.darkOccupied : local.occupied), pressed && local.pressed]}>
+                <Icon name={icon ? decorIcons[icon] : 'add-outline'} color={sceneInk} />
+                {icon && <Text numberOfLines={1} style={[local.label, { color: sceneInk }]}>{record?.sourceId ? '纪念物' : decorNames[icon]}</Text>}
               </Pressable>
             );
           })}
@@ -55,6 +65,8 @@ const local = StyleSheet.create({
   gridRow: { flexDirection: 'row', gap: 5 },
   slot: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 47, borderRadius: 11, backgroundColor: '#FFFFFF45' },
   occupied: { backgroundColor: '#FFFFFFAA' },
+  darkSlot: { backgroundColor: '#FFFFFF16' },
+  darkOccupied: { backgroundColor: '#FFFFFF28' },
   pressed: { opacity: 0.65 },
   label: { color: '#3A3042', fontSize: 11 },
 });

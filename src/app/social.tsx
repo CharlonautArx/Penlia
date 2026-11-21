@@ -2,7 +2,7 @@ import { randomUUID } from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../components/ui';
+import { Button, Empty, ListRow, Notice, Screen, Section, Segments, Sheet } from '../components/ui';
 import {
   back,
   categories,
@@ -86,7 +86,8 @@ export default function SocialScreen() {
   const tab = section && section in sections ? section : 'wishes';
   return (
     <Screen title={sections[tab]} back={back}>
-      <Choices labels={sections} value={tab} set={(value) => router.setParams({ section: value })} />
+      <Segments<Tab> label="共同生活频道" options={(Object.keys(sections) as Tab[]).map((id) => ({ id, label: sections[id] }))}
+        value={tab} onChange={(value) => router.setParams({ section: value })} />
       {tab === 'wishes' && <Wishes key={wishTitle??''} title={wishTitle} place={wishPlace}/>}
       {tab === 'gatherings' && <Gatherings />}
       {tab === 'collections' && <Collections />}

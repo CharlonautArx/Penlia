@@ -1,9 +1,9 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Empty, IconButton, ListRow, Notice, Section, Sheet, TopBar } from '../../components/ui';
+import { Avatar, Button, Empty, IconButton, ListRow, Notice, Section, Sheet, TopBar } from '../../components/ui';
 import {
   chooseMomentPhotos,
   chooseMomentVideo,
@@ -22,7 +22,8 @@ import type { ChatGroup } from '../../features/privacy/types';
 import { ApiError, errorMessage } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, space, styles } from '../../theme';
+import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 
 type Line = {
   id: string;
@@ -52,6 +53,8 @@ export default function GroupConversation() {
   const [quiet, setQuiet] = useState(false);
   const [noReply,setNoReply]=useState(false);
   const [tools,setTools]=useState(false);
+  const [emoji, setEmoji] = useState(false);
+  const [actions, setActions] = useState<Line>();
   const [call,setCall]=useState(requestedCall==='1');
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [busy, setBusy] = useState(false);
@@ -166,8 +169,8 @@ export default function GroupConversation() {
     await load();
   }
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.backdrop }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.panel }}>
+      <KeyboardAvoidingView style={chatLayout.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TopBar
           title={group?.name ?? '群聊'}
           back={back}
@@ -189,9 +192,9 @@ export default function GroupConversation() {
           inverted
           keyboardShouldPersistTaps="handled"
           keyExtractor={(line) => line.id}
-          contentContainerStyle={{ padding: 16, gap: 10 }}
+          contentContainerStyle={chatLayout.messages}
           ListEmptyComponent={
-            <View style={{ transform: [{ scaleY: -1 }] }}>
+            <View style={chatLayout.inverted}>
               <Empty busy={!group && !error}>{error || (group ? '还没有群消息。' : '正在读取群聊…')}</Empty>
             </View>
           }
@@ -217,80 +220,65 @@ export default function GroupConversation() {
               />
             ) : undefined
           }
-          renderItem={({ item,index }) => (
-            <View style={{ alignSelf: item.senderId === own ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
-              <Text style={styles.small}>
-                {item.senderId === own ? '我' : item.name} ·{' '}
-                {new Date(item.sentAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-              <Pressable
-                onLongPress={item.senderId!==own?()=>{
-                  const lines=messages.slice(Math.max(0,index-3),index+4).map((line)=>({
-                    id:line.id, author:line.name,mine:line.senderId===own,
-                    content:line.content+(line.media.length?' [附件 '+line.media.length+']':''),
-                  }));
-                  const anchor=lines.find((line)=>line.id===item.id);
-                  if(anchor)setReport({anchor,lines});
-                }:undefined}
-                style={[
-                  styles.card,
-                  { backgroundColor: item.senderId === own ? colors.lavender : colors.panel, paddingVertical: 9 },
-                ]}
-              >
-                {!!item.content && <Text style={styles.body}>{item.content}</Text>}
+          renderItem={({ item, index }) => {
+            const mine = item.senderId === own;
+            const timestamp = Date.parse(item.sentAt);
+            const older = messages[index + 1];
+            const newer = messages[index - 1];
+            const block = startsMessageBlock(timestamp, older ? Date.parse(older.sentAt) : undefined);
+            return <View>
+              {block && <ChatTimestamp value={timestamp} />}
+              <ChatBubble mine={mine} first={block || item.senderId !== older?.senderId}
+                last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
+                author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={() => setActions(item)}>
+                {!!item.content && <MessageBody text={item.content} />}
                 {!!item.media.length && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, minWidth: 160 }}>
-                    {item.media.map((media) => (
-                      <MomentMediaTile key={media.id} item={media} context="chat" />
-                    ))}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, minWidth: 160 }}>
+                    {item.media.map((media) => <MomentMediaTile key={media.id} item={media} context="chat" />)}
                   </View>
                 )}
-                {item.noReply && <NoReply/>}
+                {item.noReply && <NoReply />}
                 {item.silent && <Moon words />}
-              </Pressable>
-            </View>
-          )}
+              </ChatBubble>
+            </View>;
+          }}
         />
         {!!error && !!group && !details && <Notice>{error}</Notice>}
-        {noReply&&<View style={{paddingHorizontal:14}}><NoReply/></View>}
-        {!!group && (
-          <View style={[styles.row, { padding: 9, backgroundColor: colors.panel, gap: 5 }]}>
-            <IconButton label="更多群消息选项" icon="add-circle-outline" disabled={busy} onPress={()=>setTools(true)}/>
-            <IconButton
-              label="从图库选择群图片"
-              icon="image-outline"
-              disabled={busy}
-              onPress={() =>
-                void run(async () => {
-                  if (own) {
-                    const chosen = await chooseMomentPhotos(own, 6);
-                    if (chosen.length) setPhotos(chosen);
-                  }
-                })
-              }
-            />
-            <IconButton
-              label={quiet ? '关闭安静送达' : '安静送达'}
-              icon={quiet ? 'moon' : 'moon-outline'}
-              tinted={quiet}
-              disabled={busy}
-              onPress={() => setQuiet(!quiet)}
-            />
-            <TextInput
-              accessibilityLabel="群消息"
-              placeholder="发消息"
-              value={draft}
-              onChangeText={setDraft}
-              multiline
-              maxLength={1000}
-              editable={!busy}
-              style={[styles.input, styles.grow]}
-            />
-            <Button label="发送" disabled={(!draft.trim() && !photos.length) || busy} onPress={() => void run(send)} />
-          </View>
-        )}
+        {!!group && <MessageComposer label="群消息" placeholder="发消息" value={draft} onChange={setDraft}
+          editable={!busy} maxLength={1000} attachLabel="更多群消息选项" photoLabel="从图库选择群图片"
+          toolsDisabled={busy} onAttach={() => setTools(true)} onEmoji={() => setEmoji(true)}
+          onPhoto={() => void run(async () => {
+            if (own) {
+              const chosen = await chooseMomentPhotos(own, 6);
+              if (chosen.length) setPhotos(chosen);
+            }
+          })}
+          sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || busy}
+          onSend={() => void run(send)} mode={quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />}
       </KeyboardAvoidingView>
+      {actions && <MessageActions timestamp={Date.parse(actions.sentAt)} text={actions.content}
+        onClose={() => setActions(undefined)} report={actions.senderId !== own ? () => {
+          const index = messages.findIndex((line) => line.id === actions.id);
+          const lines = messages.slice(Math.max(0, index - 3), index + 4).map((line) => ({
+            id: line.id, author: line.name, mine: line.senderId === own,
+            content: line.content + (line.media.length ? ' [附件 ' + line.media.length + ']' : ''),
+          }));
+          const anchor = lines.find((line) => line.id === actions.id);
+          setActions(undefined);
+          if (anchor) setReport({ anchor, lines });
+        } : undefined} />}
+      {emoji && <Sheet title="表情" onClose={() => setEmoji(false)}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
+          {['😊', '😂', '🙌', '🤍', '🎉', '☕', '🌿', '👍'].map((value) =>
+            <Button key={value} label={value} variant="soft" onPress={() => {
+              setDraft((text) => text.length + value.length <= 1000 ? text + value : text);
+              setEmoji(false);
+            }} />)}
+        </View>
+      </Sheet>}
       {tools&&<Sheet title="更多群消息选项" onClose={()=>setTools(false)}>
+        <Button label={quiet ? '关闭安静送达' : '安静送达'} icon={quiet ? 'moon' : 'moon-outline'}
+          variant={quiet ? 'primary' : 'soft'} onPress={() => { setQuiet(!quiet); setTools(false); }} />
         <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'} onPress={()=>{setNoReply(!noReply);setTools(false);}}/>
         <Text style={styles.muted}>可以与安静送达同时使用。</Text>
         <Button label="选择短视频" icon="videocam-outline" variant="soft" onPress={()=>{

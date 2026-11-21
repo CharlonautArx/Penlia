@@ -3,10 +3,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { DateBadge } from '../../features/life/Editorial';
 import { DataEmpty, localDay } from '../../features/life/ui';
 import { back, Choices, Field, InviteChoices, useRecord } from '../../features/social/ui';
 import { spaceTitles, type SpaceKind } from '../../features/world/model';
 import { styles } from '../../theme';
+import { OrbFace } from '../../features/pet/Orb';
 
 type Card = { id: string; title: string; owner: string; state: 'invited' | 'active'; eventDay: string | null };
 
@@ -37,6 +39,7 @@ function SpaceList({ kind }: { kind: SpaceKind }) {
         <ListRow
           key={item.id}
           title={item.title}
+          left={item.eventDay ? <DateBadge date={item.eventDay} /> : kind === 'world' ? <OrbFace size={41} /> : undefined}
           detail={[item.eventDay, item.owner, item.state === 'invited' ? '待接受' : null].filter(Boolean).join(' · ')}
           onPress={() => item.state === 'invited' ? setInvite(item) : router.push({ pathname: '/world/[id]', params: { id: item.id } })}
         />

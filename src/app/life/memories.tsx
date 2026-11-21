@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { back, Choices, Field, useRecord } from '../../features/social/ui';
+import { DateBadge } from '../../features/life/Editorial';
 import { DataEmpty, localDay } from '../../features/life/ui';
 import { MemberChoices } from '../../features/privacy/MemberChoices';
 import { useFriends } from '../../services/friends';
@@ -110,7 +111,7 @@ export default function MemoriesScreen() {
       {!items.length && !error && <DataEmpty loading={!data}>这里没有可查看的回忆。</DataEmpty>}
       {items.map((item) => (
         <View key={item.id} style={styles.card}>
-          <Section title={item.title} detail={item.eventDay} />
+          <View style={styles.row}><DateBadge date={item.eventDay} /><Section title={item.title} detail={item.eventDay} /></View>
           <Text style={styles.muted}>
             {kinds[item.sourceKind]} ·{' '}
             {item.ownerId === session?.user.id ? '我保存的' : item.author + ' 分享'}

@@ -2,14 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Platform, Share, Switch, Text, TextInput, View } from 'react-native';
 
-import { Button, Empty, Icon, ListRow, Notice, Screen, Section, Sheet } from '../components/ui';
+import { Button, Empty, Icon, ListRow, Notice, Screen, Section, SettingGroup, Sheet } from '../components/ui';
 import { weekdays, type Day, type Device, type RelationGroup, type Settings } from '../features/privacy/types';
 import { MemberChoices } from '../features/privacy/MemberChoices';
 import { isUiDemo } from '../demo/mode';
 import { errorMessage, type Relationship } from '../services/api';
 import { useFriends } from '../services/friends';
 import { useSession } from '../services/session';
-import { colors, styles } from '../theme';
+import { colors, fixed, space, styles } from '../theme';
 
 type Ticket = { id: string; kind: 'export' | 'delete_account'; status: string; requestedAt: string };
 
@@ -100,8 +100,8 @@ export default function PrivacyScreen() {
           disabled={busy}
           value={value}
           onValueChange={action}
-          trackColor={{ false: '#D8D8E3', true: '#C37991' }}
-          thumbColor="#FFFFFF"
+          trackColor={{ false: colors.border, true: colors.accent }}
+          thumbColor={fixed.onAction}
         />
       }
     />
@@ -125,8 +125,7 @@ export default function PrivacyScreen() {
         <Empty busy={!notice}>正在读取隐私设置…</Empty>
       ) : (
         <>
-          <View style={styles.card}>
-            <Section title="社交权限" />
+          <SettingGroup title="社交权限">
             {toggle(
               '允许通过朋聊号或二维码添加我',
               settings.addPolicy === 'anyone',
@@ -151,11 +150,11 @@ export default function PrivacyScreen() {
               left={<Icon name="eye-off-outline" />}
               onPress={() => void run(() => open('restricted'))}
             />
-          </View>
-          <View style={styles.card}>
-            <Section title="内容隐私" />
-            <Text style={styles.strong}>动态默认可见范围</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          </SettingGroup>
+          <SettingGroup title="内容隐私">
+            <View style={{ padding: space.sm, gap: space.xs }}>
+              <Text style={styles.strong}>动态默认可见范围</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
               {(
                 [
                   ['private', '仅自己'],
@@ -171,6 +170,7 @@ export default function PrivacyScreen() {
                   onPress={() => void run(() => save({ momentScope: value }))}
                 />
               ))}
+              </View>
             </View>
             <ListRow title="亲密圈与关系组" onPress={() => void run(() => open('groups'))} />
             {toggle(
@@ -184,9 +184,8 @@ export default function PrivacyScreen() {
               (value) => void run(() => save({ showResting: value, statusPolicy: value ? 'friends' : 'private' })),
               '只显示正在休息，起止时间保密。',
             )}
-          </View>
-          <View style={styles.card}>
-            <Section title="通知和时间边界" />
+          </SettingGroup>
+          <SettingGroup title="通知和时间边界">
             <ListRow
               title="我的生活节奏"
               detail={settings.muteIndefinitely ? '一直静默' : '每周安静时间和临时静默'}
@@ -204,9 +203,8 @@ export default function PrivacyScreen() {
               (allowSilent) => void run(() => save({ allowSilent })),
               '关闭后文字消息按你的提醒规则处理。图片适用范围取决于环信服务。',
             )}
-          </View>
-          <View style={styles.card}>
-            <Section title="账号安全" />
+          </SettingGroup>
+          <SettingGroup title="账号安全">
             <ListRow title="登录设备" onPress={() => void run(() => open('devices'))} />
             <ListRow title="修改账号密码" onPress={() => void run(() => open('password'))} />
             <ListRow
@@ -214,7 +212,7 @@ export default function PrivacyScreen() {
               detail="申请导出或注销账号"
               onPress={() => void run(() => open('requests'))}
             />
-          </View>
+          </SettingGroup>
         </>
       )}
       {settings && sheet && (

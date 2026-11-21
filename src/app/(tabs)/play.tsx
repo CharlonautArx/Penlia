@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Empty, Icon, IconButton, ListRow, Screen, Section, Sheet } from '../../components/ui';
+import { Empty, Icon, IconButton, Screen, Section, Segments, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { Chips, GameCard, PlaceCard } from '../../features/play/Cards';
 import { discoveryCatalog } from '../../features/play/catalog';
@@ -11,12 +11,13 @@ import { InviteButton } from '../../features/play/Gather';
 import { gameModes, games } from '../../features/play/games';
 import { categories, cities, type City, visiblePlaces } from '../../features/play/places';
 import { colors, styles } from '../../theme';
+import { LifeHub } from '../../features/life/Hub';
 
-const sections = ['为你推荐', '小游戏', '线下去处'] as const;
+const sections = ['一起生活', '为你推荐', '小游戏', '线下去处'] as const;
 const hero = require('../../../assets/identity/hero.jpg');
 
 export default function PlayScreen() {
-  const [section, setSection] = useState<typeof sections[number]>('为你推荐');
+  const [section, setSection] = useState<typeof sections[number]>(isUiDemo ? '为你推荐' : '一起生活');
   const [gameMode, setGameMode] = useState<typeof gameModes[number]>('全部');
   const [category, setCategory] = useState<typeof categories[number]>('全部');
   const [city, setCity] = useState<City>('上海');
@@ -25,7 +26,7 @@ export default function PlayScreen() {
   const places = visiblePlaces(localPlaces.filter((place) => category === '全部' || place.category === category));
   const playable = games.filter((game) => gameMode === '全部' || game.mode === gameMode);
 
-  return <Screen title="玩乐" actions={<>
+  return <Screen title="玩乐" actions={section !== '一起生活' && <>
     <Pressable accessibilityRole="button" accessibilityLabel={'选择城市，当前' + city} onPress={() => setChoosingCity(true)}
       style={({ pressed }) => [local.city, pressed && local.pressed]}>
       <Icon name="location-outline" size={17} color={colors.accent} />
@@ -34,13 +35,9 @@ export default function PlayScreen() {
     </Pressable>
     <IconButton label="想去的地方" icon="bookmark-outline" onPress={() => router.push('/playground/saved')} />
   </>}>
-    <View style={local.mode}>
-      {sections.map((label) => <Pressable key={label} accessibilityRole="button" accessibilityLabel={label}
-        accessibilityState={{ selected: section === label }} onPress={() => setSection(label)}
-        style={({ pressed }) => [local.tab, section === label && local.tabActive, pressed && local.pressed]}>
-        <Text style={section === label ? local.tabText : styles.muted}>{label}</Text>
-      </Pressable>)}
-    </View>
+    <Segments label="玩乐分类" value={section} onChange={setSection}
+      options={sections.filter((item) => !isUiDemo || item !== '一起生活').map((item) => ({ id: item, label: item }))} />
+    {section === '一起生活' && !isUiDemo && <LifeHub />}
     {section === '为你推荐' && <>
       <View style={local.hero}>
         <Image source={hero} style={local.heroImage} />
@@ -72,10 +69,6 @@ export default function PlayScreen() {
       </View>
       <View style={local.invite}>
         <Section title="朋友一起去" />
-        {!isUiDemo && <>
-          <ListRow title="约朋友一起玩" detail="心愿共振、约局、共同日记" onPress={() => router.push('/social')} />
-          <ListRow title="一起生活" detail="共享日程、共同旅行、收藏和愿望地图" onPress={() => router.push('/life')} />
-        </>}
         <InviteButton label="发起聚会提议" message="这周找一天一起出去走走？你想喝咖啡、看电影，还是试个新活动？" />
       </View>
     </>}
@@ -104,10 +97,6 @@ export default function PlayScreen() {
 const local = StyleSheet.create({
   city: { ...styles.row, gap: 4, minHeight: 44, paddingHorizontal: 5 },
   pressed: { opacity: 0.65 },
-  mode: { flexDirection: 'row', padding: 4, backgroundColor: '#EDEDF2', borderRadius: 13, gap: 5 },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 10, paddingHorizontal: 3 },
-  tabActive: { backgroundColor: colors.panel },
-  tabText: { fontSize: 14, lineHeight: 20, color: colors.ink, fontWeight: '800' },
   hero: { minHeight: 111, backgroundColor: colors.pink, borderRadius: 15, justifyContent: 'center', overflow: 'hidden' },
   heroImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', marginLeft: '16%', resizeMode: 'cover' },
   heroCopy: { paddingHorizontal: 15, gap: 5 },

@@ -18,6 +18,7 @@ import {
 import { gatheringTimeChoices } from '../../features/social/gathering-time';
 import { useSession } from '../../services/session';
 import { styles } from '../../theme';
+import { LifeLead } from '../../features/life/Editorial';
 
 type Mode = 'all' | 'open';
 type Intention = 'interested' | 'undecided' | 'unavailable';
@@ -218,21 +219,11 @@ function GatheringDetail({ id }: { id: string }) {
   const suggestion = data.options.find((item) => item.id === data.suggestion);
   return (
     <Screen title="约局详情" back={back} refreshing={busy} onRefresh={() => void load()}>
-      <View style={styles.card}>
-        <Section
-          title={g.title}
-          detail={g.state === 'interest' && g.directProposal ? '直接提议时间' : stateNames[g.state]}
-        />
-        <Text style={styles.body}>
-          {modeNames[g.mode]}
-          {g.mode === 'open' ? ' · 至少 ' + g.minimum + ' 人参加' : ''}
-        </Text>
-        {selected && (
-          <Text style={styles.strong}>
-            {formatTime(selected.startsAt)} · {selected.place}
-          </Text>
-        )}
-      </View>
+      <LifeLead title={g.title} icon="calendar-clear-outline" tone="rose"
+        detail={g.state === 'interest' && g.directProposal ? '直接提议时间' : stateNames[g.state]}>
+        <Text style={styles.muted}>{modeNames[g.mode]}{g.mode === 'open' ? ' · 至少 ' + g.minimum + ' 人参加' : ''}</Text>
+        {selected && <Text style={styles.strong}>{formatTime(selected.startsAt)} · {selected.place}</Text>}
+      </LifeLead>
       {['interest','confirming','formed'].includes(g.state)&&<Button label={availability?'隐藏空闲参考':'查看空闲参考'}
         icon="calendar-outline" variant="soft" onPress={()=>setAvailability(!availability)}/>}
       {availability&&<Availability id={id} options={data.options}/>}

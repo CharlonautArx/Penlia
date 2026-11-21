@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { ComponentProps, ReactNode } from 'react';
+import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
 import {
-  ActivityIndicator, Image, type ImageSourcePropType, Modal, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Animated, Image, type ImageSourcePropType, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
   type ScrollViewProps, StyleSheet, Text, TextInput, type TextInputProps, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
 import { isUiDemo } from '../demo/mode';
-import { brandGradient, colors, styles } from '../theme';
+import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type } from '../theme';
+import { useAppearance } from './appearance';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -35,7 +36,7 @@ export function Screen({ title, actions, children, inset = true, refreshing, onR
   onRefresh?: () => void; solid?: boolean; back?: () => void;
 }) {
   return (
-    <SafeAreaView style={[ui.safe, solid && ui.white]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[ui.safe, solid && ui.white]} edges={back ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
       <TopBar title={title} actions={actions} back={back} />
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
         refreshControl={onRefresh && <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
@@ -48,9 +49,9 @@ export function Screen({ title, actions, children, inset = true, refreshing, onR
 
 export function TopBar({ title, actions, back }: { title: string; actions?: ReactNode; back?: () => void }) {
   return <View style={ui.barWrap}>
-    <View style={[ui.bar, ui.width]}>
+    <View style={[ui.bar, ui.width, back && ui.backBar]}>
       {back && <IconButton label="返回" icon="chevron-back" onPress={back} />}
-      <Text accessibilityRole="header" numberOfLines={1} style={ui.title}>{title}</Text>
+      <Text accessibilityRole="header" numberOfLines={1} style={[ui.title, back && ui.pageTitle]}>{title}</Text>
       <DemoLabel />
       <View style={styles.grow} />
       <View style={ui.actions}>{actions}</View>
@@ -73,9 +74,9 @@ export function Avatar({ name, source, size = 46, userId, localPhotoId }: {
   const accountPhoto = useAccountPhoto(userId);
   const uri = useLocalPhotoUri(localPhotoId ?? accountPhoto);
   const imageSource = uri ? { uri } : source;
-  const shades = [colors.pink, colors.lavender, colors.ice, '#FAF1E5', '#EDF1FA'];
+  const shades = [colors.pink, colors.lavender, colors.ice, colors.search];
   const color = shades[(name.codePointAt(0) ?? 0) % shades.length];
-  const frame = { width: size, height: size, borderRadius: size * 0.32 };
+  const frame = { width: size, height: size, borderRadius: size / 2 };
   return imageSource
     ? <Image accessible={false} source={imageSource} style={[frame, { backgroundColor: color }]} />
     : <View accessible={false} style={[ui.avatar, frame, { backgroundColor: color }]}>
@@ -87,7 +88,7 @@ export function Button({ label, icon, onPress, disabled, variant = 'primary' }: 
   label: string; icon?: IconName; onPress: () => void; disabled?: boolean;
   variant?: 'primary' | 'soft' | 'danger' | 'gradient' | 'quiet';
 }) {
-  const foreground = variant === 'primary' ? '#FFFFFF' : variant === 'danger' ? colors.danger : variant === 'gradient' ? '#2C2835' : colors.ink;
+  const foreground = variant === 'primary' ? fixed.onAction : variant === 'danger' ? colors.danger : variant === 'gradient' ? fixed.onBrand : colors.ink;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }}
       disabled={disabled} onPress={onPress}
@@ -137,29 +138,47 @@ export function Section({ title, detail, children }: { title: string; detail?: s
   </View>;
 }
 
-export function ListRow({ title, detail, left, trailing, onPress }: {
-  title: string; detail?: string; left?: ReactNode; trailing?: ReactNode; onPress?: () => void;
+export function ListRow({ title, detail, left, trailing, onPress, separator = true }: {
+  title: string; detail?: string; left?: ReactNode; trailing?: ReactNode; onPress?: () => void; separator?: boolean;
 }) {
   const content = <>
     {left}
     <View style={styles.grow}>
-      <Text style={styles.strong} numberOfLines={1}>{title}</Text>
+      <Text style={styles.strong} numberOfLines={2}>{title}</Text>
       {!!detail && <Text numberOfLines={3} style={styles.small}>{detail}</Text>}
     </View>
     {trailing ?? (onPress && <Icon name="chevron-forward" size={17} color={colors.quiet} />)}
   </>;
   return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
-    style={({ pressed }) => [ui.listRow, pressed && ui.pressed]}>{content}</Pressable>
-    : <View style={ui.listRow}>{content}</View>;
+    style={({ pressed }) => [ui.listRow, separator && styles.divider, pressed && ui.pressed]}>{content}</Pressable>
+    : <View style={[ui.listRow, separator && styles.divider]}>{content}</View>;
 }
 
 export function Sheet({ title, onClose, children, footer, ...props }: ScrollViewProps & {
   title: string; onClose: () => void; children: ReactNode; footer?: ReactNode;
 }) {
-  return <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-    <View style={ui.scrim}>
+  const { reduced } = useAppearance();
+  const entering = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (reduced) {
+      entering.setValue(1);
+      return;
+    }
+    entering.setValue(0);
+    const transition = Animated.timing(entering, {
+      toValue: 1, duration: motion.sheet, useNativeDriver: Platform.OS !== 'web', isInteraction: false,
+    });
+    transition.start();
+    return () => transition.stop();
+  }, [entering, reduced]);
+  return <Modal visible animationType={reduced ? 'none' : 'fade'} transparent onRequestClose={onClose}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={ui.scrim}>
       <Pressable accessibilityRole="button" accessibilityLabel="关闭浮层" onPress={onClose} style={StyleSheet.absoluteFill} />
-      <SafeAreaView edges={['bottom']} style={ui.sheet}>
+      <Animated.View style={[ui.sheetFrame, !reduced && {
+        transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+      }]}>
+      <SafeAreaView edges={['bottom', 'left', 'right']} style={ui.sheet}>
+        <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
           <Text accessibilityRole="header" style={[styles.section, styles.grow]}>{title}</Text>
           <IconButton label="关闭" icon="close-outline" onPress={onClose} />
@@ -167,47 +186,93 @@ export function Sheet({ title, onClose, children, footer, ...props }: ScrollView
         <ScrollView {...props} keyboardShouldPersistTaps="handled" contentContainerStyle={ui.sheetBody}>{children}</ScrollView>
         {footer && <View style={ui.sheetFooter}>{footer}</View>}
       </SafeAreaView>
-    </View>
+      </Animated.View>
+    </KeyboardAvoidingView>
   </Modal>;
+}
+
+export function LoadingSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
+  return <View accessibilityRole="progressbar" accessibilityLabel={label} accessibilityState={{ busy: true }}>
+    {Array.from({ length: rows }, (_, index) => <View key={index} aria-hidden style={ui.skeletonRow}>
+      <View style={ui.skeletonAvatar} />
+      <View style={styles.grow}>
+        <View style={[ui.skeletonLine, { width: '43%' }]} />
+        <View style={[ui.skeletonLine, { width: index % 2 === 0 ? '76%' : '63%' }]} />
+      </View>
+    </View>)}
+  </View>;
+}
+
+export function Segments<T extends string>({ options, value, onChange, label }: {
+  options: readonly { id: T; label: string }[]; value: T; onChange: (value: T) => void; label: string;
+}) {
+  return <View accessibilityLabel={label} style={ui.segments}>
+    {options.map((option) => <Pressable key={option.id} accessibilityRole="button"
+      accessibilityState={{ selected: option.id === value }} onPress={() => onChange(option.id)}
+      style={({ pressed }) => [ui.segment, option.id === value && ui.activeSegment, pressed && ui.pressed]}>
+      <Text style={option.id === value ? ui.activeSegmentText : styles.muted}>{option.label}</Text>
+    </Pressable>)}
+  </View>;
+}
+
+export function SettingGroup({ children, title }: { children: ReactNode; title?: string }) {
+  return <View style={ui.settings}>
+    {!!title && <View style={ui.settingLabel}><Section title={title} /></View>}
+    <View style={ui.settingRows}>{children}</View>
+  </View>;
 }
 
 const ui = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.backdrop },
   white: { backgroundColor: colors.panel },
-  width: { width: '100%', maxWidth: 620, alignSelf: 'center' },
-  column: { width: '100%', maxWidth: 620, alignSelf: 'center', paddingBottom: 22 },
-  inset: { paddingHorizontal: 16, paddingTop: 10, gap: 16 },
-  barWrap: { backgroundColor: colors.panel, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  bar: { minHeight: 57, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  title: { flexShrink: 1, fontSize: 25, lineHeight: 32, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  demoLabel: { color: '#7E3B50', backgroundColor: colors.pink, borderRadius: 5, overflow: 'hidden',
-    paddingHorizontal: 6, paddingVertical: 2, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  width: { width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
+  column: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', paddingBottom: space.xl },
+  inset: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.md },
+  barWrap: { backgroundColor: colors.panel },
+  bar: { minHeight: 60, paddingHorizontal: space.md, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  backBar: { minHeight: 54, paddingLeft: space.xxs },
+  title: { flexShrink: 1, ...type.title, color: colors.text, letterSpacing: -0.25 },
+  pageTitle: { ...type.heading, letterSpacing: 0 },
+  actions: { flexDirection: 'row', alignItems: 'center' },
+  demoLabel: { color: colors.accent, backgroundColor: colors.pink, borderRadius: radius.small, overflow: 'hidden',
+    paddingHorizontal: space.xs, paddingVertical: space.xxs, ...type.caption, fontWeight: '600' },
   avatar: { alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.ink, fontWeight: '700' },
-  iconButton: { width: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.ink, fontWeight: '600' },
+  iconButton: { width: touch, minHeight: touch, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   tinted: { backgroundColor: colors.pink },
-  button: { minHeight: 44, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 8, gap: 6,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  button: { minHeight: touch, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, gap: space.xs,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 1 },
   primary: { backgroundColor: colors.action },
-  soft: { backgroundColor: colors.lavender },
+  soft: { backgroundColor: colors.search },
   danger: { backgroundColor: colors.pink },
-  pressed: { opacity: 0.73 },
-  disabled: { opacity: 0.43 },
-  buttonText: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  search: { minHeight: 43, borderRadius: 12, backgroundColor: colors.search, flexDirection: 'row',
-    alignItems: 'center', paddingLeft: 12, gap: 8 },
-  searchInput: { flex: 1, minWidth: 0, minHeight: 43, paddingVertical: 7, paddingRight: 10, fontSize: 14, color: colors.text },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.pink, borderRadius: 12,
-    minHeight: 44, paddingHorizontal: 11, paddingVertical: 7 },
-  empty: { gap: 8, minHeight: 118, padding: 18, justifyContent: 'center', alignItems: 'center' },
+  pressed: { opacity: 0.65 },
+  disabled: { opacity: 0.48 },
+  buttonText: { ...type.support, fontWeight: '600', flexShrink: 1, textAlign: 'center' },
+  search: { minHeight: touch, borderRadius: radius.control, backgroundColor: colors.search, flexDirection: 'row',
+    alignItems: 'center', paddingLeft: space.sm, gap: space.xs },
+  searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },
+  notice: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs, backgroundColor: colors.lavender, borderRadius: radius.control,
+    minHeight: touch, paddingHorizontal: space.sm, paddingVertical: space.xxs },
+  empty: { gap: space.xs, minHeight: 112, padding: space.lg, justifyContent: 'center', alignItems: 'center' },
   centerText: { textAlign: 'center' },
-  section: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 27 },
-  listRow: { ...styles.row, ...styles.divider, minHeight: 58, paddingVertical: 8, paddingHorizontal: 13 },
-  scrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#201B2A65' },
-  sheet: { width: '100%', maxWidth: 620, alignSelf: 'center', backgroundColor: colors.panel, borderTopLeftRadius: 19,
-    borderTopRightRadius: 19, maxHeight: '88%', paddingBottom: 12 },
-  sheetTop: { ...styles.row, ...styles.divider, paddingHorizontal: 16, paddingVertical: 4 },
-  sheetBody: { padding: 16, gap: 14 },
-  sheetFooter: { paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  section: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: space.xs, minHeight: 26 },
+  listRow: { ...styles.row, minHeight: 58, paddingVertical: space.xs, paddingHorizontal: space.sm },
+  scrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: fixed.overlay },
+  sheetFrame: { width: '100%', maxWidth: contentWidth, maxHeight: '90%', alignSelf: 'center' },
+  sheet: { flexShrink: 1, backgroundColor: colors.panel, borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet, paddingBottom: space.xs },
+  grip: { height: 4, width: 30, borderRadius: 2, alignSelf: 'center', marginTop: space.xs, backgroundColor: colors.border },
+  sheetTop: { ...styles.row, ...styles.divider, paddingLeft: space.md, paddingRight: space.xs },
+  sheetBody: { padding: space.md, gap: space.sm },
+  sheetFooter: { paddingHorizontal: space.md, paddingVertical: space.xs, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  skeletonRow: { ...styles.row, minHeight: 68, paddingHorizontal: space.md },
+  skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.search },
+  skeletonLine: { height: 8, borderRadius: 4, marginVertical: space.xxs, backgroundColor: colors.search },
+  segments: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, rowGap: 0, ...styles.divider },
+  segment: { minHeight: touch, justifyContent: 'center', borderBottomWidth: 2, borderColor: 'transparent' },
+  activeSegment: { borderBottomColor: colors.accent },
+  activeSegmentText: { ...type.support, fontWeight: '700', color: colors.accent },
+  settings: { gap: space.xs },
+  settingLabel: { paddingHorizontal: space.xxs },
+  settingRows: { borderRadius: radius.surface, backgroundColor: colors.panel, overflow: 'hidden' },
 });

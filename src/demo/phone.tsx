@@ -4,12 +4,12 @@ import { Image, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollV
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AvatarEditor } from '../features/media/AvatarEditor';
-import { Avatar, BrandMark, Button, DemoLabel, Icon, IconButton, ListRow, Notice, Sheet } from '../components/ui';
-import { brandGradient, colors, styles } from '../theme';
+import { Avatar, Button, Icon, IconButton, ListRow, Notice, Sheet } from '../components/ui';
+import { brandGradient, colors, radius, space, styles, touch, type } from '../theme';
+import { WelcomeIdentity } from '../components/welcome';
 import { demoPortrait } from './visuals';
 
 const scenery = require('../../assets/demo/alley.jpg');
-const hero = require('../../assets/identity/hero.jpg');
 const examples = { existing: '19900000001', onboarding: '19900000002' };
 const phonePattern = /^1[3-9]\d{9}$/;
 const avatarOptions = [
@@ -91,9 +91,7 @@ export function PhonePreview({ onLegacy, onEnter }: {
   return <SafeAreaView style={local.screen}>
     <KeyboardAvoidingView style={styles.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={local.wrap}>
-        <View style={local.brand}>
-          <BrandMark size={34} /><Text style={local.word}>朋聊 Penlia</Text><View style={styles.grow} /><DemoLabel />
-        </View>
+        <WelcomeIdentity compact={onboarding || register} />
         {onboarding ? <>
           <View style={local.intro}>
             <Text style={local.caption}>验证完成</Text>
@@ -119,11 +117,6 @@ export function PhonePreview({ onLegacy, onEnter }: {
           <Button label="完成并进入朋聊" variant="gradient" disabled={profileBusy || !name.trim() || !/^[a-z0-9_]{3,24}$/i.test(username.trim())} onPress={() => void complete()} />
           <Text style={styles.small}>昵称、头像和朋聊号为本次演示资料。</Text>
         </> : <>
-          <View style={local.hero}>
-            <Image source={hero} style={local.heroImage} />
-            <LinearGradient colors={['#251F3000', '#251F308C']} style={local.heroShade} />
-            <Text style={local.heroText}>朋友之间，轻松聊。</Text>
-          </View>
           <View style={local.intro}>
             <View style={styles.row}>
               <Text accessibilityRole="header" style={[local.title, styles.grow]}>{register ? '手机号注册' : '手机号登录'}</Text>
@@ -248,20 +241,14 @@ function SliderPreview({ onClose, onSuccess }: { onClose: () => void; onSuccess:
 
 const local = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.panel },
-  wrap: { width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 18, paddingBottom: 18, gap: 11 },
-  brand: { ...styles.row, gap: 9, marginBottom: 4 },
-  word: { fontSize: 19, fontWeight: '800', color: colors.ink, letterSpacing: -0.4 },
-  hero: { backgroundColor: colors.pink, height: 190, borderRadius: 15, overflow: 'hidden', justifyContent: 'flex-end' },
-  heroImage: { position: 'absolute', width: '100%', height: '100%', resizeMode: 'cover' },
-  heroShade: { position: 'absolute', right: 0, left: 0, bottom: 0, height: 79 },
-  heroText: { fontSize: 21, fontWeight: '800', color: '#FFFFFF', margin: 13 },
+  wrap: { width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: space.xl, paddingTop: 18, paddingBottom: 18, gap: 11 },
   intro: { gap: 3, marginVertical: 4 },
   caption: { ...styles.strong, color: colors.accent },
-  title: { fontSize: 25, lineHeight: 34, fontWeight: '800', color: colors.text },
+  title: { ...type.title, color: colors.text },
   phoneField: { ...styles.row, gap: 4, minHeight: 48, paddingRight: 3, borderColor: colors.border, borderWidth: 1,
-    backgroundColor: colors.backdrop, borderRadius: 13 },
-  country: { ...styles.row, minHeight: 44, gap: 5, paddingHorizontal: 10, borderRightWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  phoneInput: { ...styles.grow, minHeight: 44, fontSize: 15, color: colors.text, paddingHorizontal: 7 },
+    backgroundColor: colors.search, borderRadius: radius.control },
+  country: { ...styles.row, minHeight: touch, gap: 5, paddingHorizontal: 10, borderRightWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  phoneInput: { ...styles.grow, minHeight: touch, fontSize: 15, color: colors.text, paddingHorizontal: 7 },
   codeInput: { paddingHorizontal: 12 },
   demoActions: { gap: 4, padding: 9, borderRadius: 13, backgroundColor: colors.backdrop },
   exampleRow: { ...styles.row, gap: 6, flexWrap: 'wrap' },

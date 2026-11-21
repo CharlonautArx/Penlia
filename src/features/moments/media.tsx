@@ -4,10 +4,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, Text, View } from 'react-native';
-import { Button, Empty, Notice, Sheet } from '../../components/ui';
+import { Icon } from '../../components/ui';
 import { apiOrigin } from '../../services/api';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, fixed, radius, space, styles } from '../../theme';
+import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/MediaViewer';
 import { pickPhotos, preparePhoto } from '../media/picker';
 import { nativePhotoUri, useLocalPhotoUri } from '../space/media';
 
@@ -129,66 +130,54 @@ function useProtectedSource(id: string, enabled = true, reviewId?:string) {
   };
 }
 
-export function MomentMediaTile({ item, context = 'moment', reviewId }: { item: Media; context?: 'moment' | 'chat'; reviewId?:string }) {
+export function MomentMediaTile({ item, context = 'moment', reviewId, ratio }: {
+  item: Media; context?: 'moment' | 'chat'; reviewId?: string; ratio?: number;
+}) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const video = item.mime === 'video/mp4';
   const { source, problem } = useProtectedSource(item.id, !video || open, reviewId);
-  return (
-    <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={reviewId ? '查看举报附件' : video ? '播放动态视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
-        onPress={() => setOpen(true)}
-        style={{
-          height: 140,
-          flexGrow: 1,
-          minWidth: 100,
-          overflow: 'hidden',
-          borderRadius: 12,
-          backgroundColor: colors.ice,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        {video ? (
-          <Button label="播放视频" icon="play-outline" variant="soft" onPress={() => setOpen(true)} />
-        ) : source && !failed ? (
-          <Image
-            source={source}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-            onError={() => setFailed(true)}
-          />
-        ) : (
-          <Text style={styles.small}>{problem || (failed ? '照片暂不可访问' : '正在载入照片…')}</Text>
-        )}
-      </Pressable>
-      {open && (
-        <Sheet title={reviewId?'举报附件':video ? '动态视频' : context === 'chat' ? '聊天图片' : '动态照片'} onClose={() => setOpen(false)}>
-          {failed || problem ? (
-            <Notice>{problem || '暂时无法显示该媒体。'}</Notice>
-          ) : source ? (
-            video ? (
-              <MomentVideo source={source} />
-            ) : (
-              <Image
-                source={source}
-                resizeMode="contain"
-                style={{ width: '100%', height: 370 }}
-                onError={() => setFailed(true)}
-              />
-            )
-          ) : (
-            <Empty busy>正在加载媒体…</Empty>
-          )}
-        </Sheet>
-      )}
-    </>
-  );
+  return <>
+    <Pressable accessibilityRole="button"
+      accessibilityLabel={reviewId ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
+      onPress={() => setOpen(true)}
+      style={({ pressed }) => [{ height: ratio ? undefined : 140, aspectRatio: ratio, width: ratio ? '100%' : undefined,
+        flexGrow: ratio ? 0 : 1, minWidth: ratio ? 0 : 100, overflow: 'hidden', opacity: pressed ? 0.84 : 1,
+        borderRadius: ratio ? radius.small : radius.control, backgroundColor: video ? colors.lavender : colors.search,
+        justifyContent: 'center', alignItems: 'center', gap: space.xs }]}>
+      {video ? <>
+        <Icon name="play-circle-outline" size={37} color={colors.accent} />
+        <Text style={styles.muted}>短视频</Text>
+      </> : source && !failed ? (
+        <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="cover" resizeMethod="resize"
+          onError={() => setFailed(true)} />
+      ) : <Text style={styles.small}>{problem || (failed ? '照片暂不可访问' : '正在载入照片…')}</Text>}
+    </Pressable>
+    {open && <MediaViewer title={reviewId ? '举报附件' : video ? '短视频' : '图片预览'} onClose={() => setOpen(false)}>
+      {failed || problem ? <MediaViewerMessage>{problem || '暂时无法显示该媒体。'}</MediaViewerMessage>
+        : !source ? <MediaViewerMessage busy>正在加载媒体…</MediaViewerMessage>
+        : video ? <MomentVideo source={source} immersive />
+        : <Image source={source} accessibilityLabel="原图预览" resizeMode="contain" style={viewerStyles.photo}
+          onError={() => setFailed(true)} />}
+    </MediaViewer>}
+  </>;
 }
 
-export function MomentVideo({ source }: { source: { uri: string; headers?: Record<string, string> } }) {
+export function MomentMediaGrid({ media }: { media: Media[] }) {
+  const full = media.length % 2 === 1;
+  const remaining = full ? media.slice(1) : media;
+  return <View style={{ gap: space.xxs }}>
+    {full && <MomentMediaTile item={media[0]} ratio={media[0].mime === 'video/mp4' ? 16 / 9 : 4 / 3} />}
+    {Array.from({ length: Math.ceil(remaining.length / 2) }, (_, row) => {
+      const items = remaining.slice(row * 2, row * 2 + 2);
+      return <View key={items[0].id} style={{ flexDirection: 'row', gap: space.xxs }}>
+        {items.map((item) => <View key={item.id} style={styles.grow}><MomentMediaTile item={item} ratio={1} /></View>)}
+      </View>;
+    })}
+  </View>;
+}
+
+export function MomentVideo({ source, immersive = false }: { source: { uri: string; headers?: Record<string, string> }; immersive?: boolean }) {
   const videoSource = useMemo(() => source, [source.uri, source.headers?.Authorization]);
   const player = useVideoPlayer(videoSource, (controller) => {
     controller.play();
@@ -196,7 +185,7 @@ export function MomentVideo({ source }: { source: { uri: string; headers?: Recor
   return (
     <VideoView
       player={player}
-      style={{ width: '100%', height: 360, backgroundColor: '#17151E', borderRadius: 12 }}
+      style={immersive ? viewerStyles.photo : { width: '100%', height: 360, backgroundColor: fixed.lens, borderRadius: radius.control }}
       nativeControls
       fullscreenOptions={{ enable: true }}
       allowsPictureInPicture={false}
@@ -209,7 +198,7 @@ export function DraftMediaTile({ item }: { item: LocalMedia }) {
   return photo ? (
     <Image
       source={{ uri: photo }}
-      style={{ width: 72, height: 72, borderRadius: 10 }}
+      style={{ width: 72, height: 72, borderRadius: radius.small }}
       accessibilityLabel="待发布照片"
     />
   ) : (

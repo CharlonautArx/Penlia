@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { Avatar, Button, Empty, ListRow, Notice, Sheet } from '../../components/ui';
@@ -10,23 +10,32 @@ import { useSession } from '../../services/session';
 import { styles } from '../../theme';
 
 export function InviteButton({ message, label = '邀请好友' }: { message: string; label?: string }) {
-  const { relationships, refresh, error } = useFriends();
   const [open, setOpen] = useState(false);
-  const friends = relationships?.filter((friend) => friend.status === 'accepted') ?? [];
   return <>
-    <Button label={label} icon="paper-plane-outline" variant="soft" onPress={() => { setOpen(true); void refresh(); }} />
+    <Button label={label} icon="paper-plane-outline" variant="soft" onPress={() => setOpen(true)} />
     {open && <Sheet title="分享给好友" onClose={() => setOpen(false)}>
       <Text style={styles.muted}>选择好友后，提议会放入聊天输入框，由你确认发送。</Text>
       <Text style={invite.message}>{message}</Text>
-      {!!error && <Notice action="重试" onAction={() => void refresh()}>{error}</Notice>}
-      {friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={'@' + friend.username}
-        left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={40} />}
-        onPress={() => {
-          setOpen(false);
-          router.push({ pathname: '/chat/[id]', params: { id: friend.userId, draft: message } });
-        }} />)}
-      {!friends.length && !error && <Empty busy={!relationships}>先添加好友，就能分享这条提议。</Empty>}
+      <InviteRecipients message={message} onChoose={() => setOpen(false)} />
     </Sheet>}
+  </>;
+}
+
+export function InviteRecipients({ message, onChoose, empty = '先添加好友，就能分享这条提议。' }: {
+  message: string; onChoose: () => void; empty?: string;
+}) {
+  const { relationships, refresh, error } = useFriends();
+  useEffect(() => { void refresh(); }, [refresh]);
+  const friends = relationships?.filter((friend) => friend.status === 'accepted') ?? [];
+  return <>
+    {!!error && <Notice action="重试" onAction={() => void refresh()}>{error}</Notice>}
+    {friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={'@' + friend.username}
+      left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={40} />}
+      onPress={() => {
+        onChoose();
+        router.push({ pathname: '/chat/[id]', params: { id: friend.userId, draft: message } });
+      }} />)}
+    {!friends.length && !error && <Empty busy={!relationships}>{empty}</Empty>}
   </>;
 }
 

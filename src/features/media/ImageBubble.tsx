@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Empty, Icon, Notice, Sheet } from '../../components/ui';
+import { Icon } from '../../components/ui';
+import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/MediaViewer';
 import type { ImConnection } from '../../services/im';
-import { colors } from '../../theme';
+import { colors, radius } from '../../theme';
 import { useLocalPhotoUri } from '../space/media';
 import { cachedAttachment, fetchAttachment, type ImageItem } from './messages';
 
@@ -39,19 +40,18 @@ export function ImageBubble({ item, connection, online, onDownloaded }: {
       {preview && !thumbnailBroken ? <Image source={{ uri: preview }} resizeMode="cover" style={local.fill}
         onError={() => setThumbnailBroken(true)} accessibilityLabel="聊天图片" /> : <View style={local.placeholder}><Icon name="image-outline" /></View>}
     </Pressable>
-    {show && <Sheet title="图片预览" onClose={() => setShow(false)}>
-      {full ? <Image source={{ uri: full }} accessibilityLabel="原图预览" resizeMode="contain" style={local.full}
-        onError={() => setError('图片暂时无法打开。')} /> : <Empty busy={busy} icon="image-outline">
-        {busy ? '正在读取图片…' : '这张图片还未保存到本机。'}
-      </Empty>}
-      {!!error && <Notice action={online && item.source ? '重试' : undefined} onAction={() => void download()}>{error}</Notice>}
-    </Sheet>}
+    {show && <MediaViewer title="图片预览" onClose={() => setShow(false)}>
+      {!!full && <Image source={{ uri: full }} accessibilityLabel="原图预览" resizeMode="contain"
+        style={viewerStyles.photo} onError={() => setError('图片暂时无法打开。')} />}
+      {(!full || error) && <MediaViewerMessage busy={busy} retry={error && online && item.source ? () => void download() : undefined}>
+        {error || (busy ? '正在读取图片…' : '这张图片还未保存到本机。')}
+      </MediaViewerMessage>}
+    </MediaViewer>}
   </>;
 }
 
 const local = StyleSheet.create({
-  preview: { width: 190, overflow: 'hidden', borderRadius: 11, backgroundColor: colors.lavender },
+  preview: { width: 190, maxWidth: '100%', overflow: 'hidden', borderRadius: radius.control, backgroundColor: colors.lavender },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fill: { width: '100%', height: '100%' },
-  full: { width: '100%', height: 330, borderRadius: 12, backgroundColor: colors.backdrop },
 });

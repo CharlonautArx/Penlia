@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
-import { DataEmpty, MediaStrip, ProjectPeople } from '../../features/life/ui';
+import { Avatar, Button, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { DataEmpty, ProjectPeople } from '../../features/life/ui';
 import { back, Choices, Field, formatTime, InviteChoices, useRecord } from '../../features/social/ui';
 import { openRecord, sceneNames, sourceNames, spaceTitles, type Page, type Person, type Scene, type Space, type WorldRecord } from '../../features/world/model';
 import { RecordEditor, type RecordDraft } from '../../features/world/record-editor';
@@ -10,6 +10,8 @@ import { RelatedRelays } from '../../features/world/related';
 import { WorldScene } from '../../features/world/scene';
 import { useSession } from '../../services/session';
 import { styles } from '../../theme';
+import { LifeLead, TimelineNode } from '../../features/life/Editorial';
+import { MomentMediaGrid } from '../../features/moments/media';
 
 export default function WorldDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,12 +48,11 @@ function Details({ id }: { id: string }) {
     : item.sourceTitle ?? item.body;
   const activeSelection = selected && all.find((item) => item.id === selected.id);
   return (
-    <Screen title={spaceTitles[space.kind]} back={back} refreshing={busy || contents.busy} onRefresh={refreshFirst}>
-      <View style={styles.card}>
-        <Section title={space.title} detail={space.eventDay ?? sceneNames[space.scene]} />
-        <Text style={styles.muted}>{world ? '一起布置，有空再来和小宠物打招呼。' : '同一刻，每个人都有自己的视角。你决定谁能看到你的投稿。'}</Text>
-        <Button label="成员与邀请" icon="people-outline" variant="soft" onPress={() => setPeople(true)} />
-      </View>
+    <Screen title={spaceTitles[space.kind]} back={back} refreshing={busy || contents.busy} onRefresh={refreshFirst}
+      actions={<IconButton label="成员与邀请" icon="people-outline" onPress={() => setPeople(true)} />}>
+      <LifeLead title={space.title} detail={space.eventDay ?? sceneNames[space.scene]} tone={world ? 'paper' : 'rose'}>
+        {!world && <Text style={styles.muted}>每位作者决定谁可以查看自己的投稿。</Text>}
+      </LifeLead>
       {world ? <>
         <WorldScene space={space} records={all} choose={setSelected}
           add={(x,y) => setDraft({kind:'decoration',x,y})}
@@ -77,10 +78,12 @@ function Details({ id }: { id: string }) {
       {!!contents.error && <Notice action="重试" onAction={() => void contents.load()}>{contents.error}</Notice>}
       {!all.length && !contents.error && <DataEmpty loading={!contents.data}>{world ? '这里还没有可查看的摆件。' : '这里还没有可查看的投稿。'}</DataEmpty>}
       {all.map((item, index) => item.kind === 'contribution' ? (
-        <View key={item.id} style={styles.card}>
-          <Section title={item.author} detail={formatTime(item.createdAt)} />
+        <TimelineNode key={item.id} last={index === all.length - 1}>
+        <View style={styles.card}>
+          <View style={styles.row}><Avatar userId={item.authorId} name={item.author} size={36} /><Section title={item.author} detail={formatTime(item.createdAt)} /></View>
           {!!item.body && <Text style={styles.body}>{item.body}</Text>}
-          <MediaStrip media={expandedMedia === item.id ? item.media : item.media.slice(0,index < 3 ? 1 : 0)} />
+          {item.media.length > 0 && (index < 3 || expandedMedia === item.id) &&
+            <MomentMediaGrid media={expandedMedia === item.id ? item.media : item.media.slice(0, 1)} />}
           {item.media.length > (index < 3 ? 1 : 0) && (
             <Button label={expandedMedia === item.id ? '收起附件' : '查看附件 · ' + item.media.length}
               variant="soft" onPress={() => setExpandedMedia(expandedMedia === item.id ? undefined : item.id)} />
@@ -90,6 +93,7 @@ function Details({ id }: { id: string }) {
             <Button label="撤回投稿" variant="quiet" onPress={() => setDeleting(item)} />
           </View>}
         </View>
+        </TimelineNode>
       ) : (
         <ListRow key={item.id} title={match(item)} detail={(item.sourceKind ? sourceNames[item.sourceKind] : labels[item.kind]) + ' · ' + item.author}
           onPress={() => setSelected(item)} />

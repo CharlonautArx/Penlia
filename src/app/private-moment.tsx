@@ -1,7 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, Empty, Icon, IconButton, ListRow, Notice, Screen, Sheet } from '../components/ui';
 import { scopes, type Audience, type Moment } from '../features/moments/Feed';
 import {
@@ -17,7 +17,7 @@ import type { RelationGroup, Settings } from '../features/privacy/types';
 import { errorMessage } from '../services/api';
 import { useFriends } from '../services/friends';
 import { useSession } from '../services/session';
-import { colors, styles } from '../theme';
+import { colors, radius, space, styles } from '../theme';
 
 export default function PrivateMoment() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -156,14 +156,15 @@ export default function PrivateMoment() {
         <>
           <TextInput
             accessibilityLabel="动态正文"
-            placeholder="记录此刻的生活…"
+            placeholder="写点什么，或直接分享一张照片"
+            placeholderTextColor={colors.quiet}
             multiline
             textAlignVertical="top"
             value={body}
             editable={!busy}
             onChangeText={setBody}
             maxLength={2000}
-            style={[styles.input, { minHeight: 145 }]}
+            style={local.writing}
           />
           {previous ? (
             <Text style={styles.muted}>这条动态有 {previous.media.length} 个原有附件。</Text>
@@ -211,11 +212,11 @@ export default function PrivateMoment() {
               <Text style={styles.small}>最多六张照片，或一段 4 MB、30 秒以内的 MP4。</Text>
             </>
           )}
-          <View style={styles.card}>
+          <View style={local.audience}>
             <ListRow
               title={'可见范围 · ' + audienceName}
               detail={confirmed ? '已确认' : '发布前请确认谁能看到'}
-              left={<Icon name="lock-closed-outline" color={colors.accent} />}
+              left={<Icon name="lock-closed-outline" color={colors.accent} />} separator={false}
               onPress={() => setShowAudience(true)}
             />
           </View>
@@ -319,3 +320,8 @@ export default function PrivateMoment() {
     </Screen>
   );
 }
+
+const local = StyleSheet.create({
+  writing: { ...styles.input, minHeight: 150, backgroundColor: colors.panel, borderColor: colors.border, textAlignVertical: 'top', padding: space.md },
+  audience: { backgroundColor: colors.panel, borderRadius: radius.surface, overflow: 'hidden' },
+});

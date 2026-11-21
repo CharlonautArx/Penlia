@@ -2,14 +2,14 @@ import { randomUUID } from 'expo-crypto';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
-import { Button, ListRow, Notice, Section, Sheet } from '../../components/ui';
+import { Button, Icon, ListRow, Notice, Section, Sheet } from '../../components/ui';
 import { MemberChoices } from '../privacy/MemberChoices';
 import { LocationBubble, LocationComposer } from '../media/LocationCard';
 import { type LocalMedia, type Media } from '../moments/media';
 import { Choices, Field, useRecord } from '../social/ui';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, fixed, radius, styles, touch } from '../../theme';
 import { AssetPicker, DataEmpty, MediaStrip, uploadAssets, type Project } from './ui';
 
 const categories = {
@@ -274,7 +274,11 @@ function ItemCard({
   const address = addressOf(item);
   return (
     <View style={styles.card}>
-      <Section title={item.title} detail={categories[item.category] + ' · ' + marks[item.state]} />
+      <View style={styles.row}>
+        <Icon name={item.kind === 'place' ? (item.latitude == null ? 'bookmark-outline' : 'location-outline') : 'bookmark-outline'}
+          color={colors.accent} size={21} />
+        <Section title={item.title} detail={categories[item.category] + ' · ' + marks[item.state]} />
+      </View>
       {item.ownerId !== me && <Text style={styles.small}>{item.author} 分享</Text>}
       {!!address && <Text style={styles.muted}>{address}</Text>}
       {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
@@ -351,7 +355,7 @@ function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => v
     <View style={styles.card}>
       <Section title="地点示意图" />
       <Text style={styles.small}>按已授权点位的经纬度绘制。点按标记查看地点。</Text>
-      <View style={{ height: 205, backgroundColor: colors.ice, borderRadius: 13, overflow: 'hidden' }}>
+      <View style={{ height: 205, backgroundColor: colors.ice, borderRadius: radius.control, overflow: 'hidden' }}>
         <View
           style={{
             position: 'absolute',
@@ -382,18 +386,18 @@ function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => v
               position: 'absolute',
               top: 100 - project(point.latitude!, ymin, ymax) + '%',
               left: project(point.longitude!, xmin, xmax) + '%',
-              transform: [{ translateX: -18 }, { translateY: -18 }],
-              width: 36,
-              height: 36,
-              borderRadius: 18,
+              transform: [{ translateX: -touch / 2 }, { translateY: -touch / 2 }],
+              width: touch,
+              height: touch,
+              borderRadius: radius.pill,
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: pinColors[point.state],
               borderWidth: 2,
-              borderColor: 'white',
+              borderColor: colors.panel,
             }}
           >
-            <Text style={{ color: 'white', fontWeight: '700' }}>{index + 1}</Text>
+            <Text style={{ color: fixed.onAction, fontWeight: '700' }}>{index + 1}</Text>
           </Pressable>
         ))}
       </View>

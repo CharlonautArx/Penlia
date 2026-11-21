@@ -1,6 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
@@ -25,7 +25,8 @@ import { pickPhotos, preparePhoto, type PreparedPhoto } from '../../features/med
 import { useLocalPhotoUri } from '../../features/space/media';
 import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, radius, space, styles, touch } from '../../theme';
+import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 
 function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
   const { session, request } = useSession();
@@ -49,6 +50,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const [noReply,setNoReply]=useState(false);
   const [video,setVideo]=useState<Awaited<ReturnType<typeof chooseMomentVideo>>>();
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
+  const [actions, setActions] = useState<RichMessage>();
   const batch=useRef(false);
   const [prepareBusy, setPrepareBusy] = useState(false);
   const [transferProgress, setTransferProgress] = useState<number>();
@@ -221,41 +223,29 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
       {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
       <FlatList
-        inverted data={items} style={styles.grow} contentContainerStyle={local.messages}
+        inverted data={items} style={styles.grow} contentContainerStyle={chatLayout.messages}
         keyboardShouldPersistTaps="handled" keyExtractor={(message) => message.id}
-        ListEmptyComponent={<View style={local.invertedEmpty}><Empty>还没有消息，可以先打个招呼。</Empty></View>}
+        ListEmptyComponent={<View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>}
         ListFooterComponent={cursor && online ? (
           <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
             onPress={() => void loadOlder()} />
         ) : undefined}
         renderItem={({ item: message, index }) => {
-          const previous = items[index + 1];
-          const groupStart = !previous || message.timestamp - previous.timestamp >= 8 * 60_000;
-          const standalone = groupStart || message.mine !== previous?.mine;
+          const older = items[index + 1];
+          const newer = items[index - 1];
+          const block = startsMessageBlock(message.timestamp, older?.timestamp);
+          const first = block || message.mine !== older?.mine;
+          const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
           return <View>
-            {groupStart && <Text style={local.time}>{messageTime(message.timestamp)}</Text>}
-            <View style={[local.messageRow, message.mine && local.myRow, standalone && local.groupGap]}>
-              {!message.mine && (standalone
-                ? <Avatar name={person.name} source={demoPortrait(person.username)} size={30} />
-                : <View style={local.avatarSpace} />)}
-              <Pressable style={[local.bubble, message.mine ? local.mine : local.theirs]}
-                onLongPress={!demo&&!message.mine?()=>{
-                  const context=items.slice(Math.max(0,index-3),index+4).map((line)=>({
-                    id:line.id,mine:line.mine,content:'text' in line?line.text:line.kind==='image'?'[图片]':line.kind==='video'?'[视频]':'[位置]',
-                  }));
-                  const anchor=context.find((line)=>line.id===message.id);
-                  if(anchor)setReport({anchor,lines:context});
-                }:undefined}>
-
-                {
-                  'text' in message ? <Text style={styles.body}>{message.text}</Text>
-                    : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
-                    : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />
-                }
-                {message.noReply && <NoReply />}
-                {message.silent && <Moon />}
-              </Pressable>
-            </View>
+            {block && <ChatTimestamp value={message.timestamp} />}
+            <ChatBubble mine={message.mine} first={first} last={last} onActions={() => setActions(message)}
+              avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={31} />}>
+              {'text' in message ? <MessageBody text={message.text} />
+                : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
+                : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />}
+              {message.noReply && <NoReply />}
+              {message.silent && <Moon />}
+            </ChatBubble>
           </View>;
         }}
       />
@@ -263,22 +253,26 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
-      {noReply&&!demo&&<View style={{paddingHorizontal:14}}><NoReply/></View>}
-      <View style={local.composer}>
-        {!demo&&<IconButton label={quiet?'关闭安静送达':'安静送达'} icon={quiet?'moon':'moon-outline'}
-          tinted={quiet} disabled={sending} onPress={()=>setQuiet(!quiet)}/>}
-        <View style={local.entry}>
-          <TextInput accessibilityLabel="消息" placeholder={demo ? '输入模拟消息' : '发消息'} placeholderTextColor={colors.quiet}
-            multiline maxLength={500} value={draft} onChangeText={setDraft} editable={!sending}
-            style={local.input} />
-          <IconButton label="表情" icon="happy-outline" disabled={sending} onPress={() => setPicker('emoji')} />
-        </View>
-        <IconButton label="更多输入方式" icon="add-circle-outline" onPress={() => setPicker('attachments')} />
-        <IconButton label="从图库选择图片" icon="image-outline" disabled={prepareBusy||sending}
-          onPress={()=>void prepareImage()}/>
-        <Button label={sending ? '发送中…' : '发送'} onPress={sendText}
-          disabled={(!demo && !online) || !draft.trim() || sending || (pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim())} />
-      </View>
+      <MessageComposer label="消息" placeholder={demo ? '输入模拟消息' : '发消息'}
+        value={draft} onChange={setDraft} editable={!sending} maxLength={500}
+        attachLabel="更多输入方式" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
+        onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
+        photoDisabled={prepareBusy} toolsDisabled={sending}
+        sendLabel={sending ? '发送中…' : '发送'} onSend={sendText}
+        sendDisabled={(!demo && !online) || !draft.trim() || sending || (pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim()) || false}
+        mode={!demo && (quiet || noReply) ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />
+      {actions && <MessageActions timestamp={actions.timestamp}
+        text={'text' in actions ? actions.text : undefined} onClose={() => setActions(undefined)}
+        report={!demo && !actions.mine ? () => {
+          const index = items.findIndex((line) => line.id === actions.id);
+          const context = index < 0 ? [] : items.slice(Math.max(0, index - 3), index + 4).map((line) => ({
+            id: line.id, mine: line.mine,
+            content: 'text' in line ? line.text : line.kind === 'image' ? '[图片]' : line.kind === 'video' ? '[视频]' : '[位置]',
+          }));
+          const anchor = context.find((line) => line.id === actions.id);
+          setActions(undefined);
+          if (anchor) setReport({ anchor, lines: context });
+        } : undefined} />}
       {picker === 'location' && <LocationComposer online={!!demo || online} onClose={() => setPicker(undefined)} onConfirm={(value) => {
         setPicker(undefined);
         void transmit({ kind: 'location', ...value, silent:quiet });
@@ -292,6 +286,9 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
             }} />)}
         </View> : <>
           {!demo&&<>
+            <Button label={quiet ? '关闭安静送达' : '安静送达'} icon={quiet ? 'moon' : 'moon-outline'}
+              variant={quiet ? 'primary' : 'soft'} disabled={sending}
+              onPress={() => { setQuiet(!quiet); setPicker(undefined); }} />
             <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'}
               disabled={sending} onPress={()=>{setNoReply(!noReply);setPicker(undefined);}}/>
             <Text style={styles.muted}>可与安静送达同时使用。</Text>
@@ -349,13 +346,6 @@ function QueuePreview({item,index}:{item:PreparedPhoto;index:number}) {
     style={{width:45,height:45,borderRadius:7}} />:null;
 }
 
-function messageTime(timestamp: number) {
-  const date = new Date(timestamp);
-  const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return date.toDateString() === new Date().toDateString()
-    ? '今天 ' + clock : date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }) + ' ' + clock;
-}
-
 export default function ConversationScreen() {
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
   const [more, setMore] = useState(false);
@@ -371,7 +361,7 @@ export default function ConversationScreen() {
 
   return (
     <SafeAreaView style={local.safe}>
-      <KeyboardAvoidingView style={local.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={chatLayout.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={local.header}>
           <IconButton label="返回" icon="chevron-back" onPress={goBack} />
           {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
@@ -413,25 +403,10 @@ export default function ConversationScreen() {
 
 const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.panel },
-  page: { flex: 1, width: '100%', maxWidth: 620, alignSelf: 'center', backgroundColor: '#F4F4F7' },
-  header: { ...styles.row, ...styles.divider, minHeight: 58, gap: 9, paddingHorizontal: 8, backgroundColor: colors.panel },
-  profileLink: { ...styles.row, ...styles.grow, gap: 9, minHeight: 44 },
+  header: { ...styles.row, ...styles.divider, minHeight: 54, gap: space.xxs, paddingHorizontal: space.xxs, backgroundColor: colors.panel },
+  profileLink: { ...styles.row, ...styles.grow, gap: space.xs, minHeight: touch },
   profilePressed: { opacity: 0.72 },
-  messages: { paddingHorizontal: 13, paddingVertical: 14 },
-  invertedEmpty: { transform: [{ scaleY: -1 }] },
-  notice: { paddingHorizontal: 12, paddingVertical: 6 },
-  time: { ...styles.small, textAlign: 'center', paddingTop: 9, paddingBottom: 13 },
-  messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 4 },
-  myRow: { justifyContent: 'flex-end' },
-  groupGap: { paddingTop: 9 },
-  avatarSpace: { width: 30 },
-  bubble: { borderRadius: 17, paddingHorizontal: 12, paddingVertical: 8, maxWidth: '79%' },
-  mine: { backgroundColor: '#F1E3F0', borderBottomRightRadius: 5 },
-  theirs: { backgroundColor: colors.panel, borderBottomLeftRadius: 5 },
-  composer: { ...styles.row, gap: 5, backgroundColor: colors.panel, paddingHorizontal: 8, paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  entry: { ...styles.grow, ...styles.row, gap: 0, borderRadius: 12, backgroundColor: colors.backdrop },
-  input: { ...styles.grow, fontSize: 15, color: colors.text, maxHeight: 110, minHeight: 44, paddingLeft: 11, paddingVertical: 9 },
-  emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  imagePreview: { width: '100%', height: 290, borderRadius: 12, backgroundColor: colors.backdrop },
+  notice: { paddingHorizontal: space.md, paddingVertical: space.xxs },
+  emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  imagePreview: { width: '100%', height: 290, borderRadius: radius.control, backgroundColor: colors.backdrop },
 });

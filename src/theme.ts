@@ -3,24 +3,48 @@ import palette from './palette.json';
 
 export { palette };
 export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
-type ColorName = keyof typeof palette.light;
-export const colors = Object.fromEntries((Object.keys(palette.light) as ColorName[]).map((name) => [
+export const colorNames = Object.keys(palette.light) as (keyof typeof palette.light)[];
+type ColorName = typeof colorNames[number];
+export const colors = Object.fromEntries(colorNames.map((name) => [
   name, Platform.OS === 'ios' ? DynamicColorIOS({ light: palette.light[name], dark: palette.dark[name] })
-    : Platform.OS === 'android' ? PlatformColor('@color/penlia_' + name) : palette.light[name],
+    : Platform.OS === 'android' ? PlatformColor('@color/penlia_' + name)
+    : `var(--penlia-${name}, ${palette.light[name]})`,
 ])) as Record<ColorName, Exclude<ColorValue, number | null | undefined>>;
 
+export const space = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32 } as const;
+export const radius = { small: 8, control: 12, surface: 16, sheet: 24, pill: 999 } as const;
+export const motion = { press: 160, feedback: 200, sheet: 240, transition: 300 } as const;
+export const touch = Platform.OS === 'ios' ? 44 : 48;
+export const contentWidth = 620;
+export const fixed = {
+  onAction: '#FFFFFF', onBrand: '#312633', lens: '#141318',
+  onLens: '#F9F6F9', overlay: '#16131975', photoShade: '#17131DCE',
+} as const;
+
+export const type = {
+  display: { fontSize: 32, lineHeight: 39, fontWeight: '700' },
+  title: { fontSize: 26, lineHeight: 34, fontWeight: '700' },
+  heading: { fontSize: 19, lineHeight: 26, fontWeight: '700' },
+  emphasis: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
+  body: { fontSize: 16, lineHeight: 24 },
+  support: { fontSize: 14, lineHeight: 21 },
+  caption: { fontSize: 12, lineHeight: 17 },
+  time: { fontSize: 12, lineHeight: 17, fontVariant: ['tabular-nums'] as 'tabular-nums'[] },
+} as const;
+
+export const elevation = { inline: colors.backdrop, surface: colors.panel, raised: colors.search } as const;
 export const styles = StyleSheet.create({
-  card: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, gap: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  card: { backgroundColor: elevation.surface, borderRadius: radius.surface, padding: space.md, gap: space.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   grow: { flex: 1, minWidth: 0 },
-  strong: { color: colors.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
-  body: { color: colors.text, fontSize: 15, lineHeight: 23 },
-  muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  small: { color: colors.quiet, fontSize: 12, lineHeight: 17 },
-  section: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700' },
+  strong: { color: colors.text, ...type.emphasis },
+  body: { color: colors.text, ...type.body },
+  muted: { color: colors.muted, ...type.support },
+  small: { color: colors.quiet, ...type.caption },
+  section: { color: colors.text, ...type.heading, flexShrink: 1 },
   input: {
-    backgroundColor: colors.backdrop, color: colors.text, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 12, paddingHorizontal: 13, paddingVertical: 10, fontSize: 15, minHeight: 46,
+    backgroundColor: elevation.raised, color: colors.text, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+    borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, ...type.body, minHeight: touch,
   },
   divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
 });

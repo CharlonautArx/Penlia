@@ -2,18 +2,19 @@ import { isUiDemo } from '../../demo/mode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Avatar, Button, Icon, IconButton, ListRow, Notice, Screen, Sheet, type IconName } from '../../components/ui';
+import { Avatar, Button, Icon, IconButton, ListRow, Notice, Screen, SettingGroup, Sheet, type IconName } from '../../components/ui';
 import { AvatarEditor } from '../../features/media/AvatarEditor';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { brandGradient, colors, radius, space, styles, type } from '../../theme';
+import { useAppearance } from '../../components/appearance';
 
 export default function MeScreen() {
   const { session, updateProfile, logout, enterDemo, demoAvatarKey, localAvatar, avatarNotice, changeLocalAvatar } = useSession();
-  const dark=useColorScheme()==='dark'&&Platform.OS!=='web';
+  const { preference, scheme, setPreference } = useAppearance();
   const [sheet, setSheet] = useState<'资料' | '主题与外观' | '通用设置'>();
   const [avatarDraft, setAvatarDraft] = useState<string | null>();
   const [name, setName] = useState('');
@@ -45,22 +46,23 @@ export default function MeScreen() {
   }
 
   return <Screen title="我的" actions={<IconButton label="通用设置" icon="settings-outline" onPress={() => setSheet('通用设置')} />}>
-    <LinearGradient colors={dark?['#422B3A','#332D42','#22393B']:['#FDE7ED','#F5F1F8','#E1F8F5']} start={{ x: 0.02, y: 0.08 }} end={{ x: 1, y: 0.85 }} style={local.profile}>
+    <View style={local.profile}>
+      <LinearGradient colors={brandGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={local.signature} />
       <View style={styles.row}>
-        <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={64} />
+        <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={68} />
         <View style={styles.grow}>
           <Text style={local.name}>{user.name}</Text>
           <Text style={styles.muted}>朋聊号 @{user.username}</Text>
         </View>
         <IconButton label="编辑资料" icon="create-outline" onPress={edit} disabled={busy} />
       </View>
-      <Text style={styles.body}>{user.bio || '还没有个性签名'}</Text>
-    </LinearGradient>
-    <View style={local.group}>
+      {!!user.bio && <Text style={styles.body}>{user.bio}</Text>}
+    </View>
+    <SettingGroup>
       <ListRow title="隐私与安全" detail="好友权限、安静时间、登录设备" left={<Tile icon="shield-checkmark-outline" />}
         onPress={() => router.push('/privacy')} />
-    </View>
-    <View style={local.group}>
+    </SettingGroup>
+    <SettingGroup title="我的生活">
       {!isUiDemo && <ListRow title="生活边界保护" detail="举报记录、处置与申诉"
         left={<Tile icon="flag-outline" />} onPress={() => router.push('/boundary')} />}
       <ListRow title="我的空间" detail="动态、日志和相册" left={<Tile icon="person-circle-outline" />}
@@ -73,12 +75,12 @@ export default function MeScreen() {
         <ListRow title="我的收藏与好友推荐" left={<Tile icon="bookmark-outline" />} onPress={()=>router.push('/life/items')}/>
         <ListRow title="生活提醒" left={<Tile icon="notifications-outline" />} onPress={()=>router.push('/life/reminders')}/>
       </>}
-    </View>
-    <View style={local.group}>
+    </SettingGroup>
+    <SettingGroup title="偏好设置">
       <ListRow title="本机空间隐私" left={<Tile icon="eye-outline" />} onPress={() => router.push('/space/privacy')} />
       <ListRow title="主题与外观" left={<Tile icon="color-palette-outline" />} onPress={() => setSheet('主题与外观')} />
       <ListRow title="通用设置" left={<Tile icon="settings-outline" />} onPress={() => setSheet('通用设置')} />
-    </View>
+    </SettingGroup>
     {!!avatarNotice && !sheet && <Notice>{avatarNotice}</Notice>}
     {!!error && !sheet && <Notice>{error}</Notice>}
     <Button label={enterDemo ? '退出演示' : '退出登录'} variant="danger" disabled={busy} onPress={() => void run(logout)} />
@@ -97,7 +99,20 @@ export default function MeScreen() {
             if ((avatarDraft ?? undefined) !== localAvatar) await changeLocalAvatar(avatarDraft ?? null);
           })} />
       </>}
-      {sheet === '主题与外观' && <ListRow title="跟随系统主题" detail={dark?'当前为深色模式':'当前为浅色模式'} left={<Tile icon="sunny-outline" />} />}
+      {sheet === '主题与外观' && <>
+        {([
+          ['system', '跟随系统', 'contrast-outline'],
+          ['light', '浅色', 'sunny-outline'],
+          ['dark', '深色', 'moon-outline'],
+        ] as const).map(([key, label, icon]) => (
+          <ListRow key={key} title={label} left={<Tile icon={icon} />}
+            detail={key === 'system' ? '随手机外观设置切换' : undefined}
+            trailing={preference === key ? <Icon name="checkmark" color={colors.accent} /> : <View />}
+            onPress={() => void setPreference(key).catch(() => setError('暂时无法保存外观偏好，请重试。'))} />
+        ))}
+        <Text style={styles.small}>当前外观 · {scheme === 'dark' ? '深色' : '浅色'}</Text>
+        {!!error && <Notice>{error}</Notice>}
+      </>}
       {sheet === '通用设置' && <ListRow title="朋聊" detail={enterDemo ? '0.1.0 · 离线演示' : '0.1.0'} left={<Tile icon="chatbubbles-outline" />} />}
     </Sheet>}
   </Screen>;
@@ -108,8 +123,9 @@ function Tile({ icon }: { icon: IconName }) {
 }
 
 const local = StyleSheet.create({
-  profile: { padding: 16, borderRadius: 15, gap: 14 },
-  name: { fontSize: 25, fontWeight: '800', color: colors.text, lineHeight: 32 },
-  group: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 14, overflow: 'hidden' },
-  tile: { width: 35, height: 35, borderRadius: 10, backgroundColor: colors.backdrop, alignItems: 'center', justifyContent: 'center' },
+  profile: { padding: space.md, gap: space.sm, borderRadius: radius.surface, backgroundColor: colors.panel },
+  signature: { width: 40, height: 4, borderRadius: 2 },
+  name: { ...type.title, color: colors.text },
+  tile: { width: 34, height: 34, borderRadius: radius.small, backgroundColor: colors.backdrop,
+    alignItems: 'center', justifyContent: 'center' },
 });

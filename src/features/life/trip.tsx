@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { back, Choices, Field, useRecord } from '../social/ui';
-import { type LocalMedia, type Media } from '../moments/media';
+import { MomentMediaGrid, type LocalMedia, type Media } from '../moments/media';
 import { useSession } from '../../services/session';
-import { styles } from '../../theme';
+import { space, styles } from '../../theme';
+import { DateBadge, LifeLead, TimelineNode } from './Editorial';
 import { AssetPicker, DataEmpty, MediaStrip, uploadAssets, type Project, type ProjectMember } from './ui';
 import { ManageProjectPeople } from './project-people';
 
@@ -46,6 +47,7 @@ export function TripScreen({ id }: { id: string }) {
   const [editor, setEditor] = useState<Stop | 'new'>();
   const [confirm, setConfirm] = useState<'journal' | Stop>();
   const owner = me === data?.trip.ownerId;
+  const cover = data?.items.flatMap((item) => item.media).find((item) => item.mime.startsWith('image/'));
   const doAction = (action: string, extra: Record<string, unknown> = {}) =>
     request<{ id?: string }>('/p2/trips/' + id + '/action', { method: 'POST', body: { action, ...extra } });
   return (
@@ -63,12 +65,12 @@ export function TripScreen({ id }: { id: string }) {
       {!data && !error && <DataEmpty loading>暂无旅行。</DataEmpty>}
       {data && (
         <>
-          <View style={styles.card}>
-            <Section title={data.trip.destination} detail={data.trip.completedAt ? '已完成' : '计划中'} />
-            <Text style={styles.body}>
-              {data.trip.startDay} 至 {data.trip.endDay}
-            </Text>
-          </View>
+          <LifeLead title={data.trip.destination} detail={data.trip.completedAt ? '已完成' : '计划中'}
+            icon="airplane-outline" tone="mint">
+            <Text style={styles.body}>{data.trip.startDay} 至 {data.trip.endDay}</Text>
+            {!!data.members.length && <Text style={styles.muted}>同行 · {data.members.filter((m) => m.state === 'active').map((m) => m.name).join('、')}</Text>}
+          </LifeLead>
+          {cover && <MomentMediaGrid media={[cover]} />}
           {owner && !data.trip.completedAt && (
             <Button label="编辑旅行信息" variant="soft" onPress={() => setTripEditor(true)} />
           )}
@@ -92,10 +94,11 @@ export function TripScreen({ id }: { id: string }) {
               void run(() => doAction('reorder', { eventDay: day, itemIds: ids }));
             };
             return (
-              <View key={day} style={{ gap: 8 }}>
-                <Section title={day} />
+              <View key={day} style={{ gap: space.xs }}>
+                <View style={styles.row}><DateBadge date={day} /><Section title={day} /></View>
                 {list.map((stop, index) => (
-                  <View key={stop.id} style={styles.card}>
+                  <TimelineNode key={stop.id} last={index === list.length - 1}>
+                    <View style={styles.card}>
                     <Section title={stop.title} detail={categories[stop.category] + ' · ' + stop.author} />
                     {!!stop.details && <Text style={styles.body}>{stop.details}</Text>}
                     <MediaStrip media={stop.media} />
@@ -138,7 +141,8 @@ export function TripScreen({ id }: { id: string }) {
                         )}
                       </View>
                     )}
-                  </View>
+                    </View>
+                  </TimelineNode>
                 ))}
               </View>
             );

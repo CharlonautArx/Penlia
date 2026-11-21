@@ -15,6 +15,7 @@ import {
   type Category,
 } from '../../features/social/ui';
 import { useSession } from '../../services/session';
+import { DateBadge, LifeLead } from '../../features/life/Editorial';
 import { RelatedRelays } from '../../features/world/related';
 import { styles } from '../../theme';
 
@@ -137,14 +138,13 @@ function Details({ id, showAlbum }: { id: string; showAlbum: boolean }) {
         void load();
       }}
     >
-      <View style={styles.card}>
-        <Section title={coll.title} />
-        <Text style={styles.muted}>
-          {coll.kind === 'journal'
-            ? '仅已加入的成员可读写。'
-            : '发起者设置共创动态范围，各作者为自己的内容单独授权。'}
-        </Text>
-      </View>
+      <LifeLead title={coll.title} icon={coll.kind === 'journal' ? 'book-outline' : 'images-outline'}
+        tone={coll.kind === 'journal' ? 'mint' : 'paper'}
+        detail={coll.kind === 'journal' ? '共同日记 · 已加入成员可读写' : '共创动态 · 各作者独立授权'}>
+        {!!data.members.filter((person) => person.state === 'active').length && <Text style={styles.muted}>
+          {data.members.filter((person) => person.state === 'active').map((person) => person.name).join('、')}
+        </Text>}
+      </LifeLead>
       <View style={[styles.row, { flexWrap: 'wrap' }]}>
         <Button
           label="共同相册"
@@ -187,6 +187,7 @@ function Details({ id, showAlbum }: { id: string; showAlbum: boolean }) {
           key={entry.id}
           title={entry.title}
           detail={entry.eventDate + ' · ' + categories[entry.category] + ' · ' + entry.author}
+          left={<DateBadge date={entry.eventDate} />}
           onPress={() => router.push({ pathname: '/journal-entry/[id]', params: { id: entry.id } })}
         />
       ))}

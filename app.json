@@ -9,7 +9,7 @@
       "ios"
     ],
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#F7F8FA",
+    "backgroundColor": "#F8F7F4",
     "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "app.penlia.mobile",

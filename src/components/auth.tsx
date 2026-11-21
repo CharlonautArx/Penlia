@@ -1,16 +1,14 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AvatarEditor } from '../features/media/AvatarEditor';
 import { PhonePreview } from '../demo/phone';
 import { errorMessage } from '../services/api';
 import { useSession } from '../services/session';
-import { colors, styles } from '../theme';
-import { BrandMark, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } from './ui';
-
-const hero = require('../../assets/identity/hero.jpg');
+import { colors, radius, space, styles, touch, type } from '../theme';
+import { WelcomeIdentity } from './welcome';
+import { Button, Empty, Icon, IconButton, Notice, Sheet } from './ui';
 
 export function AuthScreen() {
   const { enterDemo, completeDemoProfile } = useSession();
@@ -56,20 +54,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
   return <SafeAreaView style={local.page}>
     <KeyboardAvoidingView style={styles.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={local.column}>
-        <View style={local.wordmark}>
-          <BrandMark size={34} />
-          <Text style={local.brand}>朋聊 <Text style={local.latin}>Penlia</Text></Text>
-          <View style={styles.grow} />
-          <DemoLabel />
-        </View>
-        <View style={local.hero}>
-          <Image source={hero} style={local.heroImage} />
-          <LinearGradient colors={['#30192C00', '#30192CB5']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-            style={local.heroShade} />
-          <View style={local.heroWords}>
-            <Text style={local.heroTitle}>朋友之间，轻松聊。</Text>
-          </View>
-        </View>
+        <WelcomeIdentity compact={register} />
         <View style={local.heading}>
           <Text accessibilityRole="header" style={local.title}>{register ? '创建朋聊账号' : '登录朋聊'}</Text>
           <Pressable accessibilityRole="button" onPress={() => { setRegister(!register); setError(''); setShowPassword(false); }}
@@ -129,31 +114,24 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
     </KeyboardAvoidingView>
     {policy && <Sheet title={policy} onClose={() => setPolicy(undefined)}>
       <Text style={styles.body}>正式条款将在服务开放前发布。</Text>
-      <Text style={styles.muted}>{policy === '隐私政策' ? '本演示使用虚构资料。模拟聊天、活动收藏和动态在设备上处理。' : '本演示用于体验界面和本机交互，账号注册与真实通信在正式服务中提供。'}</Text>
+      <Text style={styles.muted}>{enterDemo
+        ? (policy === '隐私政策' ? '本机演示使用测试资料。模拟聊天、活动收藏和动态在设备上处理。' : '本机演示用于预览界面与交互。')
+        : '当前为内测界面。请使用获授权的测试资料。'}</Text>
     </Sheet>}
   </SafeAreaView>;
 }
 
 const local = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.panel },
-  column: { width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 18, paddingBottom: 16, gap: 16 },
-  wordmark: { ...styles.row, gap: 9 },
-  brand: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.7 },
-  latin: { color: colors.ink, fontSize: 17, fontWeight: '600' },
-  hero: { height: 233, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.pink, justifyContent: 'flex-end' },
-  heroImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
-  heroShade: { position: 'absolute', right: 0, bottom: 0, left: 0, height: 106 },
-  heroWords: { paddingHorizontal: 16, paddingBottom: 16 },
-  heroTitle: { fontSize: 23, lineHeight: 32, color: '#FFFFFF', fontWeight: '800', letterSpacing: -0.6 },
-  heading: { ...styles.row, justifyContent: 'space-between' },
-  title: { fontSize: 26, letterSpacing: -0.7, lineHeight: 35, color: colors.text, fontWeight: '800' },
-  fields: { gap: 7 },
-  field: { ...styles.row, gap: 10, backgroundColor: colors.backdrop, borderColor: colors.border, borderWidth: 1,
-    borderRadius: 12, paddingLeft: 12, minHeight: 48 },
-  input: { flex: 1, paddingVertical: 10, paddingRight: 4, color: colors.text, fontSize: 15, minHeight: 46, minWidth: 0 },
-  link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  linkText: { fontSize: 14, color: colors.accent, fontWeight: '700' },
-  policies: { ...styles.row, gap: 7, justifyContent: 'center' },
-  preview: { gap: 6 },
+  column: { width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: space.xl, paddingTop: space.lg, paddingBottom: space.md, gap: space.md },
+  heading: { ...styles.row, justifyContent: 'space-between', flexWrap: 'wrap' },
+  title: { ...type.title, flexShrink: 1, color: colors.text },
+  fields: { gap: space.xs },
+  field: { ...styles.row, gap: space.sm, backgroundColor: colors.search, borderRadius: radius.control, paddingLeft: space.sm, minHeight: touch },
+  input: { ...styles.grow, ...type.body, paddingVertical: space.xs, paddingRight: space.xxs, color: colors.text, minHeight: touch },
+  link: { minHeight: touch, justifyContent: 'center', paddingHorizontal: space.xs },
+  linkText: { ...type.support, color: colors.accent, fontWeight: '600' },
+  policies: { ...styles.row, gap: space.xxs, justifyContent: 'center', flexWrap: 'wrap' },
+  preview: { gap: space.xs },
   center: { textAlign: 'center' },
 });
