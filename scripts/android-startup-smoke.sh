@@ -83,7 +83,9 @@ tap '玩乐'
 tap '共享日程'
 locate '添加日程' >/dev/null || fail
 adb shell input keyevent 4
-tap '聊天'
+adb shell am start -W -a android.intent.action.VIEW -d 'penlia-preview://world/preview-world' "$package" >> "$results/launch.txt" || fail
+locate '软风' >/dev/null || fail
+echo 'Loaded the shared world and its demo pet.' | tee -a "$results/checks.txt"
 for run in 2 3 4 5; do
   launch
   locate '发起会话' >/dev/null || fail
