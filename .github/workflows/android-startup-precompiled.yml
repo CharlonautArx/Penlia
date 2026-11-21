@@ -1,7 +1,7 @@
 name: Penlia precompiled Android release smoke
 on:
   push:
-    tags: [penlia-startup-x86-release-smoke]
+    tags: [penlia-startup-x86-release-smoke-v2]
 permissions:
   contents: read
 jobs:

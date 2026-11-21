@@ -8,6 +8,9 @@ mkdir -p "$results"
 
 adb install -r "$apk" > "$results/install.txt"
 adb shell pm clear "$package" > "$results/clear.txt"
+if adb shell getprop ro.kernel.qemu | grep -q 1; then
+  adb shell am force-stop com.android.launcher3 || true
+fi
 adb logcat -c
 adb logcat -b all -v threadtime > "$results/logcat.txt" &
 logcat_pid=$!
@@ -17,6 +20,9 @@ fail() {
   adb shell dumpsys activity exit-info "$package" > "$results/exit-info.txt" || true
   adb exec-out screencap -p > "$results/failure.png" || true
   tail -n 30 "$results/launch.txt" || true
+  if [ -f "$results/ui.xml" ]; then
+    python3 -c 'import sys,xml.etree.ElementTree as e; print([(n.get("package"),n.get("text"),n.get("content-desc")) for n in e.parse(sys.argv[1]).iter("node") if n.get("text") or n.get("content-desc")][:35])' "$results/ui.xml" || true
+  fi
   rg -n -C 3 'FATAL EXCEPTION|Fatal signal|ReactNativeJS.*Error|Unable to start activity|UnsatisfiedLinkError|NoClassDefFoundError|Process: app\.penlia\.mobile\.preview' "$results/logcat.txt" | tail -n 90 || true
   exit 1
 }
@@ -44,6 +50,11 @@ for node in parse(sys.argv[1]).iter('node'):
 PY
       )
       if [ -n "$xy" ]; then printf '%s\n' "$xy"; return; fi
+      if grep -Fq "Quickstep isn" "$tree" && adb shell getprop ro.kernel.qemu | grep -q 1; then
+        echo 'Dismissing emulator Quickstep ANR (launcher process).' >&2
+        adb shell am force-stop com.android.launcher3
+        adb shell am start -W -n "$package/.MainActivity" >> "$results/launch.txt"
+      fi
     fi
     sleep 1
   done
