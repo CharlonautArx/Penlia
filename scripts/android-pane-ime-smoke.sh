@@ -206,6 +206,7 @@ assert_same_header
 tap 'button:动态'
 tap '查看我的动态'
 capture timeline '管理这条动态'
+if grep -Fq 'content-desc="青禾的动态"' "$results/ui.xml"; then fail; fi
 adb shell input keyevent 4
 locate '好友动态' >/dev/null
 assert_same_header
@@ -263,15 +264,16 @@ tap '关闭'
 locate 'Draft' >/dev/null
 tap '表情'
 tap '😊'
-locate 'prefix:Draft' >/dev/null
-grep -Eq 'text="Draft[ ]*😊' "$results/ui.xml" || fail
+locate 'Draft😊' >/dev/null
+echo 'The emoji drawer appended to the retained draft.' | tee -a "$results/checks.txt"
 tap '从图库选择图片'
 sleep 1.0
 adb shell dumpsys activity activities > "$results/picker.txt"
-grep -Ei 'PhotoPicker|photopicker|documentsui' "$results/picker.txt" >/dev/null || fail
+grep -Ei 'photopicker|pickimages|documentsui|com[.](android|google[.]android)[.]providers[.]media' "$results/picker.txt" >/dev/null || fail
+adb exec-out screencap -p > "$results/picker.png"
 adb shell input keyevent 4
-locate 'prefix:Draft' >/dev/null
-grep -Eq 'text="Draft[ ]*😊' "$results/ui.xml" || fail
+locate 'Draft😊' >/dev/null
+echo 'The emoji drawer appended to the retained draft.' | tee -a "$results/checks.txt"
 capture after-tools 'input:消息'
 
 adb shell input keyevent 4
