@@ -13,3 +13,5 @@ ios/
 *.mobileprovision
 credentials.json
 .DS_Store
+
+/modules/*/android/build/
