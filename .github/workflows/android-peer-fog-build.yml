@@ -1,0 +1,51 @@
+name: Penlia peer fog and gallery Android full Release
+on:
+  push:
+    tags: [penlia-peer-fog-native-release]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 37
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Install SDK, build tools and NDK
+        run: sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+      - run: npm ci
+      - name: Compile ARM64 Release with R8
+        run: |
+          npx expo prebuild --platform android --no-install
+          (
+            cd android
+            ./gradlew :app:assembleRelease --max-workers=3 -PreactNativeArchitectures=arm64-v8a -Pandroid.enableMinifyInReleaseBuilds=true
+          )
+          mkdir out
+          cp android/app/build/outputs/apk/release/app-release.apk out/penlia-peer-fog-native-arm64.apk
+      - name: Validate Release signature, ABI and package
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/penlia-peer-fog-native-arm64.apk | tee out/signer.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/penlia-peer-fog-native-arm64.apk | tee out/badging.txt
+          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 4 out/penlia-peer-fog-native-arm64.apk
+          sha256sum out/penlia-peer-fog-native-arm64.apk | tee out/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: penlia-peer-fog-arm64-release
+          path: out/
+          retention-days: 30
