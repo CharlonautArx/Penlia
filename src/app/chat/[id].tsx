@@ -1,10 +1,8 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { FlatList, Image, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
-import { useAppearance } from '../../components/appearance';
 import { Avatar, Button, Empty, IconButton, Notice, Sheet } from '../../components/ui';
 import { DemoCall } from '../../demo/calls';
 import { isUiDemo } from '../../demo/mode';
@@ -28,16 +26,27 @@ import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 import { ChatViewport } from '../../features/chat/Viewport';
+import { PeerBlurTarget, PeerChatFog } from '../../features/chat/PeerChatFog';
 
-const headerLight = ['#FFFFFF75', '#FFFFFF29', '#FFFFFF00'] as const;
-const headerDark = ['#FFFFFF09', '#FFFFFF03', '#FFFFFF00'] as const;
+const headerHeight = 54;
+const slowPhotoThreshold = 450;
+const messageKey = (message: RichMessage) => message.id;
 
-function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
+function EmptyConversation() {
+  return <View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>;
+}
+
+function Conversation({ person, initialDraft, blurTarget }: {
+  person: Relationship; initialDraft: string; blurTarget: RefObject<ComponentRef<typeof View> | null>;
+}) {
   const { session, request } = useSession();
   const demo = useDemo();
   const markDemoRead = demo?.markRead;
-  const shownMessages = demo ? [...(demo.messages[person.userId] ?? []), ...(demo.media[person.userId] ?? [])]
-    .sort((a, b) => b.timestamp - a.timestamp) : undefined;
+  const demoText = demo?.messages[person.userId];
+  const demoMedia = demo?.media[person.userId];
+  const isDemo = !!demo;
+  const shownMessages = useMemo(() => isDemo ? [...(demoText ?? []), ...(demoMedia ?? [])]
+    .sort((a, b) => b.timestamp - a.timestamp) : undefined, [demoMedia, demoText, isDemo]);
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState(initialDraft);
   const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location' | 'voice' | 'video'>();
@@ -56,7 +65,10 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [actions, setActions] = useState<RichMessage>();
   const batch=useRef(false);
-  const [prepareBusy, setPrepareBusy] = useState(false);
+  const preparingPhoto = useRef(false);
+  const [photoLocked, setPhotoLocked] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   const [transferProgress, setTransferProgress] = useState<number>();
   const pending = useRef<{ value: PendingMessage; original?: ChatMessage; uncertain?: boolean } | undefined>(undefined);
   const sendGuard = useRef(false);
@@ -146,21 +158,31 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   }
 
   async function prepareImage() {
-    if (prepareBusy || !session) return;
-    setPrepareBusy(true); setActionError('');
+    if (preparingPhoto.current || !session) return;
+    preparingPhoto.current = true;
+    setPhotoLocked(true);
+    let progress: ReturnType<typeof setTimeout> | undefined;
     try {
       const inputs = await pickPhotos(6);
-      setPicker(undefined);
       if (!inputs.length) return;
-      const selected:PreparedPhoto[]=[];
-      for(const input of inputs)selected.push(await preparePhoto(input,session.user.id));
+      progress = setTimeout(() => setPhotoBusy(true), slowPhotoThreshold);
+      // Let the system picker hand the screen back before starting the first image.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const selected: PreparedPhoto[] = [];
+      for (const input of inputs) selected.push(await preparePhoto(input, session.user.id));
       pending.current = undefined;
       setSendError(false);
+      setPhotoError('');
+      setActionError('');
       setPhotos(selected);
     } catch (error) {
-      setPicker(undefined);
-      setActionError(errorMessage(error));
-    } finally { setPrepareBusy(false); }
+      setPhotoError(errorMessage(error));
+    } finally {
+      clearTimeout(progress);
+      preparingPhoto.current = false;
+      setPhotoBusy(false);
+      setPhotoLocked(false);
+    }
   }
 
   async function transmit(value: PendingMessage, previous?: ChatMessage) {
@@ -223,38 +245,48 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
 
   const items = shownMessages ?? messages;
   const call = picker === 'voice' || picker === 'video' ? picker : undefined;
+  const renderMessage = useCallback<ListRenderItem<RichMessage>>(({ item: message, index }) => {
+    const older = items[index + 1];
+    const newer = items[index - 1];
+    const block = startsMessageBlock(message.timestamp, older?.timestamp);
+    const first = block || message.mine !== older?.mine;
+    const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
+    return <View>
+      {block && <ChatTimestamp value={message.timestamp} />}
+      <ChatBubble mine={message.mine} first={first} last={last} onActions={() => setActions(message)}
+        avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={31} />}>
+        {'text' in message ? <MessageBody text={message.text} />
+          : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
+          : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />}
+        {message.noReply && <NoReply />}
+        {message.silent && <Moon />}
+      </ChatBubble>
+    </View>;
+  }, [changed, connection, items, online, person.name, person.username]);
+
+  const hasTopNotice = !!(demo?.mediaError || status);
   return (
     <>
-      {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
-      {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
-      <FlatList
-        inverted data={items} style={styles.grow} contentContainerStyle={chatLayout.messages}
-        keyboardShouldPersistTaps="handled" keyExtractor={(message) => message.id}
-        ListEmptyComponent={<View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>}
-        ListFooterComponent={cursor && online ? (
-          <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
-            onPress={() => void loadOlder()} />
-        ) : undefined}
-        renderItem={({ item: message, index }) => {
-          const older = items[index + 1];
-          const newer = items[index - 1];
-          const block = startsMessageBlock(message.timestamp, older?.timestamp);
-          const first = block || message.mine !== older?.mine;
-          const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
-          return <View>
-            {block && <ChatTimestamp value={message.timestamp} />}
-            <ChatBubble mine={message.mine} first={first} last={last} onActions={() => setActions(message)}
-              avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={31} />}>
-              {'text' in message ? <MessageBody text={message.text} />
-                : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
-                : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />}
-              {message.noReply && <NoReply />}
-              {message.silent && <Moon />}
-            </ChatBubble>
-          </View>;
-        }}
-      />
-      {prepareBusy && <Text style={[styles.small,{paddingHorizontal:16}]}>正在处理所选图片…</Text>}
+      <PeerBlurTarget ref={blurTarget} style={local.messageLayer}>
+        {hasTopNotice && <View style={local.headerClearance}>
+          {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
+          {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
+        </View>}
+        <FlatList
+          inverted data={items} style={styles.grow}
+          contentContainerStyle={[chatLayout.messages, !hasTopNotice && local.messageClearance]}
+          keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
+          ListEmptyComponent={EmptyConversation}
+          ListFooterComponent={cursor && online ? (
+            <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
+              onPress={() => void loadOlder()} />
+          ) : undefined}
+          renderItem={renderMessage}
+        />
+      </PeerBlurTarget>
+      {!!photoError && <View style={local.notice}>
+        <Notice action="重试选图" onAction={() => void prepareImage()}>{photoError}</Notice>
+      </View>}
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
@@ -262,7 +294,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         value={draft} onChange={setDraft} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
-        photoDisabled={prepareBusy} toolsDisabled={sending}
+        photoDisabled={photoLocked} photoBusy={photoBusy} toolsDisabled={sending}
         sendLabel={sending ? '发送中…' : '发送'} onSend={sendText}
         sendDisabled={(!demo && !online) || !draft.trim() || sending || (pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim()) || false}
         mode={!demo && (quiet || noReply) ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />
@@ -361,7 +393,7 @@ function QueuePreview({item,index}:{item:PreparedPhoto;index:number}) {
 
 export default function ConversationScreen() {
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
-  const { scheme } = useAppearance();
+  const blurTarget = useRef<ComponentRef<typeof View>>(null);
   const { relationships, refresh, error } = useFriends();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -373,28 +405,35 @@ export default function ConversationScreen() {
 
   return (
     <ChatViewport floatingChrome>
-      <View style={local.header}>
-        <View pointerEvents="none" accessible={false} aria-hidden style={StyleSheet.absoluteFill}>
-          <LinearGradient colors={scheme === 'dark' ? headerDark : headerLight} style={StyleSheet.absoluteFill} />
+      {person ? <Conversation key={person.userId} person={person} blurTarget={blurTarget}
+        initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
+        <View style={local.headerClearance}>
+          <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>
+        </View>}
+      <View pointerEvents="box-none" style={local.headerOverlay}>
+        <PeerChatFog key={person?.userId} target={blurTarget} ready={!!person} />
+        <View style={local.header} pointerEvents="box-none">
+          <IconButton label="返回" icon="chevron-back" onPress={goBack} />
+          {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
+            style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
+            onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
+            <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
+          </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
+          {person && <PetShortcut peer={person.userId} />}
         </View>
-        <IconButton label="返回" icon="chevron-back" onPress={goBack} />
-        {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
-          style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
-          onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
-          <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />
-          <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
-        </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
-        {person && <PetShortcut peer={person.userId} /> }
       </View>
-      {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
-        <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
     </ChatViewport>
   );
 }
 
 const local = StyleSheet.create({
-  header: { ...styles.row, minHeight: 54, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },
-  profileLink: { ...styles.row, ...styles.grow, gap: space.xs, minHeight: touch },
+  headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight + space.xxl },
+  header: { ...styles.row, height: headerHeight, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },
+  profileLink: { ...styles.row, ...styles.grow, minHeight: touch },
+  messageLayer: { ...styles.grow, backgroundColor: colors.backdrop },
+  headerClearance: { paddingTop: headerHeight + space.xs },
+  // Padding at the visual top of the inverted list keeps the oldest item reachable.
+  messageClearance: { paddingBottom: headerHeight + space.lg },
   profilePressed: { opacity: 0.72 },
   notice: { paddingHorizontal: space.md, paddingVertical: space.xxs },
   emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },

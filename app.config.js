@@ -20,7 +20,7 @@ module.exports = ({ config }) => {
     scheme: 'penlia-preview',
     platforms: ['android', 'ios', 'web'],
     plugins: [...plugins, ['expo-camera', { cameraPermission, microphonePermission, barcodeScannerEnabled: false }]],
-    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 10 },
+    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 11 },
     ios: { ...config.ios, bundleIdentifier: 'app.penlia.mobile.preview' },
   };
 };

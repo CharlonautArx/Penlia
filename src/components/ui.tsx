@@ -19,15 +19,19 @@ export function Icon({ name, size = 21, color = colors.ink }: { name: IconName; 
   return <Ionicons accessible={false} name={name} size={size} color={color ?? undefined} />;
 }
 
-export function IconButton({ label, icon, onPress, color, tinted = false, disabled = false }: {
+export function IconButton({ label, icon, onPress, color, tinted = false, disabled = false, iconOffsetX, busy }: {
   label: string; icon: IconName; onPress: () => void; color?: ComponentProps<typeof Icon>['color']; tinted?: boolean; disabled?: boolean;
+  iconOffsetX?: number; busy?: boolean;
 }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
-      accessibilityState={{ disabled }} onPress={onPress}
+      accessibilityState={{ disabled, busy }} onPress={onPress}
       style={({ pressed }) => [ui.iconButton, pressed && ui.pressed, disabled && ui.disabled]}>
       {tinted && <GlassLayer tone="control" roundness={radius.pill} />}
-      <Icon name={icon} color={color} />
+      {iconOffsetX === undefined && !busy ? <Icon name={icon} color={color} /> :
+        <View pointerEvents="none" style={[ui.iconFace, { transform: [{ translateX: iconOffsetX ?? 0 }] }]}>
+          {busy ? <ActivityIndicator size="small" color={color ?? colors.ink} /> : <Icon name={icon} color={color} />}
+        </View>}
     </Pressable>
   );
 }
@@ -259,6 +263,7 @@ const ui = StyleSheet.create({
   avatar: { alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontWeight: weight.medium },
   iconButton: { width: touch, minHeight: touch, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  iconFace: { width: 21, height: 24, alignItems: 'center', justifyContent: 'center' },
   button: { minHeight: touch, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, gap: space.xs,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 1 },
   soft: { backgroundColor: colors.search },

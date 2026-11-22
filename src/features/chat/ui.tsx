@@ -108,10 +108,10 @@ export function MessageBody({ text }: { text: string }) {
 }
 
 export function MessageComposer({ label, placeholder, value, onChange, maxLength,
-  attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, sendLabel, sendDisabled, onSend, mode, floating = false }: {
+  attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, photoBusy, sendLabel, sendDisabled, onSend, mode, floating = false }: {
   label: string; placeholder?: string; value: string; onChange: (value: string) => void; maxLength: number;
   attachLabel: string; photoLabel: string; onAttach: () => void; onPhoto: () => void; onEmoji?: () => void;
-  toolsDisabled?: boolean; photoDisabled?: boolean; sendLabel: string; sendDisabled: boolean; onSend: () => void;
+  toolsDisabled?: boolean; photoDisabled?: boolean; photoBusy?: boolean; sendLabel: string; sendDisabled: boolean; onSend: () => void;
   mode?: ReactNode; floating?: boolean;
 }) {
   const { scheme } = useAppearance();
@@ -123,8 +123,10 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
   }
   const tools = <>
     <IconButton label={attachLabel} icon={floating ? 'add' : 'add-circle-outline'}
-      color={floating ? ink : undefined} disabled={toolsDisabled} onPress={() => openTool(onAttach)} />
+      color={floating ? ink : undefined} iconOffsetX={floating ? 9 : undefined}
+      disabled={toolsDisabled} onPress={() => openTool(onAttach)} />
     <IconButton label={photoLabel} icon="image-outline" color={floating ? ink : undefined}
+      iconOffsetX={floating ? -9 : undefined} busy={photoBusy}
       disabled={toolsDisabled || photoDisabled} onPress={() => openTool(onPhoto)} />
   </>;
   return <View style={floating ? ui.floatingComposer : ui.composer}>
