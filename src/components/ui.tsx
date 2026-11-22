@@ -1,15 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Image, type ImageSourcePropType, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
-  type ScrollViewProps, StyleSheet, Text, TextInput, type TextInputProps, View,
+  type ScrollViewProps, type StyleProp, StyleSheet, Text, TextInput, type TextInputProps, View, type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
 import { isUiDemo } from '../demo/mode';
-import { colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
+import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useAppearance } from './appearance';
 import { GlassLayer } from './material';
 
@@ -33,12 +33,12 @@ export function IconButton({ label, icon, onPress, tinted = false, disabled = fa
 }
 
 export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back }: {
-  title: string; actions?: ReactNode; children: ReactNode; inset?: boolean; refreshing?: boolean;
+  title?: string; actions?: ReactNode; children: ReactNode; inset?: boolean; refreshing?: boolean;
   onRefresh?: () => void; solid?: boolean; back?: () => void;
 }) {
   return (
     <SafeAreaView style={[ui.safe, solid && ui.white]} edges={back ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
-      <TopBar title={title} actions={actions} back={back} />
+      {title && <TopBar title={title} actions={actions} back={back} />}
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
         refreshControl={onRefresh && <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         contentContainerStyle={[ui.column, inset && ui.inset]}>
@@ -112,10 +112,19 @@ export function Button({ label, icon, onPress, disabled, variant = 'primary' }: 
   );
 }
 
-export function SearchField({ label, value, onChangeText, ...props }: TextInputProps & { label: string }) {
-  return <View style={ui.search}>
+export function SearchField({ label, value, onChangeText, onFocus, onBlur, variant, ...props }: TextInputProps & {
+  label: string; variant?: 'glass';
+}) {
+  const [focused, setFocused] = useState(false);
+  const { scheme } = useAppearance();
+  const glazed = variant === 'glass';
+  return <View style={[ui.search, glazed && ui.glassSearch,
+    glazed && scheme === 'light' && ui.glassSearchShadow]}>
+    {glazed && <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />}
     <Icon name="search-outline" size={19} color={colors.quiet} />
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
+      onFocus={glazed ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
+      onBlur={glazed ? (event) => { setFocused(false); onBlur?.(event); } : onBlur}
       placeholderTextColor={colors.quiet} style={ui.searchInput} />
     {!!value && <IconButton label="清空搜索" icon="close-circle-outline" onPress={() => onChangeText?.('')} />}
   </View>;
@@ -146,8 +155,8 @@ export function Section({ title, detail, children }: { title: string; detail?: s
   </View>;
 }
 
-export function ListRow({ title, detail, left, trailing, onPress, separator = true }: {
-  title: string; detail?: string; left?: ReactNode; trailing?: ReactNode; onPress?: () => void; separator?: boolean;
+export function ListRow({ title, detail, left, trailing, onPress, separator = true, style }: {
+  title: string; detail?: string; left?: ReactNode; trailing?: ReactNode; onPress?: () => void; separator?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const content = <>
     {left}
@@ -158,8 +167,8 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
     {trailing ?? (onPress && <Icon name="chevron-forward" size={17} color={colors.quiet} />)}
   </>;
   return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
-    style={({ pressed }) => [ui.listRow, separator && styles.divider, pressed && ui.pressed]}>{content}</Pressable>
-    : <View style={[ui.listRow, separator && styles.divider]}>{content}</View>;
+    style={({ pressed }) => [ui.listRow, separator && styles.divider, style, pressed && ui.pressed]}>{content}</Pressable>
+    : <View style={[ui.listRow, separator && styles.divider, style]}>{content}</View>;
 }
 
 export function Sheet({ title, onClose, children, footer, ...props }: ScrollViewProps & {
@@ -258,6 +267,9 @@ const ui = StyleSheet.create({
   buttonText: { ...type.control, flexShrink: 1, textAlign: 'center' },
   search: { minHeight: touch, borderRadius: radius.control, backgroundColor: colors.search, flexDirection: 'row',
     alignItems: 'center', paddingLeft: space.sm, gap: space.xs },
+  glassSearch: { minHeight: touch + space.xxs, borderRadius: radius.pill, backgroundColor: 'transparent',
+    paddingLeft: space.md },
+  glassSearchShadow: { boxShadow: `-5px 1px 15px ${brandGradient[0]}24, 5px 1px 15px ${brandGradient[2]}46, 0px 3px 6px #24212A0C` },
   searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },
   notice: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs, backgroundColor: colors.lavender, borderRadius: radius.control,
     minHeight: touch, paddingHorizontal: space.sm, paddingVertical: space.xxs },

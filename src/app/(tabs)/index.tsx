@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Avatar, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Sheet } from '../../components/ui';
+import { Avatar, Empty, LoadingSkeleton, Notice, Screen, SearchField } from '../../components/ui';
 import { PetSignal } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
@@ -12,6 +12,7 @@ import { readPeerMessage, summaryOf, type RichMessage } from '../../features/med
 import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { space } from '../../theme';
+import { KeyboardInsets } from '../../features/chat/Viewport';
 import { ConversationRow } from '../../features/chat/ui';
 import { useReportConversationUnread } from '../../features/chat/unread';
 
@@ -26,7 +27,6 @@ export default function ChatsScreen() {
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [compose, setCompose] = useState(false);
   const ownId = session?.user.id;
   const demo = useDemo();
 
@@ -79,50 +79,33 @@ export default function ChatsScreen() {
   const term = query.trim().toLowerCase();
   const filtered = visibleThreads.filter(({ person, last }) =>
     !term || [person.name, person.username, summaryOf(last)].some((value) => value.toLowerCase().includes(term)));
-  const accepted = relationships?.filter((person) => person.status === 'accepted') ?? [];
-
-  function openChat(id: string) {
-    setCompose(false);
-    router.push({ pathname: '/chat/[id]', params: { id } });
-  }
-
   async function reload() {
     setRefreshing(true);
     try { await refresh(); } finally { setRefreshing(false); }
   }
 
   return (
-    <Screen title="聊天" solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} actions={
-      <>
-        <IconButton label="群聊" icon="people-outline" onPress={() => router.push('/groups')} />
-        <IconButton label="发起会话" icon="add-outline" tinted onPress={() => setCompose(true)} />
-      </>
-    }>
-      <View style={local.controls}>
-        <SearchField label="搜索会话" placeholder="搜索联系人或消息" value={query} onChangeText={setQuery} returnKeyType="search" />
-        {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
-        {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
-      </View>
-      {filtered.map(({ person, last, unread, pinned }) => (
-        <ConversationRow key={person.userId} name={person.name}
-          avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
-          preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
-          time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent}
-          signal={<PetSignal peer={person.userId} />} onPress={() => openChat(person.userId)} />
-      ))}
-      {filtered.length === 0 && !(friendsError || listError) && (
-        !relationships || (!demo && connection && !loaded) ? <LoadingSkeleton label="正在加载会话" /> :
-          (demo || connection) && <Empty>{term ? '没有找到符合条件的会话。' : '还没有会话。点右上角，和好友聊聊。'}</Empty>
-      )}
-      {compose && <Sheet title="发起会话" onClose={() => setCompose(false)}>
-        <ListRow title="查找或添加好友" left={<Icon name="person-add-outline" />}
-          onPress={() => { setCompose(false); router.navigate('/friends'); }} />
-        {accepted.map((person) => <ListRow key={person.userId} title={person.name} detail={'@' + person.username}
-          left={<Avatar name={person.name} source={demoPortrait(person.username)} size={40} />}
-          onPress={() => openChat(person.userId)} />)}
-        {accepted.length === 0 && <Empty>添加一位好友，就可以开始聊天。</Empty>}
-      </Sheet>}
-    </Screen>
+    <KeyboardInsets>
+      <Screen solid inset={false} refreshing={refreshing} onRefresh={() => void reload()}>
+        <View style={local.controls}>
+          <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query} onChangeText={setQuery} returnKeyType="search" />
+          {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
+          {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
+        </View>
+        {filtered.map(({ person, last, unread, pinned }) => (
+          <ConversationRow key={person.userId} name={person.name}
+            avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
+            preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
+            time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent}
+            signal={<PetSignal peer={person.userId} />}
+            onPress={() => router.push({ pathname: '/chat/[id]', params: { id: person.userId } })} />
+        ))}
+        {filtered.length === 0 && !(friendsError || listError) && (
+          !relationships || (!demo && connection && !loaded) ? <LoadingSkeleton label="正在加载会话" /> :
+            (demo || connection) && <Empty>{term ? '没有找到符合条件的会话。' : '还没有会话。可以从好友页开始聊天。'}</Empty>
+        )}
+      </Screen>
+    </KeyboardInsets>
   );
 }
 
@@ -140,5 +123,5 @@ function threadTime(timestamp: number) {
 }
 
 const local = StyleSheet.create({
-  controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.xxs, paddingBottom: space.xs },
+  controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm },
 });

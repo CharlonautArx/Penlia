@@ -5,6 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../theme';
 import { chatLayout } from './ui';
 
+export function KeyboardInsets({ children }: { children: ReactNode }) {
+  return <>{children}</>;
+}
+
 export function ChatViewport({ children }: { children: ReactNode }) {
   return <SafeAreaView style={local.safe}>
     <KeyboardAvoidingView style={chatLayout.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

@@ -84,12 +84,14 @@ export default function FriendsScreen() {
         <SearchField label="搜索好友" placeholder="搜索好友的昵称或朋聊号" value={filter} onChangeText={setFilter} />
         {!!listError && <Notice action="重试" onAction={() => void reload()}>{listError}</Notice>}
       </View>
-      <ListRow title="新的朋友" detail={incoming.length ? '有好友申请待处理' : '查看好友申请'}
+      <ListRow title="新的朋友" style={local.managementRow} detail={incoming.length ? '有好友申请待处理' : '查看好友申请'}
         left={<View style={local.requestsIcon}><GlassLayer /><Icon name="people-outline" /></View>}
         trailing={<View style={styles.row}>
           {incoming.length > 0 && <Tag>{String(incoming.length)}</Tag>}
           <Icon name="chevron-forward" size={16} color={colors.quiet} />
         </View>} onPress={() => openSheet('requests')} />
+      <ListRow title="群聊" style={local.managementRow} trailing={<Icon name="chevron-forward" size={16} color={colors.quiet} />}
+        onPress={() => router.push('/groups')} />
       <View style={local.section}><Section title="我的好友" detail={relationships ? friends.length + ' 位' : undefined} /></View>
       {!relationships && !listError && <LoadingSkeleton label="正在加载好友" />}
       {relationships && !shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
@@ -151,6 +153,7 @@ export default function FriendsScreen() {
 
 const local = StyleSheet.create({
   control: { paddingHorizontal: space.md, paddingTop: space.xxs, paddingBottom: space.sm, gap: space.xs },
+  managementRow: { minHeight: 60 },
   section: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
   requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   contact: { ...styles.row, gap: 0, paddingRight: 6 },
