@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
@@ -26,7 +26,7 @@ import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 import { ChatViewport } from '../../features/chat/Viewport';
-import { PeerBlurTarget, PeerChatFog } from '../../features/chat/PeerChatFog';
+import { PeerChatFog } from '../../features/chat/PeerChatFog';
 
 const headerHeight = 54;
 const slowPhotoThreshold = 450;
@@ -36,9 +36,7 @@ function EmptyConversation() {
   return <View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>;
 }
 
-function Conversation({ person, initialDraft, blurTarget }: {
-  person: Relationship; initialDraft: string; blurTarget: RefObject<ComponentRef<typeof View> | null>;
-}) {
+function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
   const { session, request } = useSession();
   const demo = useDemo();
   const markDemoRead = demo?.markRead;
@@ -267,25 +265,23 @@ function Conversation({ person, initialDraft, blurTarget }: {
   const hasTopNotice = !!(demo?.mediaError || status);
   return (
     <>
-      <PeerBlurTarget ref={blurTarget} style={styles.grow}>
-        <View style={local.messageLayer} collapsable={false}>
-          {hasTopNotice && <View style={local.headerClearance}>
-            {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
-            {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
-          </View>}
-          <FlatList
-            inverted data={items} style={styles.grow}
-            contentContainerStyle={[chatLayout.messages, !hasTopNotice && local.messageClearance]}
-            keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
-            ListEmptyComponent={EmptyConversation}
-            ListFooterComponent={cursor && online ? (
-              <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
-                onPress={() => void loadOlder()} />
-            ) : undefined}
-            renderItem={renderMessage}
-          />
-        </View>
-      </PeerBlurTarget>
+      <View style={styles.grow}>
+        {hasTopNotice && <View style={local.headerClearance}>
+          {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
+          {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
+        </View>}
+        <FlatList
+          inverted data={items} style={styles.grow}
+          contentContainerStyle={[chatLayout.messages, !hasTopNotice && local.messageClearance]}
+          keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
+          ListEmptyComponent={EmptyConversation}
+          ListFooterComponent={cursor && online ? (
+            <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
+              onPress={() => void loadOlder()} />
+          ) : undefined}
+          renderItem={renderMessage}
+        />
+      </View>
       {!!photoError && <View style={local.notice}>
         <Notice action="重试选图" onAction={() => void prepareImage()}>{photoError}</Notice>
       </View>}
@@ -395,7 +391,6 @@ function QueuePreview({item,index}:{item:PreparedPhoto;index:number}) {
 
 export default function ConversationScreen() {
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
-  const blurTarget = useRef<ComponentRef<typeof View>>(null);
   const { relationships, refresh, error } = useFriends();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -407,13 +402,13 @@ export default function ConversationScreen() {
 
   return (
     <ChatViewport floatingChrome>
-      {person ? <Conversation key={person.userId} person={person} blurTarget={blurTarget}
+      {person ? <Conversation key={person.userId} person={person}
         initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
         <View style={local.headerClearance}>
           <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>
         </View>}
       <View pointerEvents="box-none" style={local.headerOverlay}>
-        <PeerChatFog key={person?.userId} target={blurTarget} ready={!!person} />
+        <PeerChatFog ready={!!person} />
         <View style={local.header} pointerEvents="box-none">
           <IconButton label="返回" icon="chevron-back" onPress={goBack} />
           {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
@@ -432,7 +427,6 @@ const local = StyleSheet.create({
   headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight + space.xxl },
   header: { ...styles.row, height: headerHeight, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },
   profileLink: { ...styles.row, ...styles.grow, minHeight: touch },
-  messageLayer: { ...styles.grow, backgroundColor: colors.backdrop },
   headerClearance: { paddingTop: headerHeight + space.xs },
   // Padding at the visual top of the inverted list keeps the oldest item reachable.
   messageClearance: { paddingBottom: headerHeight + space.lg },
