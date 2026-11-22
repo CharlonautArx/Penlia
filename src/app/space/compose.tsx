@@ -120,12 +120,12 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
           else void library();
         }} /></View>}
       </View>
-      {draft.videoPreview && <ListRow title="视频动态样式" detail="演示占位" left={<Icon name="videocam-outline" />}
+      {draft.videoPreview && <ListRow title="视频动态样式" detail="样式预览" left={<Icon name="videocam-outline" />}
         trailing={<IconButton label="移除视频样式" icon="close-circle-outline" onPress={() => setDraft({ ...draft, videoPreview: false })} />} />}
       <View style={local.tools}>
         <IconButton label="选表情" icon="happy-outline" onPress={() => setPanel('emoji')} />
         <IconButton label="@好友" icon="at-outline" onPress={() => setPanel('mention')} />
-        {isUiDemo && !journal && <IconButton label="视频演示" icon="videocam-outline"
+        {isUiDemo && !journal && <IconButton label="预览视频样式" icon="videocam-outline"
           onPress={() => setDraft({ ...draft, videoPreview: !draft.videoPreview })} />}
       </View>
     </View>

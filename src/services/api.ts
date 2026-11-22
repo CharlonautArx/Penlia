@@ -21,7 +21,7 @@ export class ApiError extends Error {
 }
 
 export function apiOrigin() {
-  if (isUiDemo) throw new Error('演示版只使用本机数据。');
+  if (isUiDemo) throw new Error('当前仅使用本机数据。');
   const base = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
   // React Native's URL polyfill accepts several malformed strings.
   const validBase = base && /^https?:\/\/[^/?#@\s\\]+(?:\/[^?#\s\\]*)?$/.test(base);

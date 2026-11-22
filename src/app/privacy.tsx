@@ -108,7 +108,7 @@ export default function PrivacyScreen() {
 
   return (
     <Screen title="隐私与安全" back={back} refreshing={busy} onRefresh={() => void run(load)}>
-      {isUiDemo && <Notice>隐私设置仅保存到这台设备的演示账号。</Notice>}
+      {isUiDemo && <Notice>隐私设置仅保存到这台设备。</Notice>}
       {!!notice && !sheet && (
         <Notice action="刷新" onAction={() => void run(load)}>
           {notice}

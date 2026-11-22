@@ -4,7 +4,7 @@ export type Row = { id: string } & Record<string, unknown>;
 export type Rows = Record<string, Row[]>;
 export const self = demoUser.id;
 export const friend = demoPeople[0];
-export const friendName = (id: string) => (id === self ? demoUser : demoPeople.find((person) => person.id === id))?.name ?? '演示好友';
+export const friendName = (id: string) => (id === self ? demoUser : demoPeople.find((person) => person.id === id))?.name ?? '本机好友';
 export const members = (ids: string[] = [self, friend.id]) =>
   ids.map((id) => ({ id, name: friendName(id), state: 'active' }));
 

@@ -51,7 +51,7 @@ export default function PlaceScreen() {
       <View style={local.block}>
         <Section title="约朋友一起去" />
         <InviteButton label="发个聚会提议"
-          message={sample ? `我在朋聊看到一个演示场所「${place.title}」，下次见面我们也找个类似的地方？`
+          message={sample ? `我在朋聊看到一个示例场所「${place.title}」，下次见面我们也找个类似的地方？`
             : `下次一起去「${place.title}」？${place.city} · ${place.district}`} />
       </View>
       {external && <Button label="前往合作方预订" icon="open-outline" variant="gradient" onPress={() => setConfirm(true)} />}

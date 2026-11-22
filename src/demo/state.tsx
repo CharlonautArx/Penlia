@@ -65,7 +65,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   function addMedia(peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine = true) {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
-    if (!media.value) throw new Error('正在读取本机演示附件，请稍后重试。');
+    if (!media.value) throw new Error('正在读取本机附件，请稍后重试。');
     const message = { ...item, id: 'demo-media-' + messageSession.current + '-' + ++messageSequence.current, timestamp: Date.now(), mine };
     media.update((current) => ({ ...current, [peerId]: [...(current[peerId] ?? []), message].slice(-100) }));
     if (!mine) setUnread((current) => ({ ...current, [peerId]: (current[peerId] ?? 0) + 1 }));
@@ -98,7 +98,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     }
     if (method === 'POST' && ['/friends/remove', '/friends/block', '/friends/restrict'].includes(path)) {
       const person = demoPeople.find((entry) => entry.id === body?.userId);
-      if (!person) throw new Error('这位演示好友已经不可用。');
+      if (!person) throw new Error('这位本机好友已经不可用。');
       if (path !== '/friends/restrict') persistRelationships(relationships.current.filter((entry) => entry.userId !== person.id));
       if (path !== '/friends/remove') store.current.update((current) => {
         const name = path === '/friends/block' ? 'blocks' : 'restrictions';

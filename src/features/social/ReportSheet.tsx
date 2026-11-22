@@ -65,7 +65,7 @@ export function ReportSheet({
   return (
     <Sheet
       title={
-        status === 'submitted' ? (isUiDemo ? '演示举报已保存' : '举报已受理') : status === 'preview' ? '确认提交的证据' : '生活边界保护举报'
+        status === 'submitted' ? (isUiDemo ? '举报已在本机保存' : '举报已受理') : status === 'preview' ? '确认提交的证据' : '生活边界保护举报'
       }
       onClose={() => {
         if (!busy) onClose();
@@ -113,7 +113,7 @@ export function ReportSheet({
             </View>
           ))}
           {!!explanation && <Text style={styles.body}>{explanation}</Text>}
-          <Text style={styles.muted}>{isUiDemo ? '仅记录本机演示状态，证据不会发送给审核人员。' : '仅授权审核人员可查阅证据。群聊所选消息的原附件会一并加密提交。私聊原始证据需单独核验。'}</Text>
+          <Text style={styles.muted}>{isUiDemo ? '举报仅保存在本机，证据不会发送给审核人员。' : '仅授权审核人员可查阅证据。群聊所选消息的原附件会一并加密提交。私聊原始证据需单独核验。'}</Text>
           <Button
             label={busy ? '正在提交…' : '确认举报'}
             variant="gradient"

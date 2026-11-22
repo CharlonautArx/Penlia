@@ -27,7 +27,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
   const find = (key: string, value = requestId) => rows(key).find((row) => row.id === value);
   const requireRow = (key: string, value = requestId) => {
     const row = find(key, value);
-    if (!row) throw new Error('找不到这条演示记录。');
+    if (!row) throw new Error('找不到这条本机记录。');
     return row;
   };
   const save = (key: string, row: Row) => {
@@ -64,7 +64,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (get) throw new Error(unavailable);
     const mime = String(body.mime);
     if (!['image/jpeg', 'image/png', 'video/mp4'].includes(mime) || typeof body.base64 !== 'string'
-        || body.base64.length > 6_000_000) throw new Error('无法保存该演示附件。');
+        || body.base64.length > 6_000_000) throw new Error('无法保存该本机附件。');
     const asset = String(body.clientId);
     const existing = find('media', asset);
     if (existing) return { media: existing };
@@ -86,7 +86,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'priority') return save('settings', { ...settings, priorityIds: strings(body.ids) });
     if (area === 'blocks') return { blocks: rows('blocks') };
     if (area === 'restricted') return { restrictions: rows('restrictions') };
-    if (area === 'devices' && get) return { devices: [{ id: 'demo-device', nickname: '当前演示设备', current: true, firstSeen: null, expiresAt: now() }] };
+    if (area === 'devices' && get) return { devices: [{ id: 'demo-device', nickname: '当前设备', current: true, firstSeen: null, expiresAt: now() }] };
     if (area === 'devices' && id === 'label') return {};
     if (area === 'requests' && get) return { requests: [] };
     if (area === 'export' && get) return { demo: true, settings };
@@ -110,7 +110,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (!area) return get ? { groups: rows('groups').filter((row) => row.active) }
       : save('groups', add(body, { ownerId: self, active: true, memberCount: 1, members: members([self]) }));
     const group = requireRow('groups');
-    if (!group.active) throw new Error('请先在本机接受这份演示邀请。');
+    if (!group.active) throw new Error('请先在本机接受这份本机邀请。');
     if (!id) return remove ? drop('groups', group) : { group, ...people(group) };
     if (id === 'leave') return save('groups', { ...group, active: false });
     if (id === 'messages') {
@@ -243,10 +243,10 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'events') return { events: rows('events') };
     if (area === 'boundary') return { reports: rows('reports'), actions: rows('enforcement'), canReview: false };
     if (area === 'reports' && !get) return save('reports', add({},
-      { status: 'pending', kind: body.kind, title: '本机举报演示', createdAt: now() }));
+      { status: 'pending', kind: body.kind, title: '本机举报记录', createdAt: now() }));
     if (area === 'groups' && action === 'call') {
       if (get) return { call: null, available: false };
-      throw new Error('多人通话需要正式的 RTC 服务。可在单聊演示本机通话界面。');
+      throw new Error('多人通话需要正式的 RTC 服务。可在单聊中查看本机通话预览。');
     }
     if (area === 'reviews') return { queue: [] };
   }

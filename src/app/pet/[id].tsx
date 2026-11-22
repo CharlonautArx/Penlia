@@ -64,7 +64,7 @@ export default function PetScreen() {
           </View>
         </View>
       </View>
-      <Text style={styles.small}>你和 {friend.name} 一起养 · 本机演示</Text>
+      <Text style={styles.small}>你和 {friend.name} 一起养</Text>
       {pet.proposal && <View style={styles.card}>
         <Section title={pet.name ? '改名提议' : '命名提议'} />
         <Text style={styles.body}>「{pet.proposal.name}」等待 {friend.name} 确认。</Text>
@@ -112,7 +112,7 @@ export default function PetScreen() {
         {selected && <Button label={selected.cost > pet.energy ? '聊天能量还不够' : '投喂 ' + selected.name}
           variant="gradient" disabled={selected.cost > pet.energy} onPress={feed} />}
         <View style={local.demoActions}>
-          <Text style={styles.small}>演示里先在聊天发一句话，再模拟好友回复，可以看到能量变化。</Text>
+          <Text style={styles.small}>先在聊天发一句话，再模拟好友回复，可以看到能量变化。</Text>
           <Button label="模拟好友回复" variant="soft" disabled={pet.waiting?.side !== 'mine'}
             onPress={() => state.simulateResponse?.(id, '收到啦，回头见面再接着聊 🌿')} />
           <Button label="回到双人聊天" variant="quiet" icon="chatbubble-outline" onPress={() => {
@@ -128,7 +128,7 @@ export default function PetScreen() {
       <Text style={styles.strong}>想起它时，就来看看。</Text>
       <Text style={styles.body}>活力会保留。聊天隔了几天，回来还是原来的它。</Text>
       <Text style={styles.body}>双方有来有回可攒 4 点能量。重复内容不计，同一对好友两分钟内最多计一轮，每 24 小时最多计四轮。能量最多存 99 点。</Text>
-      <Text style={styles.body}>取名和改名都需要另一位好友确认。演示里的另一位由本机模拟。</Text>
+      <Text style={styles.body}>取名和改名都需要另一位好友确认。当前由本机模拟好友确认。</Text>
       <Button label="查看表情" variant="soft" onPress={() => setSheet('faces')} />
     </Sheet>}
     {sheet === 'faces' && <Sheet title="小宠物的表情" onClose={() => setSheet(undefined)}>
@@ -151,7 +151,7 @@ export default function PetScreen() {
         onPress={submitName} />
     </Sheet>}
     {sheet === 'confirm' && pet.proposal && <Sheet title="模拟好友确认" onClose={() => setSheet(undefined)}>
-      <Text style={styles.body}>以 {friend?.name} 的演示身份确认「{pet.proposal.name}」。</Text>
+      <Text style={styles.body}>以 {friend?.name} 的模拟身份确认「{pet.proposal.name}」。</Text>
       <Button label="确认名字" variant="gradient" onPress={() => {
         state.mutate(id, (item) => confirmName(item, Date.now(), true));
         setSheet(undefined);

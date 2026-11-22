@@ -78,7 +78,7 @@ launch() {
 
 touch "$results/launch.txt"
 launch
-tap '直接进入演示'
+tap '直接进入'
 locate '发起会话' >/dev/null || fail
 for screen in '好友' '玩乐' '动态' '我的' '聊天'; do
   tap "$screen"

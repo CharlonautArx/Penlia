@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { OrbFace } from '../features/pet/Orb';
 import { colors, radius, space, styles, type, weight } from '../theme';
 import { GlassLayer } from './material';
-import { BrandMark, DemoLabel } from './ui';
+import { BrandMark } from './ui';
 
 const hero = require('../../assets/identity/hero.jpg');
 
@@ -12,7 +12,6 @@ export function WelcomeIdentity({ compact = false }: { compact?: boolean }) {
     <View style={local.wordmark}>
       <BrandMark size={35} />
       <Text style={local.brandName}>朋聊 <Text style={styles.muted}>Penlia</Text></Text>
-      <View style={styles.grow} /><DemoLabel />
     </View>
     {!compact && <View style={local.brandStory}>
       <GlassLayer tone="feature" roundness={radius.surface} />

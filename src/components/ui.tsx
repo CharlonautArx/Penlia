@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
-import { isUiDemo } from '../demo/mode';
 import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useAppearance } from './appearance';
 import { GlassLayer } from './material';
@@ -57,15 +56,10 @@ export function TopBar({ title, actions, back }: { title: string; actions?: Reac
     <View style={[ui.bar, ui.width, back && ui.backBar]}>
       {back && <IconButton label="返回" icon="chevron-back" onPress={back} />}
       <Text accessibilityRole="header" numberOfLines={1} style={[ui.title, back && ui.pageTitle]}>{title}</Text>
-      <DemoLabel />
       <View style={styles.grow} />
       <View style={ui.actions}>{actions}</View>
     </View>
   </View>;
-}
-
-export function DemoLabel() {
-  return isUiDemo ? <Tag>演示</Tag> : null;
 }
 
 export function Tag({ children }: { children: string }) {

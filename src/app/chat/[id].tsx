@@ -358,7 +358,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
             else void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply});
           }}/>
       </Sheet>}
-      {photo && <Sheet title={demo ? '图片预览 · 本机演示' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>
+      {photo && <Sheet title={demo ? '图片预览' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>
         {photoUri ? <Image source={{ uri: photoUri }} style={local.imagePreview} resizeMode="contain" accessibilityLabel="待发送图片" />
           : <Empty busy>正在读取图片…</Empty>}
         {photos.length>1&&<View style={{flexDirection:'row',gap:5,flexWrap:'wrap'}}>

@@ -57,7 +57,7 @@ export function visiblePlaces(places: Place[]) {
 
 export function disclosure(place: Place) {
   switch (place.origin.type) {
-    case 'sample': return place.origin.sponsoredPreview ? '赞助样式 · 演示' : '示例推荐';
+    case 'sample': return place.origin.sponsoredPreview ? '赞助样式示例' : '示例推荐';
     case 'partner': return '赞助';
     case 'community': return '朋友分享';
     case 'editorial': return '编辑推荐';

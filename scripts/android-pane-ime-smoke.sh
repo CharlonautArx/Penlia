@@ -177,7 +177,7 @@ assert_same_header() {
 
 touch "$results/launch.txt"
 launch
-tap '直接进入演示'
+tap '直接进入'
 locate '发起会话' >/dev/null
 if [ "${PENLIA_ANDROID_TOOLS_ONLY:-0}" = '1' ]; then
   tap 'prefix:小满，'

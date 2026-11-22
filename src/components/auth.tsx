@@ -96,8 +96,8 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
           <Button label={busy ? '处理中…' : register ? '注册' : '登录'} variant="gradient" onPress={() => void submit()}
             disabled={!!enterDemo || busy || !username.trim() || !password || (register && !name.trim())} />
           {enterDemo && <View style={local.preview}>
-            <Button label="进入演示" icon="arrow-forward" variant="soft" onPress={enterDemo} />
-            {onDemoPhone && <Button label="手机号演示" variant="quiet" onPress={onDemoPhone} />}
+            <Button label="直接进入" icon="arrow-forward" variant="soft" onPress={enterDemo} />
+            {onDemoPhone && <Button label="模拟手机号验证" variant="quiet" onPress={onDemoPhone} />}
             <Text style={[styles.small, local.center]}>使用虚构账号和内容，无需注册或联网</Text>
           </View>}
         </>}
@@ -115,7 +115,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
     {policy && <Sheet title={policy} onClose={() => setPolicy(undefined)}>
       <Text style={styles.body}>正式条款将在服务开放前发布。</Text>
       <Text style={styles.muted}>{enterDemo
-        ? (policy === '隐私政策' ? '本机演示使用测试资料。模拟聊天、活动收藏和动态在设备上处理。' : '本机演示用于预览界面与交互。')
+        ? (policy === '隐私政策' ? '测试资料、模拟聊天、活动收藏和动态均在本机处理。' : '当前交互仅在本机运行。')
         : '当前为内测界面。请使用获授权的测试资料。'}</Text>
     </Sheet>}
   </SafeAreaView>;

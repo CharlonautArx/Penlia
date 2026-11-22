@@ -105,11 +105,11 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
           <Text style={styles.body}>{entry.text}</Text>
           {!entry.videoPreview && photos(entry.photos)}
         </>}
-    {entry.videoPreview && <Pressable accessibilityRole="button" accessibilityLabel="视频动态演示"
+    {entry.videoPreview && <Pressable accessibilityRole="button" accessibilityLabel="视频动态样式预览"
       style={local.video} onPress={() => setSheet('video')}>
       {entry.photos[0] && <SpacePhoto photo={entry.photos[0]} style={local.image} />}
       <View style={local.videoLabel}><Icon name="play-circle-outline" color="#FFFFFF" />
-        <Text style={local.videoText}>视频样式 · 演示</Text></View>
+        <Text style={local.videoText}>视频样式</Text></View>
     </Pressable>}
     {!!entry.location && <View style={local.location}><Icon size={13} name="location-outline" color={colors.accent} />
       <Text style={styles.small}>{entry.location}</Text></View>}
@@ -183,7 +183,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
       <Button label="转发到我的动态" variant="gradient" onPress={forward} />
     </Sheet>}
     {sheet === 'video' && <Sheet title="视频动态样式" onClose={() => setSheet(undefined)}>
-      <Text style={styles.muted}>此处演示视频封面与入口。</Text>
+      <Text style={styles.muted}>此处仅预览视频封面与入口。</Text>
     </Sheet>}
   </View>;
 }

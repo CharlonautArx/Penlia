@@ -13,7 +13,7 @@ import { brandGradient, colors, radius, space, styles, type } from '../../theme'
 import { useAppearance } from '../../components/appearance';
 
 export default function MeScreen() {
-  const { session, logout, enterDemo, demoAvatarKey, avatarNotice } = useSession();
+  const { session, logout, demoAvatarKey, avatarNotice } = useSession();
   const { preference, scheme, setPreference } = useAppearance();
   const [sheet, setSheet] = useState<'资料' | '主题与外观' | '通用设置'>();
   const [busy, setBusy] = useState(false);
@@ -72,7 +72,7 @@ export default function MeScreen() {
     </SettingGroup>
     {!!avatarNotice && !sheet && <Notice>{avatarNotice}</Notice>}
     {!!error && !sheet && <Notice>{error}</Notice>}
-    <Button label={enterDemo ? '退出演示' : '退出登录'} variant="danger" disabled={busy} onPress={() => void run(logout)} />
+    <Button label="退出登录" variant="danger" disabled={busy} onPress={() => void run(logout)} />
     {sheet === '资料' && <ProfileEditor onClose={() => setSheet(undefined)} />}
     {sheet && sheet !== '资料' && <Sheet title={sheet} onClose={() => { if (!busy) setSheet(undefined); }}>
       {sheet === '主题与外观' && <>
@@ -89,7 +89,7 @@ export default function MeScreen() {
         <Text style={styles.small}>当前外观 · {scheme === 'dark' ? '深色' : '浅色'}</Text>
         {!!error && <Notice>{error}</Notice>}
       </>}
-      {sheet === '通用设置' && <ListRow title="朋聊" detail={enterDemo ? '0.1.0 · 离线演示' : '0.1.0'} left={<Tile icon="chatbubbles-outline" />} />}
+      {sheet === '通用设置' && <ListRow title="朋聊" detail="0.1.0" left={<Tile icon="chatbubbles-outline" />} />}
     </Sheet>}
   </Screen>;
 }

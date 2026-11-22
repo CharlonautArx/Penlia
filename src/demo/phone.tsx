@@ -85,7 +85,7 @@ export function PhonePreview({ onLegacy, onEnter }: {
     if (profileBusy) return;
     setProfileBusy(true);
     try { await onEnter({ name: name.trim(), username: clean, avatarKey: avatar, avatarPhoto: avatarPhoto ?? undefined }); }
-    catch { setError('暂时无法保存演示资料，请重试。'); }
+    catch { setError('暂时无法保存本机资料，请重试。'); }
     finally { setProfileBusy(false); }
   }
 
@@ -116,7 +116,7 @@ export function PhonePreview({ onLegacy, onEnter }: {
             maxLength={24} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} style={styles.input} />
           {!!error && <Notice>{error}</Notice>}
           <Button label="完成并进入朋聊" variant="gradient" disabled={profileBusy || !name.trim() || !/^[a-z0-9_]{3,24}$/i.test(username.trim())} onPress={() => void complete()} />
-          <Text style={styles.small}>昵称、头像和朋聊号为本次演示资料。</Text>
+          <Text style={styles.small}>昵称、头像和朋聊号仅保存在本机。</Text>
         </> : <>
           <View style={local.intro}>
             <View style={styles.row}>
@@ -135,7 +135,7 @@ export function PhonePreview({ onLegacy, onEnter }: {
               maxLength={11} value={phone} onChangeText={updatePhone} style={local.phoneInput}
               placeholder="输入中国大陆手机号" placeholderTextColor={colors.quiet} />
           </View>
-          <Button label="直接进入演示" variant="gradient" icon="arrow-forward" onPress={() => onEnter()} />
+          <Button label="直接进入" variant="gradient" icon="arrow-forward" onPress={() => onEnter()} />
           <Text style={styles.strong}>短信验证码</Text>
           <View style={local.phoneField}>
             <TextInput accessibilityLabel="短信验证码" keyboardType="number-pad" autoComplete="one-time-code" maxLength={6}
@@ -148,9 +148,9 @@ export function PhonePreview({ onLegacy, onEnter }: {
           {!!error && <Notice>{error}</Notice>}
           <Button label={register ? '验证并继续' : '登录或继续注册'} variant="gradient" disabled={code.length !== 6} onPress={verify} />
           <View style={local.demoActions}>
-            <Text style={styles.small}>离线演示。滑块与短信在本机模拟。</Text>
+            <Text style={styles.small}>滑块验证和短信均在本机模拟。</Text>
             <View style={local.exampleRow}>
-              <Button label="填入演示号码" variant="soft" onPress={() => updatePhone(register ? examples.onboarding : examples.existing)} />
+              <Button label="填入测试号码" variant="soft" onPress={() => updatePhone(register ? examples.onboarding : examples.existing)} />
             </View>
             <Button label="朋聊号密码登录" variant="quiet" onPress={onLegacy} />
           </View>

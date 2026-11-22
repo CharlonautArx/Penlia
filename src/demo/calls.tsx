@@ -47,11 +47,11 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
       if (kind === 'video') {
         const camera = await Camera.requestCameraPermissionsAsync();
         if (!camera.granted) {
-          setPermissionText('摄像头权限未开启，演示画面保持关闭。');
+          setPermissionText('摄像头权限未开启，本机预览保持关闭。');
           return;
         }
         setPermissionText('权限已允许。你可以单独开启本机摄像头预览。');
-      } else setPermissionText('麦克风权限已允许。演示不会采集或传输声音。');
+      } else setPermissionText('麦克风权限已允许。模拟通话不会采集或传输声音。');
     } catch { setPermissionText('当前设备无法检查权限，请在 Android 或 iOS 设备上重试。'); }
     finally { setChecking(false); }
   }
@@ -71,12 +71,12 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
   const phaseText = state.phase === 'outgoing' ? '等待对方接听'
     : state.phase === 'incoming' ? '对方邀请你通话'
       : state.phase === 'connecting' ? '正在连接…'
-        : state.phase === 'active' ? '演示通话中'
+        : state.phase === 'active' ? '模拟通话中'
           : state.phase === 'reconnecting' ? '网络变化，正在重新连接'
             : state.phase === 'failed' ? '连接中断'
               : state.reason === 'declined' ? '对方已拒绝' : state.reason === 'timeout' ? '无人接听' : '通话已结束';
 
-  return <Sheet title={title + ' · 演示'} onClose={onClose}>
+  return <Sheet title={title} onClose={onClose}>
     <Notice>本机模拟通话信令。声音和画面只在获得批准接入 RTC 后才能传给好友。</Notice>
     <LinearGradient colors={['#F9DEE8', '#EFE9F5', '#E1F7F4']} style={[local.stage, video && local.video]}>
       <Avatar name={name} source={demoPortrait(username)} size={60} />
@@ -90,7 +90,7 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
       </View>}
     </LinearGradient>
     {(state.phase === 'outgoing' || state.phase === 'incoming') && <View style={local.controls}>
-      <Button label={incoming ? '接听（演示）' : '模拟对方接听'} icon="call-outline" variant="gradient" onPress={() => act('accept')} />
+      <Button label={incoming ? '模拟接听' : '模拟对方接听'} icon="call-outline" variant="gradient" onPress={() => act('accept')} />
       <Button label={incoming ? '拒绝' : '模拟对方拒绝'} variant="danger" onPress={() => act('decline')} />
     </View>}
     {state.phase === 'active' && <View style={local.controls}>
