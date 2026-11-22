@@ -1,0 +1,54 @@
+name: Penlia branding Android visual acceptance
+on:
+  push:
+    tags: [penlia-brand-visual-v1]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  startup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the verified Release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: penlia-brand-x86_64-release
+          path: out
+          run-id: 45060252986
+          github-token: ${{ github.token }}
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Allow hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle --timeout=15
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod u+rw /dev/kvm
+      - name: Verify primary UI and Android system branding
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-build: '16970787'
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -skin 720x1600 -memory 2048 -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash scripts/android-penlia-brand-smoke.sh out/penlia-brand-x86_64.apk output/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: penlia-brand-api-${{ matrix.api }}
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore
