@@ -1,4 +1,4 @@
-import palette from './palette.json';
+import palette from './palette.json' with { type: 'json' };
 
 export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
 

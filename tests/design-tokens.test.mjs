@@ -24,7 +24,7 @@ test('light and dark semantic tokens support the same native and web keys', () =
 });
 test('body, secondary labels, buttons and message colors meet normal-text AA contrast in both modes', () => {
   const pairs = [
-    ['text','backdrop'], ['text','panel'], ['text','lavender'], ['text','search'],
+    ['text','backdrop'], ['text','panel'], ['text','lavender'], ['text','search'], ['text','chatReceived'],
     ['muted','panel'], ['muted','backdrop'], ['muted','ice'], ['quiet','panel'], ['quiet','search'],
     ['accent','panel'], ['accent','tint'], ['danger','dangerSurface'], ['moon','lavender'], ['#FFFFFF','action'],
   ];
