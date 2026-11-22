@@ -267,22 +267,24 @@ function Conversation({ person, initialDraft, blurTarget }: {
   const hasTopNotice = !!(demo?.mediaError || status);
   return (
     <>
-      <PeerBlurTarget ref={blurTarget} style={local.messageLayer}>
-        {hasTopNotice && <View style={local.headerClearance}>
-          {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
-          {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
-        </View>}
-        <FlatList
-          inverted data={items} style={styles.grow}
-          contentContainerStyle={[chatLayout.messages, !hasTopNotice && local.messageClearance]}
-          keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
-          ListEmptyComponent={EmptyConversation}
-          ListFooterComponent={cursor && online ? (
-            <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
-              onPress={() => void loadOlder()} />
-          ) : undefined}
-          renderItem={renderMessage}
-        />
+      <PeerBlurTarget ref={blurTarget} style={styles.grow}>
+        <View style={local.messageLayer} collapsable={false}>
+          {hasTopNotice && <View style={local.headerClearance}>
+            {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
+            {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
+          </View>}
+          <FlatList
+            inverted data={items} style={styles.grow}
+            contentContainerStyle={[chatLayout.messages, !hasTopNotice && local.messageClearance]}
+            keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
+            ListEmptyComponent={EmptyConversation}
+            ListFooterComponent={cursor && online ? (
+              <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
+                onPress={() => void loadOlder()} />
+            ) : undefined}
+            renderItem={renderMessage}
+          />
+        </View>
       </PeerBlurTarget>
       {!!photoError && <View style={local.notice}>
         <Notice action="重试选图" onAction={() => void prepareImage()}>{photoError}</Notice>
