@@ -28,11 +28,21 @@
       "expo-router",
       "./plugins/with-penlia-colors",
       [
+        "./plugins/with-penlia-launch-screen",
+        { "source": "./assets/startup/pale-blue-dot.png" }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/adaptive-icon.png",
-          "imageWidth": 160,
-          "backgroundColor": "#F8D9E2"
+          "android": {
+            "backgroundColor": "#010103",
+            "dark": { "backgroundColor": "#010103" }
+          },
+          "ios": {
+            "image": "./assets/adaptive-icon.png",
+            "imageWidth": 160,
+            "backgroundColor": "#F8D9E2"
+          }
         }
       ],
       "expo-secure-store",
