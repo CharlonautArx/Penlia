@@ -174,7 +174,7 @@ const ui = StyleSheet.create({
   sender: { ...type.caption, color: colors.muted, marginLeft: space.xxs, marginBottom: space.xxs },
   bubble: { maxWidth: '100%', borderRadius: radius.surface, gap: space.xxs, paddingVertical: space.xs, paddingHorizontal: space.sm },
   sent: { backgroundColor: colors.lavender, borderBottomRightRadius: radius.small },
-  received: { backgroundColor: colors.panel, borderBottomLeftRadius: radius.small },
+  received: { backgroundColor: colors.chatReceived, borderBottomLeftRadius: radius.small },
   sentJoined: { borderBottomRightRadius: 5 },
   receivedJoined: { borderBottomLeftRadius: 5 },
   pressedBubble: { opacity: 0.72 },

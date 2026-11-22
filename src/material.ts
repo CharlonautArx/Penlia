@@ -1,8 +1,10 @@
+import palette from './palette.json';
+
 export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
 
 export const glass = {
   light: {
-    base: '#FFFEFB',
+    base: palette.light.panel,
     edge: '#51465525',
     shine: '#FFFFFF8C',
     opacity: { chrome: '0D', soft: '30', control: '52', feature: '7D' },

@@ -1,4 +1,7 @@
-module.exports = ({ config }) => {
+const { light } = require('./src/palette.json');
+
+module.exports = ({ config: base }) => {
+  const config = { ...base, backgroundColor: light.backdrop };
   if (process.env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1') {
     return { ...config, plugins: [...config.plugins, ['expo-camera', {
       cameraPermission: '允许朋聊扫描好友或群邀请二维码。', microphonePermission: false, recordAudioAndroid: false,

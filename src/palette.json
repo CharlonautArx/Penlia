@@ -1,7 +1,8 @@
 {
   "light": {
-    "backdrop": "#F8F7F4",
-    "panel": "#FFFEFB",
+    "backdrop": "#FAFBFC",
+    "panel": "#FFFFFF",
+    "chatReceived": "#FFFEFB",
     "border": "#E7E4DF",
     "text": "#23242A",
     "muted": "#565964",
@@ -20,6 +21,7 @@
   "dark": {
     "backdrop": "#14151A",
     "panel": "#1C1D24",
+    "chatReceived": "#1C1D24",
     "border": "#363740",
     "text": "#F4F0F1",
     "muted": "#C1BBC6",
