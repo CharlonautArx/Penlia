@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { isUiDemo } from '../../demo/mode';
-import { colors } from '../../theme';
+import { colors, touch } from '../../theme';
 import { OrbFace } from './Orb';
 import { usePets } from './store';
 
@@ -16,7 +16,7 @@ export function PetShortcut({ peer }: { peer: string }) {
   return <Pressable accessibilityRole="button" accessibilityLabel="共同小宠物"
     onPress={() => router.push({ pathname: '/pet/[id]', params: { id: peer } })}
     style={({ pressed }) => [local.button, pressed && local.pressed]}>
-    <PetMark size={29} />
+    <OrbFace size={25} />
   </Pressable>;
 }
 
@@ -27,7 +27,7 @@ function PetMark({ size }: { size: number }) {
 }
 
 const local = StyleSheet.create({
-  button: { width: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 12, backgroundColor: colors.tint },
+  button: { width: touch, minHeight: touch, justifyContent: 'center', alignItems: 'center' },
   pressed: { opacity: 0.72 },
   frame: { overflow: 'hidden', backgroundColor: colors.tint, justifyContent: 'center', alignItems: 'center' },
 });

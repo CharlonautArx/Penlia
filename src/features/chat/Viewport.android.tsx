@@ -25,14 +25,15 @@ export function KeyboardInsets({ children, bottom = 0, style }: {
   </View>;
 }
 
-export function ChatViewport({ children }: { children: ReactNode }) {
+export function ChatViewport({ children, floatingChrome }: { children: ReactNode; floatingChrome?: boolean }) {
   const { bottom } = useSafeAreaInsets();
-  return <SafeAreaView style={local.safe} edges={['top', 'left', 'right']}>
+  return <SafeAreaView style={[local.safe, floatingChrome && local.floating]} edges={['top', 'left', 'right']}>
     <KeyboardInsets bottom={bottom} style={chatLayout.page}>{children}</KeyboardInsets>
   </SafeAreaView>;
 }
 
 const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.panel },
+  floating: { backgroundColor: colors.backdrop },
   frame: { flex: 1 },
 });

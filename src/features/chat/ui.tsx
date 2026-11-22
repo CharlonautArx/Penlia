@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useAppearance } from '../../components/appearance';
 import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Button, Icon, IconButton, Sheet } from '../../components/ui';
 import { colors, radius, space, styles, touch, type } from '../../theme';
@@ -107,30 +108,47 @@ export function MessageBody({ text }: { text: string }) {
 }
 
 export function MessageComposer({ label, placeholder, value, onChange, maxLength,
-  attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, sendLabel, sendDisabled, onSend, mode }: {
-  label: string; placeholder: string; value: string; onChange: (value: string) => void; maxLength: number;
+  attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, sendLabel, sendDisabled, onSend, mode, floating = false }: {
+  label: string; placeholder?: string; value: string; onChange: (value: string) => void; maxLength: number;
   attachLabel: string; photoLabel: string; onAttach: () => void; onPhoto: () => void; onEmoji?: () => void;
   toolsDisabled?: boolean; photoDisabled?: boolean; sendLabel: string; sendDisabled: boolean; onSend: () => void;
-  mode?: ReactNode;
+  mode?: ReactNode; floating?: boolean;
 }) {
+  const { scheme } = useAppearance();
+  const dark = scheme === 'dark';
+  const ink = dark ? '#F5F5F6' : '#202124';
   function openTool(action: () => void) {
     Keyboard.dismiss();
     action();
   }
-  return <View style={ui.composer}>
+  const tools = <>
+    <IconButton label={attachLabel} icon={floating ? 'add' : 'add-circle-outline'}
+      color={floating ? ink : undefined} disabled={toolsDisabled} onPress={() => openTool(onAttach)} />
+    <IconButton label={photoLabel} icon="image-outline" color={floating ? ink : undefined}
+      disabled={toolsDisabled || photoDisabled} onPress={() => openTool(onPhoto)} />
+  </>;
+  return <View style={floating ? ui.floatingComposer : ui.composer}>
     {mode && <View style={ui.composerMode}>{mode}</View>}
     <View style={ui.composerControls}>
-      <IconButton label={attachLabel} icon="add-circle-outline" disabled={toolsDisabled} onPress={() => openTool(onAttach)} />
-      <IconButton label={photoLabel} icon="image-outline" disabled={toolsDisabled || photoDisabled} onPress={() => openTool(onPhoto)} />
-      <View style={ui.composerEntry}>
+      {!floating && tools}
+      <View style={[ui.composerEntry, floating && ui.floatingEntry, floating && (dark ? ui.neutralDark : ui.neutralLight)]}>
+        {floating && tools}
         <TextInput accessibilityLabel={label} placeholder={placeholder} placeholderTextColor={colors.quiet}
-          multiline scrollEnabled maxLength={maxLength} value={value} onChangeText={onChange} style={ui.composerInput} />
-        {onEmoji && <IconButton label="表情" icon="happy-outline" disabled={toolsDisabled} onPress={() => openTool(onEmoji)} />}
+          cursorColor={floating ? ink : undefined}
+          multiline scrollEnabled maxLength={maxLength} value={value} onChangeText={onChange}
+          style={[ui.composerInput, floating && ui.floatingInput, floating && { color: ink }]} />
+        {onEmoji && <IconButton label="表情" icon="happy-outline" color={floating ? ink : undefined}
+          disabled={toolsDisabled} onPress={() => openTool(onEmoji)} />}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={sendLabel} accessibilityState={{ disabled: sendDisabled, busy: sendLabel !== '发送' }}
-        disabled={sendDisabled} onPress={onSend} style={({ pressed }) => [ui.send, sendDisabled && ui.sendDisabled, pressed && ui.pressedBubble]}>
-        {!sendDisabled && <GlassLayer tone="control" roundness={radius.pill} />}
-        <Icon name="arrow-up" size={21} color={sendDisabled ? colors.quiet : colors.ink} />
+        disabled={sendDisabled} onPress={onSend} style={({ pressed }) => [ui.send, floating && ui.floatingSend,
+          !floating && sendDisabled && ui.sendDisabled, pressed && ui.pressedBubble]}>
+        {floating ? <View pointerEvents="none" style={[ui.sendFace, dark ? ui.neutralDark : ui.neutralLight, sendDisabled && ui.sendFaceDisabled]}>
+          <Icon name="arrow-up" size={19} color={ink} />
+        </View> : <>
+          {!sendDisabled && <GlassLayer tone="control" roundness={radius.pill} />}
+          <Icon name="arrow-up" size={21} color={sendDisabled ? colors.quiet : colors.ink} />
+        </>}
       </Pressable>
     </View>
   </View>;
@@ -161,10 +179,20 @@ const ui = StyleSheet.create({
   postLink: { minHeight: touch },
   linkText: { color: colors.accent },
   composer: { ...styles.divider, borderBottomWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.panel, paddingHorizontal: space.xxs, paddingVertical: space.xxs },
+  floatingComposer: { paddingHorizontal: space.sm, paddingBottom: space.xs },
   composerMode: { flexDirection: 'row', columnGap: space.sm, alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: space.sm, paddingBottom: space.xxs },
   composerControls: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xxs },
   composerEntry: { ...styles.grow, flexDirection: 'row', alignItems: 'flex-end', backgroundColor: colors.search, borderRadius: radius.surface },
+  floatingEntry: { minHeight: 52, borderRadius: 26, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', paddingHorizontal: 2 },
+  neutralLight: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF',
+    boxShadow: '0px 2px 8px #1E1E2212, 0px 0px 0px 0.5px #1616160C' },
+  neutralDark: { backgroundColor: '#25262A', borderColor: '#FFFFFF26',
+    boxShadow: '0px 2px 8px #00000040' },
   composerInput: { ...styles.grow, ...type.body, color: colors.text, minHeight: touch, maxHeight: 124, textAlignVertical: 'top', paddingHorizontal: space.sm, paddingVertical: 11 },
+  floatingInput: { paddingLeft: space.xxs, paddingRight: 0 },
   send: { width: touch, minHeight: touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
+  floatingSend: { marginBottom: 2 },
+  sendFace: { width: 36, height: 36, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  sendFaceDisabled: { opacity: 0.55 },
   sendDisabled: { backgroundColor: colors.search },
 });

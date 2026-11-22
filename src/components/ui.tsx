@@ -19,15 +19,15 @@ export function Icon({ name, size = 21, color = colors.ink }: { name: IconName; 
   return <Ionicons accessible={false} name={name} size={size} color={color ?? undefined} />;
 }
 
-export function IconButton({ label, icon, onPress, tinted = false, disabled = false }: {
-  label: string; icon: IconName; onPress: () => void; tinted?: boolean; disabled?: boolean;
+export function IconButton({ label, icon, onPress, color, tinted = false, disabled = false }: {
+  label: string; icon: IconName; onPress: () => void; color?: ComponentProps<typeof Icon>['color']; tinted?: boolean; disabled?: boolean;
 }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
       accessibilityState={{ disabled }} onPress={onPress}
       style={({ pressed }) => [ui.iconButton, pressed && ui.pressed, disabled && ui.disabled]}>
       {tinted && <GlassLayer tone="control" roundness={radius.pill} />}
-      <Icon name={icon} />
+      <Icon name={icon} color={color} />
     </Pressable>
   );
 }
@@ -171,10 +171,10 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
     : <View style={[ui.listRow, separator && styles.divider, style]}>{content}</View>;
 }
 
-export function Sheet({ title, onClose, children, footer, ...props }: ScrollViewProps & {
-  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode;
+export function Sheet({ title, onClose, children, footer, tone, ...props }: ScrollViewProps & {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral';
 }) {
-  const { reduced } = useAppearance();
+  const { reduced, scheme } = useAppearance();
   const entering = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) {
@@ -194,8 +194,9 @@ export function Sheet({ title, onClose, children, footer, ...props }: ScrollView
       <Animated.View style={[ui.sheetFrame, !reduced && {
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
       }]}>
-      <SafeAreaView edges={['bottom', 'left', 'right']} style={ui.sheet}>
-        <GlassLayer tone="chrome" roundness={radius.sheet} />
+      <SafeAreaView edges={['bottom', 'left', 'right']} style={[ui.sheet,
+        tone === 'neutral' && (scheme === 'dark' ? ui.neutralSheetDark : ui.neutralSheet)]}>
+        {tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />}
         <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
           <Text accessibilityRole="header" style={[styles.section, styles.grow]}>{title}</Text>
@@ -282,6 +283,8 @@ const ui = StyleSheet.create({
   sheetFrame: { width: '100%', maxWidth: contentWidth, maxHeight: '90%', alignSelf: 'center' },
   sheet: { flexShrink: 1, backgroundColor: colors.panel, borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet, paddingBottom: space.xs },
+  neutralSheet: { backgroundColor: '#FFFFFF' },
+  neutralSheetDark: { backgroundColor: '#25262A' },
   grip: { height: 4, width: 30, borderRadius: 2, alignSelf: 'center', marginTop: space.xs, backgroundColor: colors.border },
   sheetTop: { ...styles.row, ...styles.divider, paddingLeft: space.md, paddingRight: space.xs },
   sheetBody: { padding: space.md, gap: space.sm },

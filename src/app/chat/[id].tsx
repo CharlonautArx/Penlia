@@ -1,12 +1,13 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
-import { Avatar, Button, DemoLabel, Empty, Icon, IconButton, Notice, Sheet } from '../../components/ui';
+import { useAppearance } from '../../components/appearance';
+import { Avatar, Button, Empty, IconButton, Notice, Sheet } from '../../components/ui';
 import { DemoCall } from '../../demo/calls';
 import { isUiDemo } from '../../demo/mode';
-import type { CallKind } from '../../features/calls/model';
 import { PetShortcut } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
@@ -28,6 +29,9 @@ import { colors, radius, space, styles, touch } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 import { ChatViewport } from '../../features/chat/Viewport';
 
+const headerLight = ['#FFFFFF75', '#FFFFFF29', '#FFFFFF00'] as const;
+const headerDark = ['#FFFFFF09', '#FFFFFF03', '#FFFFFF00'] as const;
+
 function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
   const { session, request } = useSession();
   const demo = useDemo();
@@ -36,7 +40,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     .sort((a, b) => b.timestamp - a.timestamp) : undefined;
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState(initialDraft);
-  const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location'>();
+  const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location' | 'voice' | 'video'>();
   const [sendError, setSendError] = useState(false);
   const [messages, setMessages] = useState<RichMessage[]>([]);
   const [cursor, setCursor] = useState<string>();
@@ -218,6 +222,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   }
 
   const items = shownMessages ?? messages;
+  const call = picker === 'voice' || picker === 'video' ? picker : undefined;
   return (
     <>
       {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
@@ -253,9 +258,9 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
-      <MessageComposer label="消息" placeholder={demo ? '输入模拟消息' : '发消息'}
+      <MessageComposer label="消息" floating
         value={draft} onChange={setDraft} maxLength={500}
-        attachLabel="更多输入方式" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
+        attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
         photoDisabled={prepareBusy} toolsDisabled={sending}
         sendLabel={sending ? '发送中…' : '发送'} onSend={sendText}
@@ -277,7 +282,8 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         setPicker(undefined);
         void transmit({ kind: 'location', ...value, silent:quiet });
       }} />}
-      {picker && picker !== 'location' && <Sheet title={picker === 'emoji' ? '表情' : '更多输入方式'} onClose={() => setPicker(undefined)}>
+      {(picker === 'emoji' || picker === 'attachments') && <Sheet
+        title={picker === 'emoji' ? '表情' : '添加'} tone="neutral" onClose={() => setPicker(undefined)}>
         {picker === 'emoji' ? <View style={local.emoji}>
           {['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'].map((emoji) =>
             <Button key={emoji} label={emoji} variant="soft" onPress={() => {
@@ -285,6 +291,10 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
               setPicker(undefined);
             }} />)}
         </View> : <>
+          <Button label="语音通话" icon="call-outline" variant="quiet" onPress={() => setPicker('voice')} />
+          <Button label="视频通话" icon="videocam-outline" variant="quiet" onPress={() => setPicker('video')} />
+          <Button label="位置" icon="location-outline" variant="quiet" disabled={(!demo && !online) || sending}
+            onPress={() => setPicker('location')} />
           {!demo&&<>
             <Button label={quiet ? '关闭安静送达' : '安静送达'} icon={quiet ? 'moon' : 'moon-outline'}
               variant={quiet ? 'primary' : 'soft'} disabled={sending}
@@ -297,11 +307,14 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
               void chooseMomentVideo().then(setVideo).catch((failure)=>setActionError(errorMessage(failure)));
             }}/>
           </>}
-          <Button label="位置" icon="location-outline" variant="soft" disabled={(!demo && !online) || sending}
-            onPress={() => setPicker('location')} />
           {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
       </Sheet>}
+      {call && (isUiDemo ? <DemoCall kind={call} incoming={false}
+        name={person.name} username={person.username} onClose={() => setPicker(undefined)} />
+        : <Sheet title={call === 'voice' ? '语音通话' : '视频通话'} tone="neutral" onClose={() => setPicker(undefined)}>
+          <Notice>通话服务尚未启用。需要配置 RTC、通话信令和呼叫权限后才可以拨打。</Notice>
+        </Sheet>)}
       {report&&<ReportSheet peerId={person.userId} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
       {video&&<Sheet title="发送短视频" onClose={()=>{if(!sending)setVideo(undefined);}}>
         <MomentVideo source={{uri:video.uri}}/>
@@ -348,8 +361,7 @@ function QueuePreview({item,index}:{item:PreparedPhoto;index:number}) {
 
 export default function ConversationScreen() {
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
-  const [more, setMore] = useState(false);
-  const [call, setCall] = useState<{ kind: CallKind; incoming: boolean }>();
+  const { scheme } = useAppearance();
   const { relationships, refresh, error } = useFriends();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -360,8 +372,11 @@ export default function ConversationScreen() {
   }
 
   return (
-    <ChatViewport>
+    <ChatViewport floatingChrome>
       <View style={local.header}>
+        <View pointerEvents="none" accessible={false} aria-hidden style={StyleSheet.absoluteFill}>
+          <LinearGradient colors={scheme === 'dark' ? headerDark : headerLight} style={StyleSheet.absoluteFill} />
+        </View>
         <IconButton label="返回" icon="chevron-back" onPress={goBack} />
         {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
           style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
@@ -369,38 +384,16 @@ export default function ConversationScreen() {
           <Avatar name={person.name} source={demoPortrait(person.username)} size={34} />
           <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
         </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
-        <DemoLabel />
         {person && <PetShortcut peer={person.userId} /> }
-        {person && <IconButton label="聊天选项" icon="ellipsis-horizontal" onPress={() => setMore(true)} />}
       </View>
       {person ? <Conversation key={person.userId} person={person} initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
         <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>}
-      {more && person && <Sheet title="聊天选项" onClose={() => setMore(false)}>
-        <Button label="语音通话" variant="soft" icon="call-outline" onPress={() => {
-          setMore(false); setCall({ kind: 'voice', incoming: false });
-        }} />
-        <Button label="视频通话" variant="soft" icon="videocam-outline" onPress={() => {
-          setMore(false); setCall({ kind: 'video', incoming: false });
-        }} />
-        {isUiDemo && <Button label="模拟视频来电" variant="quiet" onPress={() => {
-          setMore(false); setCall({ kind: 'video', incoming: true });
-        }} />}
-        <Button label="查看好友资料" variant="soft" icon="person-outline" onPress={() => {
-          setMore(false);
-          router.push({ pathname: '/person/[id]', params: { id: person.userId } });
-        }} />
-      </Sheet>}
-      {call && person && (isUiDemo ? <DemoCall kind={call.kind} incoming={call.incoming}
-        name={person.name} username={person.username} onClose={() => setCall(undefined)} />
-        : <Sheet title={call.kind === 'voice' ? '语音通话' : '视频通话'} onClose={() => setCall(undefined)}>
-          <Notice>通话服务尚未启用。需要配置 RTC、通话信令和呼叫权限后才可以拨打。</Notice>
-        </Sheet>)}
     </ChatViewport>
   );
 }
 
 const local = StyleSheet.create({
-  header: { ...styles.row, ...styles.divider, minHeight: 54, gap: space.xxs, paddingHorizontal: space.xxs, backgroundColor: colors.panel },
+  header: { ...styles.row, minHeight: 54, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },
   profileLink: { ...styles.row, ...styles.grow, gap: space.xs, minHeight: touch },
   profilePressed: { opacity: 0.72 },
   notice: { paddingHorizontal: space.md, paddingVertical: space.xxs },
