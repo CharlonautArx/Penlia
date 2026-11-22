@@ -1,0 +1,45 @@
+name: Penlia peer chat glass Android release
+on:
+  push:
+    tags: [penlia-peer-chat-android-smoke]
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Prepare hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle --timeout=15
+          ls -l /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod u+rw /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+      - name: Verify native keyboard, added tools, photos and cold launches
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-build: '16970787'
+          api-level: 35
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash scripts/android-peer-chat-smoke.sh demo-preview/penlia-peer-chat-x86_64.apk output/ demo-preview/penlia-android-ime-test.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: penlia-peer-chat-runtime
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore
