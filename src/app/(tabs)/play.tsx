@@ -19,12 +19,14 @@ export default function PlayScreen() {
   const places = visiblePlaces(discoveryCatalog()
     .filter((place) => place.city === city && (category === '全部' || place.category === category)));
 
-  return <Screen title="玩乐" actions={<IconButton label="想去的地方" icon="bookmark-outline"
-    onPress={() => router.push('/playground/saved')} />}>
+  return <Screen>
     <DiscoveryEntrance onPress={() => router.push('/life')} />
     <View style={local.discovery}>
       <View style={[styles.row, local.heading]}>
-        <Text accessibilityRole="header" style={[styles.section, styles.grow]}>线下去处</Text>
+        <View style={local.headingActions}>
+          <Text accessibilityRole="header" style={styles.section}>线下去处</Text>
+          <IconButton label="想去的地方" icon="bookmark-outline" onPress={() => router.push('/playground/saved')} />
+        </View>
         <Pressable accessibilityRole="button" accessibilityLabel={'选择城市，当前' + city}
           onPress={() => setChoosingCity(true)} style={({ pressed }) => [local.city, pressed && local.pressed]}>
           <GlassLayer roundness={radius.pill} />
@@ -51,6 +53,7 @@ export default function PlayScreen() {
 const local = StyleSheet.create({
   discovery: { gap: space.xs },
   heading: { justifyContent: 'space-between', flexWrap: 'wrap' },
+  headingActions: { ...styles.row, gap: 0, flexShrink: 1 },
   city: { ...styles.row, minHeight: touch, gap: 4, paddingHorizontal: space.sm, paddingVertical: space.xxs },
   cityLabel: { ...type.control, color: colors.ink },
   places: { gap: space.sm },

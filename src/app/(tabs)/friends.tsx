@@ -77,11 +77,15 @@ export default function FriendsScreen() {
   }
 
   return (
-    <Screen title="好友" solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} actions={
-      <IconButton label="添加好友" icon="person-add-outline" tinted onPress={() => openSheet('add')} />
-    }>
+    <Screen solid inset={false} refreshing={refreshing} onRefresh={() => void reload()}>
       <View style={local.control}>
-        <SearchField label="搜索好友" placeholder="搜索好友的昵称或朋聊号" value={filter} onChangeText={setFilter} />
+        <View style={local.searchRow}>
+          <IconButton label="添加好友" icon="add" onPress={() => openSheet('add')} />
+          <View style={styles.grow}>
+            <SearchField variant="neutral" label="搜索好友" placeholder="搜索好友的昵称或朋聊号"
+              value={filter} onChangeText={setFilter} />
+          </View>
+        </View>
         {!!listError && <Notice action="重试" onAction={() => void reload()}>{listError}</Notice>}
       </View>
       <ListRow title="新的朋友" style={local.managementRow} detail={incoming.length ? '有好友申请待处理' : '查看好友申请'}
@@ -152,7 +156,8 @@ export default function FriendsScreen() {
 }
 
 const local = StyleSheet.create({
-  control: { paddingHorizontal: space.md, paddingTop: space.xxs, paddingBottom: space.sm, gap: space.xs },
+  control: { paddingLeft: space.xs, paddingRight: space.md, paddingTop: space.sm, paddingBottom: space.sm, gap: space.xs },
+  searchRow: { ...styles.row, gap: space.xxs },
   managementRow: { minHeight: 60 },
   section: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
   requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },

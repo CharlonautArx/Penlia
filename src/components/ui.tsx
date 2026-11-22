@@ -117,19 +117,23 @@ export function Button({ label, icon, onPress, disabled, variant = 'primary' }: 
 }
 
 export function SearchField({ label, value, onChangeText, onFocus, onBlur, variant, ...props }: TextInputProps & {
-  label: string; variant?: 'glass';
+  label: string; variant?: 'glass' | 'neutral';
 }) {
   const [focused, setFocused] = useState(false);
   const { scheme } = useAppearance();
   const glazed = variant === 'glass';
-  return <View style={[ui.search, glazed && ui.glassSearch,
-    glazed && scheme === 'light' && ui.glassSearchShadow]}>
+  const neutral = variant === 'neutral';
+  const capsule = glazed || neutral;
+  return <View style={[ui.search, capsule && ui.glassSearch,
+    glazed && scheme === 'light' && ui.glassSearchShadow,
+    neutral && (scheme === 'dark' ? ui.neutralSearchDark : ui.neutralSearchLight),
+    neutral && focused && ui.neutralSearchFocus]}>
     {glazed && <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />}
     <Icon name="search-outline" size={19} color={colors.quiet} />
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
-      onFocus={glazed ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
-      onBlur={glazed ? (event) => { setFocused(false); onBlur?.(event); } : onBlur}
-      placeholderTextColor={colors.quiet} style={[ui.searchInput, glazed && ui.glassSearchInput]} />
+      onFocus={capsule ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
+      onBlur={capsule ? (event) => { setFocused(false); onBlur?.(event); } : onBlur}
+      placeholderTextColor={colors.quiet} style={[ui.searchInput, capsule && ui.glassSearchInput]} />
     {!!value && <IconButton label="清空搜索" icon="close-circle-outline" onPress={() => onChangeText?.('')} />}
   </View>;
 }
@@ -276,6 +280,11 @@ const ui = StyleSheet.create({
   glassSearch: { minHeight: touch + space.xxs, borderRadius: radius.pill, backgroundColor: 'transparent',
     paddingLeft: space.md },
   glassSearchShadow: { boxShadow: `-5px 1px 15px ${brandGradient[0]}24, 5px 1px 15px ${brandGradient[2]}46, 0px 3px 6px #24212A0C` },
+  neutralSearchLight: { backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF',
+    boxShadow: '0px 2px 8px #1E1E2212, 0px 0px 0px 0.5px #1616160C' },
+  neutralSearchDark: { backgroundColor: '#25262A', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF26',
+    boxShadow: '0px 2px 8px #00000040' },
+  neutralSearchFocus: { borderColor: colors.border },
   searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },
   glassSearchInput: { position: 'relative', zIndex: 1 },
   notice: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs, backgroundColor: colors.lavender, borderRadius: radius.control,

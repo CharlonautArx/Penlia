@@ -34,7 +34,7 @@ export default function MeScreen() {
     }
   }
 
-  return <Screen title="我的" actions={<IconButton label="通用设置" icon="settings-outline" onPress={() => setSheet('通用设置')} />}>
+  return <Screen>
     <View style={local.profile}>
       <Pressable accessibilityRole="button" accessibilityLabel="查看个人资料" onPress={() => router.push('/profile')}
         style={({ pressed }) => [local.profileContent, pressed && local.pressed]}>
