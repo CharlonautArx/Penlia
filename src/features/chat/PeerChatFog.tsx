@@ -29,16 +29,21 @@ export function PeerChatFog({ target, ready }: {
   const { scheme } = useAppearance();
   const focused = useIsFocused();
   const useBlur = ready && focused && (androidBlur || Platform.OS === 'ios' || Platform.OS === 'web');
+  const tint = scheme === 'dark' ? 'dark' : 'light';
 
   return <View pointerEvents="none" aria-hidden importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
-    {useBlur && (Platform.OS === 'web'
-      ? <View style={[StyleSheet.absoluteFill, webFog]} />
-      : <NativeMask androidRenderingMode="hardware" style={StyleSheet.absoluteFill}
-          maskElement={<LinearGradient colors={fade} locations={stops} style={StyleSheet.absoluteFill} />}>
-          <BlurView blurTarget={target} blurMethod="dimezisBlurViewSdk31Plus"
-            tint={scheme === 'dark' ? 'dark' : 'light'} intensity={30} blurReductionFactor={4}
-            style={StyleSheet.absoluteFill} />
-        </NativeMask>)}
+    {useBlur && Platform.OS === 'web' && <View style={[StyleSheet.absoluteFill, webFog]} />}
+    {useBlur && Platform.OS === 'android' && <BlurView blurTarget={target} blurMethod="dimezisBlurViewSdk31Plus"
+      tint={tint} intensity={24} blurReductionFactor={5} style={local.androidLens} />}
+    {useBlur && Platform.OS === 'ios' && <NativeMask androidRenderingMode="hardware" style={StyleSheet.absoluteFill}
+      maskElement={<LinearGradient colors={fade} locations={stops} style={StyleSheet.absoluteFill} />}>
+      <BlurView tint={tint} intensity={30} style={StyleSheet.absoluteFill} />
+    </NativeMask>}
     <LinearGradient colors={scheme === 'dark' ? dark : light} locations={stops} style={StyleSheet.absoluteFill} />
   </View>;
 }
+
+const local = StyleSheet.create({
+  // Keep Android's live render node bounded; the neutral veil extends farther into the messages.
+  androidLens: { position: 'absolute', top: 0, left: 0, right: 0, height: '70%', opacity: 0.5 },
+});
