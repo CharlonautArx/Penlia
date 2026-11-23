@@ -28,7 +28,8 @@ export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard;
     pending.current = 'pick';
     setOperation('pick');
     try {
-      const [photo] = await selectPhotos(state.me.id, 1);
+      // Preserve the original image for cropping and avoid the Android picker's re-encoding pass.
+      const [photo] = await selectPhotos(state.me.id, 1, 1);
       if (photo) {
         await checkPhoto(photo.id);
         setCover({ tone: cover.tone, photo });
