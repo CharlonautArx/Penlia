@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from 'react';
 
+import { DirectoryProvider } from '../features/friends/store';
 import { errorMessage, type Relationship } from './api';
 import { useSession } from './session';
 
@@ -10,7 +11,7 @@ const FriendsContext = createContext<{
 } | null>(null);
 
 export function FriendsProvider({ children }: { children: ReactNode }) {
-  const { request } = useSession();
+  const { request, session } = useSession();
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [error, setError] = useState('');
   const sequence = useRef(0);
@@ -28,7 +29,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     }
   }, [request]);
 
-  return <FriendsContext.Provider value={{ relationships, refresh, error }}>{children}</FriendsContext.Provider>;
+  return <FriendsContext.Provider value={{ relationships, refresh, error }}><DirectoryProvider account={session?.user.id}>{children}</DirectoryProvider></FriendsContext.Provider>;
 }
 
 export function useFriends() {

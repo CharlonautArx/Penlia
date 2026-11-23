@@ -1,3 +1,4 @@
+import { formatHandle } from '../services/handle';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -20,13 +21,15 @@ export default function ProfileScreen() {
       <Avatar userId={user.id} name={user.name} source={demoPortrait(state.demoAvatarKey ?? user.username)} size={72} />
       <View style={styles.grow}>
         <Text style={local.name}>{user.name}</Text>
-        <Text style={styles.muted}>@{user.username}</Text>
+        <Text style={styles.muted}>{formatHandle(user.username)}</Text>
       </View>
     </View>
     <SettingGroup>
-      <ListRow title="朋聊号" detail={'@' + user.username} left={<Icon name="at-outline" />} />
+      <ListRow title="朋聊号" detail={formatHandle(user.username)} left={<Icon name="at-outline" />} />
       <ListRow title="昵称" detail={user.name} left={<Icon name="person-outline" />} />
-      <ListRow title="个性签名" detail={user.bio || '还没有个性签名'} left={<Icon name="chatbox-outline" />} separator={false} />
+      <ListRow title="个性签名" detail={user.bio || '还没有个性签名'} left={<Icon name="chatbox-outline" />} />
+      <ListRow title="个人主页" left={<Icon name="person-circle-outline" />} separator={false}
+        onPress={() => router.push({ pathname: '/person/[id]', params: { id: user.id } })} />
     </SettingGroup>
     {!!state.error && <Notice action="重试" onAction={state.retry}>{state.error}</Notice>}
     {!!state.value && <>

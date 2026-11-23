@@ -198,8 +198,13 @@ export async function searchPerson(userId, value, type, secret) {
       [userId, hash(value)],
     );
   } else {
-    const username = typeof value === 'string' ? value.trim().toLowerCase() : '';
-    result = await pool.query(`${base} WHERE u.username=$2 AND ${visible}`, [userId, username]);
+    const username = typeof value === 'string' ? value.trim().toLowerCase().replace(/^[@＠]+/, '') : '';
+    if (!username) return { person: null };
+    result = await pool.query(
+      `${base} WHERE u.username IN ($2, '@'||$2, '＠'||$2) AND ${visible}
+      ORDER BY (u.username=$2) DESC,u.username LIMIT 1`,
+      [userId, username],
+    );
   }
   return { person: result.rows[0] ?? null };
 }

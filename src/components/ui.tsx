@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref, type ComponentRef } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Image, type ImageSourcePropType, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
   type ScrollViewProps, type StyleProp, StyleSheet, Text, TextInput, type TextInputProps, View, type ViewStyle,
@@ -35,18 +35,19 @@ export function IconButton({ label, icon, onPress, color, tinted = false, disabl
   );
 }
 
-export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back }: {
+export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back, scrollRef, overlay }: {
   title?: string; actions?: ReactNode; children: ReactNode; inset?: boolean; refreshing?: boolean;
-  onRefresh?: () => void; solid?: boolean; back?: () => void;
+  onRefresh?: () => void; solid?: boolean; back?: () => void; scrollRef?: Ref<ComponentRef<typeof ScrollView>>; overlay?: ReactNode;
 }) {
   return (
     <SafeAreaView style={[ui.safe, solid && ui.white]} edges={back ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
       {title && <TopBar title={title} actions={actions} back={back} />}
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
         refreshControl={onRefresh && <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         contentContainerStyle={[ui.column, inset && ui.inset]}>
         {children}
       </ScrollView>
+      {overlay}
     </SafeAreaView>
   );
 }

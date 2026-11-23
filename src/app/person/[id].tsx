@@ -1,104 +1,141 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { GlassLayer } from '../../components/material';
-import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Screen, SettingGroup, Sheet } from '../../components/ui';
+import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Sheet, TopBar } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { demoPortrait } from '../../demo/visuals';
-import { errorMessage, type User } from '../../services/api';
-import { StatusBlock,type LifeStatus } from '../life/status';
-import { useRecord } from '../../features/social/ui';
 import { nativeChatBackgrounds } from '../../features/chat/background/store';
+import { displayName, emptyDirectory } from '../../features/friends/directory';
+import { FriendDetailsEditor } from '../../features/friends/FriendDetailsEditor';
+import { EditProfileCover, ProfileCoverImage, useProfileCover } from '../../features/friends/ProfileCover';
+import { useDirectory } from '../../features/friends/store';
+import { errorMessage, type User } from '../../services/api';
 import { useFriends } from '../../services/friends';
+import { formatHandle } from '../../services/handle';
 import { useSession } from '../../services/session';
-import { colors, radius, space, styles, type } from '../../theme';
+import { colors, contentWidth, radius, space, styles, type } from '../../theme';
 
-export default function PersonScreen() {
+type Management = 'menu' | 'directory' | 'cover' | 'restrict' | 'remove' | 'block';
+
+export default function PersonRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { request } = useSession();
-  const { relationships, refresh, error } = useFriends();
-  const [profile,setProfile]=useState<User & {resting?:boolean}>();
-  const [failure,setFailure]=useState('');
-  const [confirm,setConfirm]=useState<'remove'|'block'|'restrict'>();
-  const [management, setManagement] = useState(false);
-  const [busy,setBusy]=useState(false);
-  const friend = relationships?.find((item) => item.userId === id && item.status === 'accepted');
-  useFocusEffect(useCallback(() => {
-    let active=true;
-    void refresh();
-    if(!isUiDemo)void request<{user:User & {resting?:boolean}}>('/people/'+id)
-      .then((value)=>{if(active)setProfile(value.user);})
-      .catch((failure)=>{if(active)setFailure(errorMessage(failure));});
-    return ()=>{active=false;};
-  }, [id,refresh,request]));
+  return <PersonScreen key={id} id={id} />;
+}
 
-  async function manage() {
-    setBusy(true);setFailure('');
+function PersonScreen({ id }: { id: string }) {
+  const { request, session, demoAvatarKey } = useSession();
+  const { relationships, refresh, error } = useFriends();
+  const directory = useDirectory();
+  const { width } = useWindowDimensions();
+  const [profile, setProfile] = useState<User>();
+  const [failure, setFailure] = useState('');
+  const [actionFailure, setActionFailure] = useState('');
+  const [management, setManagement] = useState<Management>();
+  const [busy, setBusy] = useState(false);
+  const own = id === session?.user.id;
+  const cover = useProfileCover(id, own);
+  const friend = relationships?.find((item) => item.userId === id && item.status === 'accepted');
+  const person = own ? session?.user : friend && (isUiDemo ? friend : profile);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (!own) {
+      void refresh();
+      if (!isUiDemo) void request<{ user: User }>('/people/' + id)
+        .then(({ user }) => { if (active) { setProfile(user); setFailure(''); } })
+        .catch((error) => { if (active) { setProfile(undefined); setFailure(errorMessage(error)); } });
+    }
+    return () => { active = false; };
+  }, [id, own, refresh, request]));
+
+  async function manage(action: 'restrict' | 'remove' | 'block') {
+    setBusy(true);
+    setActionFailure('');
     try {
-      await request('/friends/'+confirm,{method:'POST',body:{userId:id}});
-      await refresh();router.replace('/friends');
-    } catch(error){setFailure(errorMessage(error));}
-    finally{setBusy(false);}
+      await request('/friends/' + action, { method: 'POST', body: { userId: id } });
+      await refresh();
+      router.replace('/friends');
+    } catch (error) { setActionFailure(errorMessage(error)); }
+    finally { setBusy(false); }
   }
-  return <Screen title="好友资料" actions={friend && !isUiDemo &&
-    <IconButton label="关系与隐私" icon="ellipsis-horizontal" onPress={() => setManagement(true)} />} back={() => router.canGoBack() ? router.back() : router.replace('/friends')}>
-    {friend && (isUiDemo||profile) ? <>
-      <View style={local.profile}>
-        <View style={local.avatarFrame}>
-          <GlassLayer tone="control" roundness={radius.pill} />
-          <Avatar name={friend.name} source={demoPortrait(friend.username)} size={76} />
+
+  const name = person && (own ? person.name : displayName({ userId: id, name: person.name }, directory.value ?? emptyDirectory));
+  const openSpace = () => router.push({ pathname: '/life/timeline/[id]', params: { id } });
+
+  return <SafeAreaView style={local.safe} edges={['top', 'left', 'right', 'bottom']}>
+    <TopBar title={own ? '个人主页' : '好友主页'} actions={own
+      ? <IconButton label="编辑主页背景" icon="image-outline" disabled={!cover.ready} onPress={() => setManagement('cover')} />
+      : person && <IconButton label="好友设置" icon="ellipsis-horizontal" onPress={() => setManagement('menu')} />}
+      back={() => router.canGoBack() ? router.back() : router.replace(own ? '/profile' : '/friends')} />
+    {person ? <>
+      <ScrollView contentContainerStyle={local.column} showsVerticalScrollIndicator={false}>
+        <ProfileCoverImage photo={cover.photo} height={Math.max(190, Math.min(300, width * 0.53))} fades />
+        <View style={local.details}>
+          <View style={local.avatarFrame}>
+            <Avatar userId={id} name={person.name} source={demoPortrait((own && demoAvatarKey) || person.username)} size={88} />
+          </View>
+          <Text accessibilityRole="header" style={local.name}>{name}</Text>
+          <View style={local.metadata}>
+            <Text style={styles.muted}>昵称 {person.name}</Text>
+            <Text selectable style={styles.muted}>朋聊号 {formatHandle(person.username)}</Text>
+          </View>
+          {!!person.bio && <Text style={styles.body}>{person.bio}</Text>}
+          {own && !!cover.failure && <Notice>{cover.failure}</Notice>}
+          <View style={local.spaceEntry}>
+            <ListRow title="个人空间" left={<Icon name="albums-outline" />}
+              trailing={<Icon name="chevron-forward" size={16} color={colors.quiet} />} onPress={openSpace} separator={false} />
+          </View>
         </View>
-        <View style={styles.grow}>
-          <Text style={local.name}>{friend.name}</Text>
-          <Text style={styles.muted}>朋聊号 @{friend.username}</Text>
-          {profile?.resting && <Text style={styles.small}>正在休息</Text>}
-        </View>
-      </View>
-      {!!(profile?.bio ?? friend.bio) && <Text style={[styles.body, local.bio]}>{profile?.bio ?? friend.bio}</Text>}
-      <FriendLifeStatus id={id}/>
-      <Button label="发消息" icon="chatbubble-outline"
-        onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />
-      {nativeChatBackgrounds && <SettingGroup>
-        <ListRow title="聊天背景" left={<Icon name="image-outline" />}
-          onPress={() => router.push({ pathname: '/chat-background', params: { peer: friend.userId } })} separator={false} />
-      </SettingGroup>}
-      {isUiDemo?<View style={local.shortcuts}>
-        <Button label="个人空间" icon="albums-outline" variant="soft"
-          onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id: friend.userId } })} />
-        <Button label="共同小宠物" icon="heart-circle-outline" variant="soft"
-          onPress={() => router.push({ pathname: '/pet/[id]', params: { id: friend.userId } })} />
-      </View>:<SettingGroup>
-        <ListRow title="查看对方动态" left={<Icon name="images-outline" />}
-          onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id } })} separator={false} />
-      </SettingGroup>}
-    </> : <Empty busy={!relationships && !error && !failure}>{failure || error || (relationships && !friend ? '找不到这位好友。' : '正在加载资料…')}</Empty>}
-    {management && <Sheet title="关系与隐私" onClose={() => setManagement(false)}>
-      {([
+      </ScrollView>
+      {!own && <View style={[local.column, local.footer]}>
+        <Button label="发消息" icon="chatbubble-outline"
+          onPress={() => router.push({ pathname: '/chat/[id]', params: { id } })} />
+      </View>}
+    </> : <View style={local.details}><Empty busy={!failure && !error && (!relationships || !!friend)}>
+      {failure || error || (relationships && !friend ? '找不到这位好友。' : '正在加载资料…')}
+    </Empty></View>}
+    {management === 'cover' && own && <EditProfileCover cover={cover} onClose={() => setManagement(undefined)} />}
+    {management === 'directory' && friend && <FriendDetailsEditor id={id} name={friend.name} onClose={() => setManagement(undefined)} />}
+    {management === 'menu' && friend && <Sheet title="好友设置" onClose={() => setManagement(undefined)}>
+      <ListRow title="备注与分组" left={<Icon name="bookmark-outline" />} onPress={() => setManagement('directory')} />
+      {nativeChatBackgrounds && <ListRow title="聊天背景" left={<Icon name="image-outline" />} onPress={() => {
+        setManagement(undefined);
+        router.push({ pathname: '/chat-background', params: { peer: id } });
+      }} />}
+      {isUiDemo ? <ListRow title="共同小宠物" left={<Icon name="heart-circle-outline" />} onPress={() => {
+        setManagement(undefined);
+        router.push({ pathname: '/pet/[id]', params: { id } });
+      }} /> : ([
         ['restrict', '限制对方查看我的内容', 'eye-off-outline'],
         ['remove', '删除好友', 'person-remove-outline'],
         ['block', '拉黑', 'ban-outline'],
       ] as const).map(([action, title, icon]) => <ListRow key={action} title={title}
         left={<Icon name={icon} color={action === 'block' ? colors.danger : colors.ink} />}
-        onPress={() => { setManagement(false); setConfirm(action); }} />)}
+        onPress={() => { setActionFailure(''); setManagement(action); }} />)}
     </Sheet>}
-    {confirm&&<Sheet title={confirm==='block'?'拉黑联系人':confirm==='restrict'?'限制内容访问':'删除好友'} onClose={()=>{if(!busy)setConfirm(undefined);}}>
-      <Text style={styles.muted}>{confirm==='block'?'拉黑后彼此无法发起私聊、申请或邀请。你可以在隐私中心管理黑名单。':confirm==='restrict'?'对方无法再查看你的动态、签名和休息状态。你们仍可正常聊天。':'删除后如需重新聊天，需要再次完成好友确认。'}</Text>
-      {!!failure&&<Notice>{failure}</Notice>}
-      <Button label={confirm==='block'?'确认拉黑':confirm==='restrict'?'确认限制':'确认删除好友'} variant="danger" disabled={busy} onPress={()=>void manage()}/>
-    </Sheet>}
-  </Screen>;
-}
-
-function FriendLifeStatus({id}:{id:string}){
-  const {data}=useRecord<{status:LifeStatus|null}>('/p2/status/'+id+'?lifetime=1',20000);
-  return data?.status?<StatusBlock status={data.status}/>:null;
+    {(management === 'restrict' || management === 'remove' || management === 'block') &&
+      <Sheet title={management === 'block' ? '拉黑联系人' : management === 'restrict' ? '限制内容访问' : '删除好友'}
+        onClose={() => { if (!busy) setManagement(undefined); }}>
+        <Text style={styles.muted}>{management === 'block' ? '拉黑后彼此无法发起私聊、申请或邀请。你可以在隐私中心管理黑名单。'
+          : management === 'restrict' ? '对方无法再查看你的动态、签名和休息状态。你们仍可正常聊天。'
+            : '删除后如需重新聊天，需要再次完成好友确认。'}</Text>
+        {!!actionFailure && <Notice>{actionFailure}</Notice>}
+        <Button label={management === 'block' ? '确认拉黑' : management === 'restrict' ? '确认限制' : '确认删除好友'}
+          variant="danger" disabled={busy} onPress={() => void manage(management)} />
+      </Sheet>}
+  </SafeAreaView>;
 }
 
 const local = StyleSheet.create({
-  profile: { ...styles.row, padding: space.md, backgroundColor: colors.panel, borderRadius: radius.surface, gap: space.md },
-  avatarFrame: { padding: space.xxs, borderRadius: radius.pill },
-  shortcuts: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  name: { ...type.title, color: colors.text },
-  bio: { paddingHorizontal: space.xxs },
+  safe: { flex: 1, backgroundColor: colors.panel },
+  column: { width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
+  details: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.sm },
+  avatarFrame: { marginTop: -46, borderWidth: 4, borderColor: colors.panel, borderRadius: radius.pill,
+    backgroundColor: colors.panel, alignSelf: 'flex-start' },
+  name: { ...type.display, color: colors.text },
+  metadata: { gap: space.xxs },
+  spaceEntry: { marginTop: space.sm, marginHorizontal: -space.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  footer: { paddingHorizontal: space.md, paddingTop: space.xs, paddingBottom: space.md },
 });

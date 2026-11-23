@@ -1,3 +1,4 @@
+import { formatHandle } from '../../services/handle';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -146,7 +147,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
       <Button label="完成" variant="gradient" onPress={() => { setDraft({ ...draft, location: location.trim() }); setPanel(undefined); }} />
     </Sheet>}
     {panel === 'mention' && <Sheet title="@好友" onClose={() => setPanel(undefined)}>
-      {state.friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={'@' + friend.username}
+      {state.friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={formatHandle(friend.username)}
         left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={34} />}
         onPress={() => {
           const next = draft.text.trimEnd() + (draft.text.length ? ' ' : '') + '@' + friend.username + ' ';

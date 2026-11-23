@@ -1,3 +1,4 @@
+import { formatHandle } from '../../services/handle';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -69,7 +70,7 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
         : <View style={local.avatar}>{avatar}</View>}
       <View style={[styles.grow, local.identityText]}>
         <Text style={[local.name, immersive && local.homeName]}>{person.name}</Text>
-        <Text style={[styles.small, immersive && local.homeMeta]}>@{person.username}{card.region ? ' · ' + card.region : ''}</Text>
+        <Text style={[styles.small, immersive && local.homeMeta]}>{formatHandle(person.username)}{card.region ? ' · ' + card.region : ''}</Text>
       </View>
     </View>
     <View style={[local.panes, immersive && local.homePanes]}>

@@ -1,3 +1,4 @@
+import { formatHandle } from '../services/handle';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Platform, Share, Switch, Text, TextInput, View } from 'react-native';
@@ -282,7 +283,7 @@ export default function PrivacyScreen() {
                 <ListRow
                   key={item.id}
                   title={item.name}
-                  detail={'@' + item.username}
+                  detail={formatHandle(item.username)}
                   trailing={
                     <Button
                       label="移出黑名单"
@@ -308,7 +309,7 @@ export default function PrivacyScreen() {
                 <ListRow
                   key={person.id}
                   title={person.name}
-                  detail={'@' + person.username}
+                  detail={formatHandle(person.username)}
                   trailing={
                     <Button
                       label="解除限制"

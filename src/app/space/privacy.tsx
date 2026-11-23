@@ -1,3 +1,4 @@
+import { formatHandle } from '../../services/handle';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -61,7 +62,7 @@ export default function PrivacyScreen() {
           label={replies[value]} picked={value === privacy.revealReplies} onPress={() => save({ revealReplies: value })} />)}
       </Sheet>}
       {panel === 'viewer' && <Sheet title="选择预览好友" onClose={() => setPanel(undefined)}>
-        {state.friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={'@' + friend.username}
+        {state.friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={formatHandle(friend.username)}
           left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={35} />} onPress={() => {
             if (!state.me) return;
             setPanel(undefined);

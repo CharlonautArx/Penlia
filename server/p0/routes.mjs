@@ -41,12 +41,19 @@ import {
   updateMoment,
 } from './moments.mjs';
 
+import { getProfileCover, saveProfileCover } from './profile-cover.mjs';
+
 const missing = () => new HttpError(404, '找不到可操作的记录。');
 const result = (body, statusCode = 200) => ({ statusCode, body });
 
 export async function p0Routes(route, { user, tokenHash, query, headers, sourceIp, readBody, rateLimit }) {
   const id = user.id;
   switch (route) {
+    case 'GET /v1/me/profile-cover':
+      return result(await getProfileCover(id, id));
+    case 'PUT /v1/me/profile-cover':
+      await rateLimit('profile-cover-save:' + id, 12, 60);
+      return result(await saveProfileCover(id, (await readBody()).photo));
     case 'GET /v1/privacy': {
       const alerts = await pool.query(
         'SELECT other_id AS id FROM priority_contacts WHERE user_id=$1 ORDER BY other_id',
@@ -184,7 +191,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   }
 
   const match =
-    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media)\/([0-9a-f-]{36})(?:\/(invites|messages|leave|pin|like|comments))?$/.exec(
+    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media)\/([0-9a-f-]{36})(?:\/(invites|messages|leave|pin|like|comments|profile-cover))?$/.exec(
       route,
     );
   if (!match) return undefined;
@@ -192,6 +199,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   const item = readId(rawId);
   switch (collection) {
     case 'people':
+      if (action === 'profile-cover' && method === 'GET') return result(await getProfileCover(id, item));
       if (!action && method === 'GET') return result(await profile(id, item));
       break;
     case 'relationship-groups':

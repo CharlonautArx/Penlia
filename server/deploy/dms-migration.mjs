@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { readMigrations } from '../migration-files.mjs';
 
+const friendProfileCovers = process.argv.includes('--friend-profile-covers');
 const unified = process.argv.includes('--unified-moments');
 const p2 = process.argv.includes('--p2');
 const p3 = process.argv.includes('--p3');
@@ -8,9 +9,9 @@ const p2Followup = process.argv.includes('--p2-followup');
 const followup = process.argv.includes('--p1-followup');
 const p1 = process.argv.includes('--p1');
 const p0 = process.argv.includes('--p0');
-const migrations = (await readMigrations()).filter(({ name }) => name === (unified ? '009_unified_moments.sql' : p3 ? '008_shared_world_p3.sql' : p2Followup ? '007_p2_life_followup.sql' : p2 ? '006_life_p2.sql' : followup ? '005_p1_privacy_followup.sql' : p1 ? '004_social_p1.sql' : p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
+const migrations = (await readMigrations()).filter(({ name }) => name === (friendProfileCovers ? '010_friend_profile_covers.sql' : unified ? '009_unified_moments.sql' : p3 ? '008_shared_world_p3.sql' : p2Followup ? '007_p2_life_followup.sql' : p2 ? '006_life_p2.sql' : followup ? '005_p1_privacy_followup.sql' : p1 ? '004_social_p1.sql' : p0 ? '003_privacy_p0.sql' : '001_initial.sql'));
 if (migrations.length !== 1) throw new Error('Expected one DMS migration');
-const grants = (await readFile(new URL(unified ? './unified-moments-grants.sql' : p3 ? '../p3/grants.sql' : p2 ? '../p2/grants.sql' : followup ? '../p1/followup-grants.sql' : p1 ? '../p1/grants.sql' : p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
+const grants = (await readFile(new URL(friendProfileCovers ? './friend-profile-cover-grants.sql' : unified ? './unified-moments-grants.sql' : p3 ? '../p3/grants.sql' : p2 ? '../p2/grants.sql' : followup ? '../p1/followup-grants.sql' : p1 ? '../p1/grants.sql' : p0 ? '../p0/grants.sql' : './runtime-grants.sql', import.meta.url), 'utf8')).trim();
 const schemaCheck = (await readFile(new URL('./dms-schema-check.sql', import.meta.url), 'utf8')).trim();
 
 function repeatableStatements({ name, sql }) {
@@ -66,8 +67,9 @@ const steps = [
   ...(p2Followup ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '006_life_p2.sql') THEN '1' ELSE 'Apply the Penlia P2 migration first' END::integer AS p2_check;"] : []),
   ...(p3 ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '007_p2_life_followup.sql') THEN '1' ELSE 'Apply the Penlia P2 followup first' END::integer AS p2_followup_check;"] : []),
   ...(unified ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '008_shared_world_p3.sql') THEN '1' ELSE 'Apply the Penlia P3 migration first' END::integer AS p3_check;"] : []),
+  ...(friendProfileCovers ? ["SELECT CASE WHEN EXISTS (SELECT 1 FROM public.schema_migrations WHERE name = '009_unified_moments.sql') THEN '1' ELSE 'Apply the Penlia unified moments migration first' END::integer AS unified_moments_check;"] : []),
   ...migrations.flatMap(repeatableStatements),
-  ...(!p0 && !p1 && !followup && !p2 && !p2Followup && !p3 && !unified ? [schemaCheck] : []),
+  ...(!p0 && !p1 && !followup && !p2 && !p2Followup && !p3 && !unified && !friendProfileCovers ? [schemaCheck] : []),
   ...(!p2Followup ? [grants] : []),
   ...migrations.map(({ name }) =>
     `INSERT INTO public.schema_migrations (name) VALUES ('${name}') ON CONFLICT (name) DO NOTHING;`),

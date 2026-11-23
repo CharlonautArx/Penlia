@@ -1,3 +1,4 @@
+import { formatHandle } from '../../services/handle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -29,7 +30,7 @@ export function InviteRecipients({ message, onChoose, empty = '先添加好友�
   const friends = relationships?.filter((friend) => friend.status === 'accepted') ?? [];
   return <>
     {!!error && <Notice action="重试" onAction={() => void refresh()}>{error}</Notice>}
-    {friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={'@' + friend.username}
+    {friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={formatHandle(friend.username)}
       left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={40} />}
       onPress={() => {
         onChoose();

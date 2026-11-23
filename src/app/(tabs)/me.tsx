@@ -1,3 +1,4 @@
+import { formatHandle } from '../../services/handle';
 import { isUiDemo } from '../../demo/mode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -44,7 +45,7 @@ export default function MeScreen() {
           <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={68} />
           <View style={styles.grow}>
             <Text style={local.name}>{user.name}</Text>
-            <Text style={styles.muted}>朋聊号 @{user.username}</Text>
+            <Text style={styles.muted}>朋聊号 {formatHandle(user.username)}</Text>
           </View>
         </View>
         {!!user.bio && <Text style={styles.body}>{user.bio}</Text>}

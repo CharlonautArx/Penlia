@@ -1,13 +1,17 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { type ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GlassLayer } from '../../components/material';
-import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Section, Sheet, Tag } from '../../components/ui';
+import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Segments, Sheet, Tag } from '../../components/ui';
+import { AlphabetRail, ContactRow, directoryModes, type DirectoryMode, GroupList } from '../../features/friends/DirectoryList';
+import { emptyDirectory, sortFriends } from '../../features/friends/directory';
+import { useDirectory } from '../../features/friends/store';
 import { isUiDemo } from '../../demo/mode';
 import { QRImage, ScanCode } from '../../features/privacy/CodeSheet';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage, type User } from '../../services/api';
+import { formatHandle } from '../../services/handle';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, type } from '../../theme';
@@ -26,6 +30,11 @@ export default function FriendsScreen() {
   const [result, setResult] = useState<User | null>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const directory = useDirectory();
+  const [mode, setMode] = useState<DirectoryMode>('all');
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const directoryY = useRef(0);
+  const offsets = useRef<Record<string, number>>({});
   const foundRelationship = relationships?.find((item) => item.userId === result?.id);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -47,7 +56,7 @@ export default function FriendsScreen() {
     void run(async () => {
       const { person } = lookup === 'phone'
         ? await request<{person:User|null}>('/people/phone',{method:'POST',body:{phone:username.trim()}})
-        : await request<{person:User|null}>('/people?username=' + encodeURIComponent(username.trim()));
+        : await request<{person:User|null}>('/people?username=' + encodeURIComponent(formatHandle(username)));
       setResult(person);
     });
   }
@@ -61,10 +70,23 @@ export default function FriendsScreen() {
 
   const incoming = relationships?.filter((item) => item.status === 'pending' && !item.outgoing) ?? [];
   const outgoing = relationships?.filter((item) => item.status === 'pending' && item.outgoing) ?? [];
-  const friends = relationships?.filter((item) => item.status === 'accepted') ?? [];
+  const contacts = useMemo(() => sortFriends(
+    relationships?.filter((item) => item.status === 'accepted') ?? [], directory.value ?? emptyDirectory,
+  ), [relationships, directory.value]);
+  const key = formatHandle(filter).toLowerCase();
+  const shown = contacts.filter((friend) => !key || [friend.displayName, friend.name, formatHandle(friend.username)]
+    .some((name) => name.toLowerCase().includes(key)));
+  const sections = new Map<string, typeof shown>();
+  for (const contact of shown) {
+    const entries = sections.get(contact.letter);
+    if (entries) entries.push(contact);
+    else sections.set(contact.letter, [contact]);
+  }
 
-  const key = filter.trim().toLowerCase().replace(/^@/, '');
-  const shown = friends.filter((friend) => !key || friend.name.toLowerCase().includes(key) || friend.username.toLowerCase().includes(key));
+  function scrollToLetter(letter: string) {
+    const y = offsets.current[letter];
+    if (y !== undefined) scroll.current?.scrollTo({ y: directoryY.current + y, animated: false });
+  }
 
   async function reload() {
     setRefreshing(true);
@@ -77,12 +99,13 @@ export default function FriendsScreen() {
   }
 
   return (
-    <Screen solid inset={false} refreshing={refreshing} onRefresh={() => void reload()}>
+    <Screen solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} scrollRef={scroll}
+      overlay={mode === 'all' && <AlphabetRail letters={[...sections.keys()]} onSelect={scrollToLetter} />}>
       <View style={local.control}>
         <View style={local.searchRow}>
           <IconButton label="添加好友" icon="add" onPress={() => openSheet('add')} />
           <View style={styles.grow}>
-            <SearchField variant="neutral" label="搜索好友" placeholder="搜索好友的昵称或朋聊号"
+            <SearchField variant="neutral" label="搜索好友" placeholder="搜索好友的备注、昵称或朋聊号"
               value={filter} onChangeText={setFilter} />
           </View>
         </View>
@@ -96,16 +119,18 @@ export default function FriendsScreen() {
         </View>} onPress={() => openSheet('requests')} />
       <ListRow title="群聊" style={local.managementRow} trailing={<Icon name="chevron-forward" size={16} color={colors.quiet} />}
         onPress={() => router.push('/groups')} />
-      <View style={local.section}><Section title="我的好友" detail={relationships ? friends.length + ' 位' : undefined} /></View>
-      {!relationships && !listError && <LoadingSkeleton label="正在加载好友" />}
-      {relationships && !shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
-      {shown.map((friend) => <View key={friend.id} style={local.contact}>
-        <View style={styles.grow}><ListRow title={friend.name} detail={'@' + friend.username + (friend.bio ? ' · ' + friend.bio : '')}
-          left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={44} />}
-          trailing={<View />} onPress={() => router.push({ pathname: '/person/[id]', params: { id: friend.userId } })} /></View>
-        <IconButton label={`和${friend.name}聊天`} icon="chatbubble-outline"
-          onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />
-      </View>)}
+      <View style={local.mode}><Segments options={directoryModes} label="好友浏览方式" value={mode} onChange={setMode} /></View>
+      {!!directory.error && <Notice action="重试" onAction={directory.retry}>{directory.error}</Notice>}
+      {(!relationships && !listError || directory.loading) && <LoadingSkeleton label="正在加载好友" />}
+      {relationships && !directory.loading && (mode === 'groups' ? <GroupList contacts={shown} searching={!!key} /> :
+        <View onLayout={({ nativeEvent }) => { directoryY.current = nativeEvent.layout.y; }}>
+          {!shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
+          {[...sections].map(([letter, entries]) => <View key={letter}
+            onLayout={({ nativeEvent }) => { offsets.current[letter] = nativeEvent.layout.y; }}>
+            <Text accessibilityRole="header" style={local.letterHeading}>{letter}</Text>
+            {entries.map((friend) => <ContactRow key={friend.userId} friend={friend} indexed />)}
+          </View>)}
+        </View>)}
       {sheet && <Sheet title={sheet === 'add' ? '添加好友' : '新的朋友'} onClose={() => setSheet(undefined)}>
         {!!error && <Notice>{error}</Notice>}
         {sheet === 'add' ? <>
@@ -124,18 +149,18 @@ export default function FriendsScreen() {
           <Button label={busy ? '查找中…' : '查找'} disabled={busy || !username.trim()} onPress={search} />
           {result === null && <Empty>找不到可添加的账号。</Empty>}
           {result && !foundRelationship && !isUiDemo && <SearchField label="好友申请验证消息" placeholder="选填・说说你是谁" value={note} maxLength={100} onChangeText={setNote}/> }
-          {result && <ListRow title={result.name} detail={'@' + result.username}
+          {result && <ListRow title={result.name} detail={formatHandle(result.username)}
             left={<Avatar name={result.name} source={demoPortrait(result.username)} />} trailing={foundRelationship
               ? <Text style={styles.small}>{foundRelationship.status === 'accepted' ? '已是好友' : '已有好友申请'}</Text>
               : <Button label="发送申请" variant="soft" disabled={busy} onPress={() => change('/friends', { userId: result.id, note })} />} />}
         </> : <>
-          {incoming.map((friend) => <ListRow key={friend.id} title={friend.name} detail={'@' + friend.username + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
+          {incoming.map((friend) => <ListRow key={friend.id} title={friend.name} detail={formatHandle(friend.username) + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
             left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={36} />}
             trailing={<View style={local.requestActions}>
               <Button label="拒绝" variant="quiet" disabled={busy} onPress={() => change('/friends/decline', { id: friend.id })} />
               <Button label="接受" variant="soft" disabled={busy} onPress={() => change('/friends/accept', { id: friend.id })} />
             </View>} />)}
-          {outgoing.map((friend) => <ListRow key={friend.id} title={friend.name} detail={'@' + friend.username + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
+          {outgoing.map((friend) => <ListRow key={friend.id} title={friend.name} detail={formatHandle(friend.username) + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
             left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={36} />}
             trailing={<Text style={styles.small}>等待接受</Text>} />)}
           {!incoming.length && !outgoing.length && <Empty icon="people-outline">目前没有待处理的好友申请。</Empty>}
@@ -159,8 +184,8 @@ const local = StyleSheet.create({
   control: { paddingLeft: space.xs, paddingRight: space.md, paddingTop: space.sm, paddingBottom: space.sm, gap: space.xs },
   searchRow: { ...styles.row, gap: space.xxs },
   managementRow: { minHeight: 60 },
-  section: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
+  mode: { paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.xs },
+  letterHeading: { ...type.caption, color: colors.muted, paddingHorizontal: space.md, paddingVertical: 5 },
   requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
-  contact: { ...styles.row, gap: 0, paddingRight: 6 },
   requestActions: { flexDirection: 'row' },
 });

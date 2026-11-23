@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { handle, HttpError } from './api.mjs';
 import { mediaLimit } from './p0/moments.mjs';
+import { profileCoverLimit } from './p0/profile-cover.mjs';
 
 const MAX_BODY_BYTES = 12000;
 
@@ -45,6 +46,8 @@ export function createApiServer(options = {}) {
           return readBody(request,Math.ceil(mediaLimit/3)*4+1024);
         if(request.method==='POST'&&/^\/v1\/p2\/capsule-entries\/[0-9a-f-]{36}\/audio$/.test(url.pathname))
           return readBody(request,Math.ceil(2097152/3)*4+1024);
+        if (request.method === 'PUT' && url.pathname === '/v1/me/profile-cover')
+          return readBody(request, Math.ceil(profileCoverLimit / 3) * 4 + 1024);
         return readBody(request,MAX_BODY_BYTES);
       },
     }, options);
