@@ -99,6 +99,7 @@ export default function ChatBackgroundScreen() {
           : !ready ? <Notice>当前无法设置聊天背景。</Notice>
             : <>
               <Text style={styles.section}>{draft ? '预览' : friend ? friend.name + '的聊天背景' : '所有聊天'}</Text>
+              {!!notice && <Notice>{notice}</Notice>}
               <View style={local.previewStage}>
                 <View style={[local.preview, { width: previewWidth, aspectRatio: aspect }]}>
                   {picture && <WallpaperImage picture={picture} style={StyleSheet.absoluteFill}
@@ -127,7 +128,6 @@ export default function ChatBackgroundScreen() {
               </SettingGroup>}
               {!draft && <Text style={styles.small}>{inherited ? '当前聊天跟随全局背景。' : '背景只保存在这台设备上。'}</Text>}
             </>}
-      {!!notice && <Notice>{notice}</Notice>}
     </ScrollView>
   </SafeAreaView>;
 }
