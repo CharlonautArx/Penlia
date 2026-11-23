@@ -1,7 +1,9 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type FlatListProps } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSharedValue } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppearance } from '../../components/appearance';
 import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar } from '../../components/ui';
@@ -11,6 +13,8 @@ import { useSession } from '../../services/session';
 import { colors, contentWidth, radius, space, styles, touch } from '../../theme';
 import { SpaceCollections, type AlbumTheme } from '../space/Collections';
 import { CoverEditor } from '../space/CoverEditor';
+import { coverMetrics } from '../space/ImmersiveCover';
+import { HomeFeedList } from './HomeFeedList';
 import { emptySpace } from '../space/model';
 import { SpaceHeader, type SpacePane } from '../space/SpaceHeader';
 import { useSpace } from '../space/store';
@@ -24,6 +28,12 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const state = useSpace();
   const me = session?.user;
   const home = !author;
+  const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
+  const { scheme } = useAppearance();
+  const width = Math.max(1, window.width - insets.left - insets.right);
+  const metrics = coverMetrics(width, window.height, insets.top);
+  const reveal = useSharedValue(0);
   const mine = !!author && author === me?.id;
   const [pane, setPane] = useState<SpacePane>(linkedPane ?? 'thought');
   const [albumTheme, setAlbumTheme] = useState<AlbumTheme>('全部');
@@ -101,47 +111,59 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     if (collaboration) router.push({ pathname: '/collection/new', params: { kind: 'collaboration' } });
     else router.push('/private-moment');
   }
-  const header = <View style={[local.header, home && local.homeHeader]}>
+  const header = <View style={!home && local.header}>
     {person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
+      immersive={home ? { ...metrics, width, reveal, top: insets.top } : undefined}
       pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
       onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
       onCover={home || mine ? () => setPanel('cover') : undefined}
       counts={mine ? { thought: count, journal: journals, albums } : undefined} />}
-    {pane === 'thought' ? <>
-      {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
-      <Section title={home ? '好友动态' : '动态记录'}>
-        {archive && <Button label="本机旧动态" variant="quiet" onPress={() => router.push({
-          pathname: '/space/[id]', params: { id: author!, archive: '1' },
-        })} />}
-      </Section>
-      {!!error && <Notice action="重试" onAction={() => void load()}>{error}</Notice>}
-    </> : hasLocalProfile && person && <SpaceCollections owner={person.id} pane={pane}
-      theme={albumTheme} onTheme={setAlbumTheme} />}
+    <View style={home ? [local.column, local.homeBody] : local.body}>
+      {pane === 'thought' ? <>
+        {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
+        {!home && <Section title="动态记录">
+          {archive && <Button label="本机旧动态" variant="quiet" onPress={() => router.push({
+            pathname: '/space/[id]', params: { id: author!, archive: '1' },
+          })} />}
+        </Section>}
+        {!!error && <Notice action="重试" onAction={() => void load()}>{error}</Notice>}
+      </> : hasLocalProfile && person && <SpaceCollections owner={person.id} pane={pane}
+        theme={albumTheme} onTheme={setAlbumTheme} />}
+    </View>
   </View>;
 
-  return <SafeAreaView style={local.safe} edges={home ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']}>
+  const list: FlatListProps<Moment> = {
+    data: pane === 'thought' ? items ?? [] : [], keyExtractor: (entry) => entry.id, initialNumToRender: 5,
+    contentContainerStyle: home ? local.homeList : local.list, ListHeaderComponent: header,
+    refreshing: pane === 'thought' && busy, onRefresh: pane === 'thought' ? () => void load() : undefined,
+    renderItem: ({ item }) => {
+      const post = <PostCard item={item} onUpdate={(change) => update(item.id, change)}
+        onPin={mine ? async (pinned) => {
+          await request('/moments/' + item.id + '/pin', { method: 'PUT', body: { pinned } });
+          void load();
+        } : undefined} />;
+      return home ? <View style={local.column}>{post}</View> : post;
+    },
+    ListEmptyComponent: pane !== 'thought' ? undefined : !items && !error ? <LoadingSkeleton label="正在读取动态" />
+      : error ? undefined : <Empty icon="image-outline">{home ? '好友的新动态会出现在这里。' : '这里还没有你可见的动态。'}</Empty>,
+    ListFooterComponent: pane === 'thought' && next ? <View style={local.footer}>
+      {busy ? <Text style={styles.small}>正在加载更早动态…</Text>
+        : <Button label="加载更早动态" variant="soft" onPress={() => void load(next)} />}
+    </View> : undefined,
+  };
+
+  return <SafeAreaView style={local.safe} edges={home ? ['left', 'right'] : ['top', 'left', 'right', 'bottom']}>
     {!home && <TopBar title={mine ? '我的动态' : '好友动态'}
       back={() => router.canGoBack() ? router.back() : router.replace('/moments')}
       actions={mine && <>
         <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
         <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
       </>} />}
-    <FlatList data={pane === 'thought' ? items ?? [] : []} keyExtractor={(entry) => entry.id} initialNumToRender={5}
-      contentContainerStyle={local.list} ListHeaderComponent={header} refreshing={pane === 'thought' && busy}
-      onRefresh={pane === 'thought' ? () => void load() : undefined}
-      renderItem={({ item }) => <PostCard item={item} onUpdate={(change) => update(item.id, change)}
-        onPin={mine ? async (pinned) => {
-          await request('/moments/' + item.id + '/pin', { method: 'PUT', body: { pinned } });
-          void load();
-        } : undefined} />}
-      ListEmptyComponent={pane !== 'thought' ? undefined : !items && !error ? <LoadingSkeleton label="正在读取动态" />
-        : error ? undefined : <Empty icon="image-outline">{home ? '好友的新动态会出现在这里。' : '这里还没有你可见的动态。'}</Empty>}
-      ListFooterComponent={pane === 'thought' && next ? <View style={local.footer}>
-        {busy ? <Text style={styles.small}>正在加载更早动态…</Text>
-          : <Button label="加载更早动态" variant="soft" onPress={() => void load(next)} />}
-      </View> : undefined}
-    />
-    {panel === 'cover' && (home || mine) && <CoverEditor initial={card} onClose={() => setPanel(undefined)} />}
+    {home ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve} /> : <FlatList {...list} />}
+    {home && insets.top > 0 && <LinearGradient pointerEvents="none"
+      colors={scheme === 'dark' ? ['#14151ACA', '#14151A00'] : ['#FFFFFFC9', '#FFFFFF00']}
+      style={[local.statusShade, { height: insets.top + 8 }]} />}
+    {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={home ? { width, ...metrics } : undefined} onClose={() => setPanel(undefined)} />}
     {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />
       <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => openPublish(true)} separator={false} />
@@ -178,7 +200,12 @@ const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.backdrop },
   list: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', paddingBottom: space.xl },
   header: { gap: space.sm, padding: space.md },
-  homeHeader: { paddingTop: space.xs },
+  column: { width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
+  homeList: { paddingBottom: space.xl },
+  body: { gap: space.sm },
+  homeBody: { padding: space.md, gap: space.sm },
+  statusShade: { position: 'absolute', top: 0, left: 0, right: 0 },
+
   publishRow: { flexDirection: 'row', gap: space.xs },
   publishSurface: { minHeight: touch + space.xxs, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   publishLight: { backgroundColor: '#FFFFFF', boxShadow: '0px 1px 6px rgba(35, 36, 42, 0.06)' },
