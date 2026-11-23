@@ -76,7 +76,7 @@ export function DirectoryPager({ children }: {
         <GlassLayer tone="control" roundness={radius.pill} />
       </Animated.View>
       {labels.map((label, index) => <Pressable key={label} accessibilityRole="tab"
-        accessibilityLabel={label} accessibilityState={{ selected: active === index }} onPress={() => select(index)}
+        accessibilityLabel={label} aria-selected={active === index} onPress={() => select(index)}
         style={({ pressed }) => [local.tab, pressed && local.pressed]}>
         <Text style={active === index ? local.selected : styles.muted}>{label}</Text>
       </Pressable>)}
@@ -86,7 +86,7 @@ export function DirectoryPager({ children }: {
         onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
         {width > 0 && <Animated.View style={[local.track, { width: width * labels.length }, track]}>
           {children(pan).map((pane, index) => <View key={labels[index]} style={{ width, height: '100%' }}
-            pointerEvents={active === index ? 'auto' : 'none'} accessibilityElementsHidden={active !== index}
+            pointerEvents={active === index ? 'auto' : 'none'} aria-hidden={active !== index}
             importantForAccessibility={active === index ? 'auto' : 'no-hide-descendants'}>{pane}</View>)}
         </Animated.View>}
       </View>

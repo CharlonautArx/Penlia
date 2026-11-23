@@ -50,9 +50,9 @@ export function ConversationSwipe({ id, owner, pinned, unread, busy, onAction, c
     maxPointers: 1,
     activeOffsetX: [-11, 11],
     failOffsetY: [-8, 8],
-    onActivate: (event) => {
+    onActivate: () => {
       'worklet';
-      if (event.translationX < 0 || owner.value === id) owner.value = id;
+      owner.value = id;
       cancelAnimation(travel);
       start.value = travel.value;
       scheduleOnRN(setReady, false);
@@ -81,11 +81,11 @@ export function ConversationSwipe({ id, owner, pinned, unread, busy, onAction, c
 
   return <Animated.View layout={reduced ? undefined : rowTransition} style={local.row}>
     <View style={local.actions} pointerEvents={ready && !busy ? 'auto' : 'none'}
-      accessibilityElementsHidden={!ready} importantForAccessibility={ready ? 'auto' : 'no-hide-descendants'}>
+      aria-hidden={!ready} importantForAccessibility={ready ? 'auto' : 'no-hide-descendants'}>
       {actions.map(([action, label]) => {
         const ink = actionColors[action];
         return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: busy }}
-          key={action} disabled={busy} onPress={() => onAction(action)}
+          key={action} disabled={busy} onPress={() => { if (owner.value === id && ready) onAction(action); }}
           style={({ pressed }) => [local.action, { width: ink.width }, pressed && local.pressed]}>
           <Text style={[local.label, { color: ink.color, textShadowColor: ink.shadow }]}>{label}</Text>
         </Pressable>;
