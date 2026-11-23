@@ -29,10 +29,10 @@ function mediaStore<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore)
   });
 }
 
-export async function selectPhotos(account: string, remaining: number, quality = 0.8): Promise<Photo[]> {
+export async function selectPhotos(account: string, remaining: number): Promise<Photo[]> {
   if (remaining < 1) return [];
   const picked = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'], allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality,
+    mediaTypes: ['images'], allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality: 0.8,
   });
   if (picked.canceled) return [];
   const items = picked.assets.slice(0, remaining);
@@ -52,7 +52,7 @@ export async function selectPhotos(account: string, remaining: number, quality =
       directory.create({ intermediates: true, idempotent: true });
       const source = new File(asset.uri);
       if (source.size > maxBytes) throw new Error('请选择 8 MB 以内的照片。');
-      source.copy(new File(directory, id));
+      await source.copy(new File(directory, id));
     }
     return { type: 'local', id };
   }));
