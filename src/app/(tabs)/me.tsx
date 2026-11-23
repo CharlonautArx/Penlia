@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Screen, SettingGroup, Sheet, type IconName } from '../../components/ui';
 import { ProfileEditor } from '../../features/space/ProfileEditor';
+import { nativeChatBackgrounds } from '../../features/chat/background/store';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
@@ -66,6 +67,8 @@ export default function MeScreen() {
       <ListRow title="生活提醒" left={<Tile icon="notifications-outline" />} onPress={()=>router.push('/life/reminders')}/>
     </SettingGroup>
     <SettingGroup title="偏好设置">
+      {nativeChatBackgrounds && <ListRow title="聊天背景" left={<Tile icon="image-outline" />}
+        onPress={() => router.push('/chat-background')} />}
       <ListRow title="本机空间隐私" left={<Tile icon="eye-outline" />} onPress={() => router.push('/space/privacy')} />
       <ListRow title="主题与外观" left={<Tile icon="color-palette-outline" />} onPress={() => setSheet('主题与外观')} />
       <ListRow title="通用设置" left={<Tile icon="settings-outline" />} onPress={() => setSheet('通用设置')} />

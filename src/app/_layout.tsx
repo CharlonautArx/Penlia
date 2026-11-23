@@ -5,6 +5,7 @@ import { LoadingSkeleton, Screen } from '../components/ui';
 
 import { isUiDemo } from '../demo/mode';
 import { PetProvider } from '../features/pet/store';
+import { ChatBackgroundProvider } from '../features/chat/background/store';
 import { SpaceProvider } from '../features/space/store';
 import { FriendsProvider } from '../services/friends';
 import { ImProvider } from '../services/im';
@@ -21,43 +22,46 @@ function AppNavigation() {
 
   return (
     <FriendsProvider key={session?.user.id ?? 'signed-out'}>
-      <SpaceProvider>
-        <PetProvider>
-          <ImProvider>
-            <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default', animationDuration: motion.transition, contentStyle: { backgroundColor: colors.backdrop } }}>
-              <Stack.Protected guard={!session}>
-                <Stack.Screen name="auth" />
-              </Stack.Protected>
-              <Stack.Protected guard={!!session}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="chat/[id]" />
-                <Stack.Screen name="privacy" />
-                <Stack.Screen name="profile" />
-                <Stack.Screen name="groups" />
-                <Stack.Screen name="group/[id]" />
-                <Stack.Screen name="private-moment" />
-                <Stack.Screen name="person/[id]" />
-                <Stack.Screen name="playground" />
-                <Stack.Screen name="space" />
-              </Stack.Protected>
-              <Stack.Protected guard={!!session}>
-                <Stack.Screen name="social" />
-                <Stack.Screen name="life" />
-                <Stack.Screen name="world" />
-                <Stack.Screen name="gathering/[id]" />
-                <Stack.Screen name="collection/[id]" />
-                <Stack.Screen name="journal-entry/[id]" />
-                <Stack.Screen name="contributions" />
-                <Stack.Screen name="boundary" />
-                <Stack.Screen name="review/[id]" />
-              </Stack.Protected>
-              <Stack.Protected guard={!!session && isUiDemo}>
-                <Stack.Screen name="pet/[id]" />
-              </Stack.Protected>
-            </Stack>
-          </ImProvider>
-        </PetProvider>
-      </SpaceProvider>
+      <ChatBackgroundProvider account={session?.user.id}>
+        <SpaceProvider>
+          <PetProvider>
+            <ImProvider>
+              <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default', animationDuration: motion.transition, contentStyle: { backgroundColor: colors.backdrop } }}>
+                <Stack.Protected guard={!session}>
+                  <Stack.Screen name="auth" />
+                </Stack.Protected>
+                <Stack.Protected guard={!!session}>
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="chat/[id]" />
+                  <Stack.Screen name="chat-background" />
+                  <Stack.Screen name="privacy" />
+                  <Stack.Screen name="profile" />
+                  <Stack.Screen name="groups" />
+                  <Stack.Screen name="group/[id]" />
+                  <Stack.Screen name="private-moment" />
+                  <Stack.Screen name="person/[id]" />
+                  <Stack.Screen name="playground" />
+                  <Stack.Screen name="space" />
+                </Stack.Protected>
+                <Stack.Protected guard={!!session}>
+                  <Stack.Screen name="social" />
+                  <Stack.Screen name="life" />
+                  <Stack.Screen name="world" />
+                  <Stack.Screen name="gathering/[id]" />
+                  <Stack.Screen name="collection/[id]" />
+                  <Stack.Screen name="journal-entry/[id]" />
+                  <Stack.Screen name="contributions" />
+                  <Stack.Screen name="boundary" />
+                  <Stack.Screen name="review/[id]" />
+                </Stack.Protected>
+                <Stack.Protected guard={!!session && isUiDemo}>
+                  <Stack.Screen name="pet/[id]" />
+                </Stack.Protected>
+              </Stack>
+            </ImProvider>
+          </PetProvider>
+        </SpaceProvider>
+      </ChatBackgroundProvider>
     </FriendsProvider>
   );
 }

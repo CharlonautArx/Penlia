@@ -416,7 +416,7 @@ export default function ConversationScreen() {
   }
 
   return (
-    <ChatViewport floatingChrome>
+    <ChatViewport floatingChrome peer={person?.userId}>
       {/* Anchor absolute overlays inside the keyboard-adjusted area, using a stable native parent. */}
       <View collapsable={false} style={styles.grow}>
         {person ? <Conversation key={person.userId} person={person}
