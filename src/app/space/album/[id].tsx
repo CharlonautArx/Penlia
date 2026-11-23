@@ -165,27 +165,33 @@ function AlbumTile({ photo, index, size, count, active, target, move, managing, 
       { translateY: held ? y.value : withTiming(ty, { duration: 130 }) },
     ] };
   });
-  return <GestureDetector gesture={pan}>
-    <Animated.View collapsable={false} style={[{ width: size, height: size }, animated]}>
-      <Pressable style={local.frame} accessibilityRole={managing ? 'checkbox' : 'button'}
-        accessibilityState={managing ? { checked } : undefined} disabled={busy}
-        accessibilityLabel={(managing ? '选择照片 ' : '查看相册照片 ') + (index + 1)}
-        accessibilityActions={managing ? [
+  const contents = <>
+    <SpacePhoto photo={photo} style={local.photo} />
+    {cover && <Text style={local.cover}>封面</Text>}
+  </>;
+  return <Animated.View style={[{ width: size, height: size }, animated]}>
+    {managing ? <>
+      <GestureDetector gesture={pan}>
+        <View collapsable={false} style={local.frame}>{contents}</View>
+      </GestureDetector>
+      <Pressable style={local.checkTarget} accessibilityRole="checkbox" accessibilityState={{ checked, disabled: busy }}
+        disabled={busy} accessibilityLabel={'选择照片 ' + (index + 1)}
+        accessibilityActions={[
           ...(index > 0 ? [{ name: 'earlier', label: '向前移动照片' }] : []),
           ...(index + 1 < count ? [{ name: 'later', label: '向后移动照片' }] : []),
-        ] : undefined}
+        ]}
         onAccessibilityAction={({ nativeEvent }) => {
           if (nativeEvent.actionName === 'earlier') move(index, index - 1);
           if (nativeEvent.actionName === 'later') move(index, index + 1);
-        }} onPress={onPress} onLongPress={managing ? undefined : onLongPress} delayLongPress={330}>
-        <SpacePhoto photo={photo} style={local.photo} />
-        {cover && <Text style={local.cover}>封面</Text>}
-        {managing && <View style={[local.check, checked && local.checked]} pointerEvents="none">
+        }} onPress={onPress}>
+        <View style={[local.check, checked && local.checked]} pointerEvents="none">
           {checked && <Icon name="checkmark" color="#FFFFFF" size={14} />}
-        </View>}
+        </View>
       </Pressable>
-    </Animated.View>
-  </GestureDetector>;
+    </> : <Pressable style={local.frame} accessibilityRole="button" disabled={busy}
+      accessibilityLabel={'查看相册照片 ' + (index + 1)}
+      onPress={onPress} onLongPress={onLongPress} delayLongPress={330}>{contents}</Pressable>}
+  </Animated.View>;
 }
 
 const local = StyleSheet.create({
@@ -194,7 +200,9 @@ const local = StyleSheet.create({
   photo: { width: '100%', height: '100%' },
   cover: { ...styles.small, position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 5, paddingVertical: 2,
     overflow: 'hidden', borderRadius: 5, backgroundColor: '#272033BE', color: '#FFFFFF' },
-  check: { width: 22, height: 22, position: 'absolute', top: 6, right: 6, borderWidth: 2, borderColor: '#FFFFFF',
+  checkTarget: { width: 44, height: 44, position: 'absolute', top: 0, right: 0, alignItems: 'flex-end',
+    paddingTop: 6, paddingRight: 6 },
+  check: { width: 22, height: 22, borderWidth: 2, borderColor: '#FFFFFF',
     backgroundColor: '#28243155', borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   checked: { backgroundColor: '#514655' },
   large: { width: '100%', aspectRatio: 1, borderRadius: 12 },

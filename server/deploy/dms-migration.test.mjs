@@ -127,3 +127,20 @@ test('009 DMS script replays after P3 and does not rewrite existing expiry value
   assert.match(generated, /ADD COLUMN IF NOT EXISTS pinned/);
   assert.doesNotMatch(generated, /UPDATE p2_status|GRANT ALL|GRANT SELECT, INSERT, DELETE ON public.moment_comments/i);
 });
+
+test('011 DMS script checks the preceding migration and grants only scoped interaction access', () => {
+  const generated = execFileSync(process.execPath, [fileURLToPath(file('dms-migration.mjs')), '--moment-interactions'], {
+    encoding: 'utf8',
+  });
+  const steps = generated.trim().split(';').map((step) => step.trim()).filter(Boolean);
+  assert.equal(steps[0], 'BEGIN');
+  assert.equal(steps.at(-1), 'COMMIT');
+  assert.match(steps.find((step) => step.endsWith('AS profile_covers_check')), /010_friend_profile_covers\.sql/);
+  assert.ok(steps.filter((step) => step.startsWith('CREATE')).every((step) => step.includes('IF NOT EXISTS')));
+  assert.deepEqual(steps.filter((step) => step.startsWith('GRANT')), [
+    'GRANT SELECT, INSERT, UPDATE ON public.moment_forward_requests TO penlia_app',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON public.moment_chat_shares TO penlia_app',
+    'GRANT SELECT, INSERT, UPDATE ON public.moment_notifications TO penlia_app',
+  ]);
+  assert.match(steps.at(-2), /011_moment_interactions\.sql/);
+});
