@@ -29,10 +29,10 @@ function mediaStore<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore)
   });
 }
 
-export async function selectPhotos(account: string, remaining: number, quality = 0.8): Promise<Photo[]> {
+export async function selectPhotos(account: string, remaining: number, original = false): Promise<Photo[]> {
   if (remaining < 1) return [];
   const picked = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'], allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality,
+    mediaTypes: ['images'], allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality: original ? 1 : 0.8,
   });
   if (picked.canceled) return [];
   const items = picked.assets.slice(0, remaining);
@@ -40,6 +40,7 @@ export async function selectPhotos(account: string, remaining: number, quality =
     throw new Error('请选择 8 MB 以内的照片。');
   }
   return Promise.all(items.map(async (asset) => {
+    if (original && (!asset.width || !asset.height)) throw new Error('无法读取照片。');
     const suffix = /\.(jpg|jpeg|png|heic|webp|gif|avif)(?:\?|$)/i.exec(asset.uri)?.[1]?.toLowerCase() ?? 'jpg';
     const id = account.replace(/[^a-z\d_-]/gi, '') + '-' + localId() + '.' + suffix;
     if (Platform.OS === 'web') {
