@@ -1,0 +1,91 @@
+name: Penlia brand ARM64 download
+on:
+  push:
+    tags: [penlia-brand-arm64-build-v1]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 37
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Install SDK, build tools and NDK
+        run: sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+      - run: npm ci
+      - name: Compile ARM64 Release with R8
+        run: |
+          npx expo prebuild --platform android --no-install
+          (
+            cd android
+            ./gradlew :app:assembleRelease --max-workers=3 -PreactNativeArchitectures=arm64-v8a -Pandroid.enableMinifyInReleaseBuilds=true
+          )
+          mkdir out
+          cp android/app/build/outputs/apk/release/app-release.apk out/Penlia-arm64.apk
+      - name: Verify the packaged PNG matches the repository asset
+        run: |
+          cmp assets/startup/pale-blue-dot.png android/app/src/main/res/raw/penlia_launch_art.png
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          from zipfile import ZipFile
+          image = Path('assets/startup/pale-blue-dot.png').read_bytes()
+          with ZipFile('out/Penlia-arm64.apk') as apk:
+              matches = [name for name in apk.namelist() if name.startswith('res/') and apk.getinfo(name).file_size == len(image) and apk.read(name) == image]
+              assert len(matches) == 1, matches
+              print('Original PNG in APK:', matches[0], len(image), 'bytes')
+          PYTHON
+      - name: Validate Release signature, ABI and package
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/Penlia-arm64.apk | tee out/signer.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-arm64.apk | tee out/badging.txt
+          grep -Fx "application-label:'朋聊'" out/badging.txt
+          ! grep -F "朋聊演示" out/badging.txt
+          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 4 out/Penlia-arm64.apk
+          grep -F 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c' out/signer.txt
+          grep -F "name='app.penlia.mobile.preview' versionCode='11'" out/badging.txt
+          grep -Fx "native-code: 'arm64-v8a'" out/badging.txt
+          sha256sum out/Penlia-arm64.apk | tee out/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: penlia-brand-arm64-release
+          path: out/
+          retention-days: 30
+  publish-download:
+    runs-on: ubuntu-24.04
+    needs: build
+    timeout-minutes: 7
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cee7c2dbd1461b94d84602229a2c2e4d0ace9c29
+      - uses: actions/download-artifact@v4
+        with:
+          name: penlia-brand-arm64-release
+          path: out
+      - name: Publish the verified APK on a dedicated Git tag
+        run: |
+          sha256sum --check out/sha256.txt
+          install -m 0644 out/Penlia-arm64.apk demo-preview/Penlia-arm64.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add demo-preview/Penlia-arm64.apk
+          git commit -m "Publish the Penlia v11 brand ARM64 APK [skip ci]"
+          git push origin HEAD:refs/tags/penlia-brand-v11-arm64-apk
