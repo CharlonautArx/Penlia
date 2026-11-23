@@ -8,7 +8,7 @@ export const audienceOptions = [
 export type Audience = { mode: typeof audienceOptions[number]['key']; ids: string[] };
 export type EntryKind = 'thought' | 'journal';
 export type Photo = { type: 'sample' | 'local'; id: string; after?: number };
-export type Cover = { tone: 'mist' | 'dawn' | 'blue'; photo?: Photo };
+export type Cover = { tone: 'mist' | 'dawn' | 'blue'; photo?: Photo; focus?: { x: number; y: number } };
 export type Privacy = {
   access: Audience;
   history: 'all' | '3d' | '180d';
