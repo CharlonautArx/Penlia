@@ -84,3 +84,26 @@ test('Easemob short video and text preserve the share label independently of qui
   const quietIndependent = buildPeerMessage(connection, 'friend', { kind: 'text', text: '只是分享', noReply: true });
   assert.equal(readPeerMessage(connection, quietIndependent, 'me', 'friend').silent, undefined);
 });
+
+test('all four friend text send modes reach the receiver and survive persisted history', () => {
+  for (const silent of [false, true]) {
+    for (const noReply of [false, true]) {
+      const text = '周六两点，老地方见？ 🌿';
+      const sent = buildPeerMessage(connection, 'friend', { kind: 'text', text, silent, noReply });
+      assert.deepEqual(sent.attributes, {
+        ...(silent ? { penlia_quiet: true, em_ignore_notification: true } : {}),
+        ...(noReply ? { penlia_no_reply: true } : {}),
+      });
+      const history = JSON.parse(JSON.stringify(sent));
+      history.body = new Text(history.body.content);
+      for (const message of [sent, history]) {
+        const received = readPeerMessage(connection, message, 'friend', 'me');
+        assert.equal(received.mine, false);
+        assert.equal(received.text, text);
+        assert.equal(received.silent, silent || undefined);
+        assert.equal(received.noReply, noReply || undefined);
+        assert.equal(summaryOf(received), text);
+      }
+    }
+  }
+});
