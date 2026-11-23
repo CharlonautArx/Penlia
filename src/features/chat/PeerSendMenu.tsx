@@ -59,7 +59,10 @@ export function PeerSendMenu({ open, bottom, options, disabled, sending, onToggl
           </Pressable>
           <Pressable accessibilityRole="checkbox" accessibilityLabel="只是分享" aria-checked={options.noReply}
             disabled={sending} onPress={() => onToggle('noReply')} style={({ pressed }) => [local.row, local.divider, pressed && local.pressed]}>
-            <View style={[local.iconFrame, options.noReply && local.featherSelected]}>
+            <View style={local.iconFrame}>
+              {options.noReply && <View pointerEvents="none" style={[StyleSheet.absoluteFill, local.iconFrame]}>
+                <Icon name="ellipse" size={27} color="#45474E" />
+              </View>}
               <Feather name="feather" size={16} color={options.noReply ? '#FFFFFF' : colors.quiet} />
             </View>
             <Text style={local.option}>只是分享</Text>
@@ -91,8 +94,7 @@ const local = StyleSheet.create({
   rows: { flexGrow: 0 },
   row: { ...styles.row, minHeight: touch, paddingVertical: space.xs, paddingHorizontal: space.sm, gap: space.xs, borderRadius: radius.surface },
   divider: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0 },
-  iconFrame: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  featherSelected: { backgroundColor: '#45474E' },
+  iconFrame: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
   option: { ...type.control, ...styles.grow, color: colors.ink },
   check: { width: 18, alignItems: 'center' },
   confirm: { ...type.emphasis, ...styles.grow, color: colors.ink, textAlign: 'center' },
