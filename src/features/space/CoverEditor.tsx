@@ -29,9 +29,10 @@ export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard;
     setOperation('pick');
     try {
       // Preserve the original image for cropping and avoid the Android picker's re-encoding pass.
-      const [photo] = await selectPhotos(state.me.id, 1, 1);
+      const [photo] = await selectPhotos(state.me.id, 1, true);
       if (photo) {
-        await checkPhoto(photo.id);
+        if (Platform.OS === 'web') await checkWebPhoto(photo.id);
+        else if (!nativePhotoUri(photo.id)) throw new Error('无法读取照片。');
         setCover({ tone: cover.tone, photo });
       }
     } catch {
@@ -75,13 +76,13 @@ export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard;
   </Sheet>;
 }
 
-async function checkPhoto(id: string) {
-  const blob = Platform.OS === 'web' ? await readLocalPhoto(id) : undefined;
-  const uri = blob ? URL.createObjectURL(blob) : nativePhotoUri(id);
-  if (!uri) throw new Error('无法读取照片。');
+async function checkWebPhoto(id: string) {
+  const blob = await readLocalPhoto(id);
+  if (!blob) throw new Error('无法读取照片。');
+  const uri = URL.createObjectURL(blob);
   try {
     await new Promise<void>((resolve, reject) => Image.getSize(uri, () => resolve(), reject));
   } finally {
-    if (blob) URL.revokeObjectURL(uri);
+    URL.revokeObjectURL(uri);
   }
 }
