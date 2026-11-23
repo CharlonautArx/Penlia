@@ -7,7 +7,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useAppearance } from '../../components/appearance';
 import type { Moment } from './model';
 
-export function HomeFeedList({ reveal, reserve, onRefresh, refreshing, ...props }: FlatListProps<Moment> & {
+export function HomeFeedList({ reveal, reserve, onRefresh, refreshing, onScroll, ...props }: FlatListProps<Moment> & {
   reveal: SharedValue<number>; reserve: number;
 }) {
   const { reduced } = useAppearance();
@@ -39,9 +39,10 @@ export function HomeFeedList({ reveal, reserve, onRefresh, refreshing, ...props 
     <GestureDetector gesture={pan} touchAction="pan-y">
       <View style={{ flex: 1 }} collapsable={false}>
         <FlatList {...props} requireToFail={pan} bounces={false} overScrollMode="never" scrollEventThrottle={16}
-          onScroll={({ nativeEvent }) => {
-            const next = nativeEvent.contentOffset.y <= 1;
+          onScroll={(event) => {
+            const next = event.nativeEvent.contentOffset.y <= 1;
             if (next !== atTop) setAtTop(next);
+            onScroll?.(event);
           }} />
       </View>
     </GestureDetector>
