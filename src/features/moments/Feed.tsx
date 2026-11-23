@@ -1,7 +1,7 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useIsFocused } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type FlatListProps } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,10 +30,12 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const home = !author;
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
-  const { scheme } = useAppearance();
+  const focused = useIsFocused();
   const width = Math.max(1, window.width - insets.left - insets.right);
   const metrics = coverMetrics(width, window.height, insets.top);
   const reveal = useSharedValue(0);
+  const coverHeaderHeight = useRef(0);
+  const [statusSurface, setStatusSurface] = useState<'cover' | 'profile' | 'feed'>('cover');
   const mine = !!author && author === me?.id;
   const [pane, setPane] = useState<SpacePane>(linkedPane ?? 'thought');
   const [albumTheme, setAlbumTheme] = useState<AlbumTheme>('全部');
@@ -111,13 +113,16 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     if (collaboration) router.push({ pathname: '/collection/new', params: { kind: 'collaboration' } });
     else router.push('/private-moment');
   }
+  const spaceHeader = person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
+    immersive={home ? { ...metrics, width, reveal, top: insets.top } : undefined}
+    pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
+    onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
+    onCover={home || mine ? () => setPanel('cover') : undefined}
+    counts={mine ? { thought: count, journal: journals, albums } : undefined} />;
   const header = <View style={!home && local.header}>
-    {person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
-      immersive={home ? { ...metrics, width, reveal, top: insets.top } : undefined}
-      pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
-      onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
-      onCover={home || mine ? () => setPanel('cover') : undefined}
-      counts={mine ? { thought: count, journal: journals, albums } : undefined} />}
+    {home ? <View onLayout={({ nativeEvent }) => { coverHeaderHeight.current = nativeEvent.layout.height; }}>
+      {spaceHeader}
+    </View> : spaceHeader}
     <View style={home ? [local.column, local.homeBody] : local.body}>
       {pane === 'thought' ? <>
         {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
@@ -159,10 +164,17 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
         <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
       </>} />}
-    {home ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve} /> : <FlatList {...list} />}
-    {home && insets.top > 0 && <LinearGradient pointerEvents="none"
-      colors={scheme === 'dark' ? ['#14151ACA', '#14151A00'] : ['#FFFFFFC9', '#FFFFFF00']}
-      style={[local.statusShade, { height: insets.top + 8 }]} />}
+    {home ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
+      onScroll={({ nativeEvent }) => {
+        const barCenter = nativeEvent.contentOffset.y + insets.top / 2;
+        const headerHeight = coverHeaderHeight.current;
+        // Switch the system icons as they cross the light part of the existing lower fade.
+        const nextSurface = headerHeight > 0 && barCenter >= headerHeight ? 'feed'
+          : barCenter >= metrics.resting - 72 ? 'profile' : 'cover';
+        if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
+      }} /> : <FlatList {...list} />}
+    {home && focused && person && statusSurface !== 'feed' && <StatusBar
+      style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={home ? { width, ...metrics } : undefined} onClose={() => setPanel(undefined)} />}
     {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />
@@ -204,7 +216,6 @@ const local = StyleSheet.create({
   homeList: { paddingBottom: space.xl },
   body: { gap: space.sm },
   homeBody: { padding: space.md, gap: space.sm },
-  statusShade: { position: 'absolute', top: 0, left: 0, right: 0 },
 
   publishRow: { flexDirection: 'row', gap: space.xs },
   publishSurface: { minHeight: touch + space.xxs, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
