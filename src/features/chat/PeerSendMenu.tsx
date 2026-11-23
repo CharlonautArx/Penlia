@@ -92,7 +92,7 @@ const local = StyleSheet.create({
   row: { ...styles.row, minHeight: touch, paddingVertical: space.xs, paddingHorizontal: space.sm, gap: space.xs, borderRadius: radius.surface },
   divider: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0 },
   iconFrame: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  featherSelected: { backgroundColor: '#45474E' },
+  featherSelected: { backgroundColor: '#45474E', borderColor: '#45474E', borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   option: { ...type.control, ...styles.grow, color: colors.ink },
   check: { width: 18, alignItems: 'center' },
   confirm: { ...type.emphasis, ...styles.grow, color: colors.ink, textAlign: 'center' },
