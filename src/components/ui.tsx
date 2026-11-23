@@ -10,6 +10,7 @@ import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
 import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useAppearance } from './appearance';
+import { KeyboardInsets } from './keyboard-insets';
 import { GlassLayer } from './material';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -174,8 +175,8 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
     : <View style={[ui.listRow, separator && styles.divider, style]}>{content}</View>;
 }
 
-export function Sheet({ title, onClose, children, footer, tone, ...props }: ScrollViewProps & {
-  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral';
+export function Sheet({ title, onClose, children, footer, tone, avoidKeyboard = false, ...props }: ScrollViewProps & {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral'; avoidKeyboard?: boolean;
 }) {
   const { reduced, scheme } = useAppearance();
   const entering = useRef(new Animated.Value(reduced ? 1 : 0)).current;
@@ -191,8 +192,7 @@ export function Sheet({ title, onClose, children, footer, tone, ...props }: Scro
     transition.start();
     return () => transition.stop();
   }, [entering, reduced]);
-  return <Modal visible animationType={reduced ? 'none' : 'fade'} transparent onRequestClose={onClose}>
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={ui.scrim}>
+  const content = <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={ui.scrim}>
       <Pressable accessibilityRole="button" accessibilityLabel="关闭浮层" onPress={onClose} style={StyleSheet.absoluteFill} />
       <Animated.View style={[ui.sheetFrame, !reduced && {
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
@@ -209,7 +209,9 @@ export function Sheet({ title, onClose, children, footer, tone, ...props }: Scro
         {footer && <View style={ui.sheetFooter}>{footer}</View>}
       </SafeAreaView>
       </Animated.View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingView>;
+  return <Modal visible animationType={reduced ? 'none' : 'fade'} transparent onRequestClose={onClose}>
+    {avoidKeyboard && Platform.OS === 'android' ? <KeyboardInsets>{content}</KeyboardInsets> : content}
   </Modal>;
 }
 

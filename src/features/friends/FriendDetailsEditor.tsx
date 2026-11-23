@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Text, TextInput } from 'react-native';
+import { Keyboard, Text, TextInput } from 'react-native';
 
 import { Button, Icon, ListRow, Notice, Sheet } from '../../components/ui';
 import { errorMessage } from '../../services/api';
@@ -29,12 +29,13 @@ function DetailsForm({ id, name, value, save, onClose }: {
     setFailure('');
     try {
       await save((data) => moveFriend(setRemark(data, id, remark), id, groupId));
+      Keyboard.dismiss();
       onClose();
     } catch (error) { setFailure(errorMessage(error)); }
     finally { setBusy(false); }
   }
 
-  return <Sheet title="备注与分组" onClose={() => { if (!busy) onClose(); }} tone="neutral">
+  return <Sheet avoidKeyboard title="备注与分组" onClose={() => { if (!busy) onClose(); }} tone="neutral">
     {!!failure && <Notice>{failure}</Notice>}
     <Text style={styles.strong}>好友备注</Text>
     <TextInput style={styles.input} accessibilityLabel="好友备注" placeholder={name}

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
@@ -130,6 +130,7 @@ function GroupManager({ onClose }: { onClose: () => void }) {
     setFailure('');
     try {
       await save(change);
+      if (editing) Keyboard.dismiss();
       setEditing(undefined);
       setRemoving(undefined);
     } catch (error) {
@@ -144,7 +145,7 @@ function GroupManager({ onClose }: { onClose: () => void }) {
   }
 
   const groups = value?.groups ?? [];
-  return <Sheet title={removing ? '删除分组' : editing ? (editing.name ? '重命名分组' : '新建分组') : '管理分组'}
+  return <Sheet avoidKeyboard title={removing ? '删除分组' : editing ? (editing.name ? '重命名分组' : '新建分组') : '管理分组'}
     onClose={() => {
       if (busy) return;
       if (editing || removing) { setEditing(undefined); setRemoving(undefined); setFailure(''); }
@@ -156,7 +157,8 @@ function GroupManager({ onClose }: { onClose: () => void }) {
       <Button label="确认删除分组" variant="danger" disabled={busy} onPress={() => void apply((data) => deleteGroup(data, removing.id))} />
     </> : editing ? <>
       <TextInput accessibilityLabel="分组名称" placeholder="分组名称" value={name} onChangeText={setName} maxLength={32}
-        autoFocus editable={!busy} style={styles.input} />
+        autoFocus editable={!busy} returnKeyType="done"
+        onSubmitEditing={() => { if (!busy && name.trim()) void apply((data) => saveGroup(data, editing.id, name)); }} style={styles.input} />
       <Button label="保存分组" disabled={busy || !name.trim()} onPress={() => void apply((data) => saveGroup(data, editing.id, name))} />
     </> : <>
       <Button label="新建分组" icon="add" onPress={() => edit()} disabled={busy} />

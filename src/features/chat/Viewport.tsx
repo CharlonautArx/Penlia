@@ -8,9 +8,7 @@ import { useChatBackgrounds } from './background/store';
 import { colors } from '../../theme';
 import { chatLayout } from './ui';
 
-export function KeyboardInsets({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
+export { KeyboardInsets } from '../../components/keyboard-insets';
 
 export function ChatViewport({ children, floatingChrome, peer }: { children: ReactNode; floatingChrome?: boolean; peer?: string }) {
   const { scheme } = useAppearance();
