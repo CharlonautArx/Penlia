@@ -1,0 +1,75 @@
+name: Penlia ARM64 update package
+on:
+  push:
+    tags: [penlia-play-card-arm64-update-v1]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: "1"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the prior verified native build
+        uses: actions/download-artifact@v4
+        with:
+          name: penlia-brand-arm64-release
+          path: baseline
+          run-id: 45116588905
+          github-token: ${{ github.token }}
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: sdkmanager --channel=3 'build-tools;37.0.0'
+      - run: npm ci
+      - name: Recompile the current Android app bundle with the existing native modules
+        run: |
+          mkdir -p out
+          npx expo prebuild --platform android --no-install
+          bash scripts/penlia-play-prepare-arm64.sh baseline/Penlia-arm64.apk out/Penlia-arm64.apk
+      - name: Verify the native archive, current labels and previous signing identity
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/Penlia-arm64.apk | tee out/signer.txt
+          grep -F 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c' out/signer.txt
+          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 4 out/Penlia-arm64.apk
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-arm64.apk | tee out/badging.txt
+          grep -F "name='app.penlia.mobile.preview' versionCode='11'" out/badging.txt
+          grep -Fx "native-code: 'arm64-v8a'" out/badging.txt
+          python3 - <<'PYCODE'
+          from zipfile import ZipFile
+          def affects_content(name):
+              return not name.startswith('META-INF/') and name != 'assets/index.android.bundle'
+          with ZipFile('baseline/Penlia-arm64.apk') as old, ZipFile('out/Penlia-arm64.apk') as new:
+              assert new.testzip() is None
+              old_names = [i for i in old.namelist() if affects_content(i)]
+              new_names = [i for i in new.namelist() if affects_content(i)]
+              assert old_names == new_names
+              assert all(old.read(i) == new.read(i) for i in old_names)
+              bundle = new.read('assets/index.android.bundle')
+              assert old.read('assets/index.android.bundle') != bundle
+              for label in ('生活边界保护计划', '想去的地点', '生活边界保护计划举报'):
+                  assert label.encode('utf-16le') in bundle, label
+              for label in ('想去的地方', '生活边界保护举报'):
+                  assert label.encode('utf-16le') not in bundle, label
+              print(f'Current labels verified. All {len(old_names)} other APK entries are unchanged.')
+          PYCODE
+          sha256sum out/Penlia-arm64.apk | tee out/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: penlia-play-card-arm64-update
+          path: out/
+          retention-days: 30
