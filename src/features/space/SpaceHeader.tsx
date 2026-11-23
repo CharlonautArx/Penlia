@@ -4,15 +4,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GlassLayer } from '../../components/material';
 import { Avatar, Icon, IconButton, type IconName } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
-import { colors, radius, space, styles, touch, type } from '../../theme';
+import { colors, contentWidth, palette, radius, space, styles, touch, type } from '../../theme';
+import type { SharedValue } from 'react-native-reanimated';
+import { coverTones, ImmersiveCover } from './ImmersiveCover';
 import { SpacePhoto } from './media';
 import type { Cover, SpaceCard } from './model';
-
-export const coverTones = {
-  mist: ['#F5D7E4', '#E5DDEE', '#C9EAE9'],
-  dawn: ['#F9DAE2', '#FDEDE9', '#F1DFC7'],
-  blue: ['#ECDDF6', '#E5E6F7', '#C7F0ED'],
-} as const;
 
 export type SpacePane = 'thought' | 'journal' | 'albums';
 const panes: readonly { key: SpacePane; title: string; icon: IconName }[] = [
@@ -30,9 +26,10 @@ export function CoverPreview({ cover }: { cover: Cover }) {
   </View>;
 }
 
-export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, showsCollections = true }: {
+export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, showsCollections = true }: {
   person: { id: string; name: string; username: string };
   card: SpaceCard;
+  immersive?: { width: number; resting: number; reserve: number; top: number; reveal: SharedValue<number> };
   avatarKey?: string;
   onAvatar?: () => void;
   onCover?: () => void;
@@ -42,28 +39,32 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
   counts?: Partial<Record<SpacePane, number>>;
 }) {
   const avatar = <Avatar userId={person.id} name={person.name} source={demoPortrait(avatarKey ?? person.username)} size={62} />;
-  return <View style={local.header}>
-    <CoverPreview cover={card.cover} />
-    {onCover && <View style={local.coverAction}>
+  return <View style={immersive ? local.home : local.header}>
+    {immersive ? <View>
+      <ImmersiveCover cover={card.cover} {...immersive} />
+      <LinearGradient pointerEvents="none" colors={['#FFFFFF00', '#FFFFFF28', '#FFFFFFA3', '#FFFFFFF2', '#FFFFFF']}
+        locations={[0, 0.23, 0.58, 0.86, 1]} style={local.fade} />
+    </View> : <CoverPreview cover={card.cover} />}
+    {onCover && <View style={[local.coverAction, immersive && { top: immersive.top + space.xs }]}>
       <IconButton label="更换空间封面" icon="image-outline" onPress={onCover} tinted />
     </View>}
-    <View style={local.identity}>
+    <View style={[local.identity, immersive && local.homeIdentity]}>
       {onAvatar ? <Pressable accessibilityRole="button" accessibilityLabel="查看我的动态" onPress={onAvatar}
-        style={({ pressed }) => [local.avatar, pressed && local.pressed]}>{avatar}</Pressable>
+        style={({ pressed }) => [local.avatar, immersive && local.homeAvatar, pressed && local.pressed]}>{avatar}</Pressable>
         : <View style={local.avatar}>{avatar}</View>}
       <View style={[styles.grow, local.identityText]}>
-        <Text style={local.name}>{person.name}</Text>
-        <Text style={styles.small}>@{person.username}{card.region ? ' · ' + card.region : ''}</Text>
+        <Text style={[local.name, immersive && local.homeName]}>{person.name}</Text>
+        <Text style={[styles.small, immersive && local.homeMeta]}>@{person.username}{card.region ? ' · ' + card.region : ''}</Text>
       </View>
     </View>
-    <View style={local.panes}>
+    <View style={[local.panes, immersive && local.homePanes]}>
       {panes.filter(({ key }) => showsCollections || key === 'thought').map(({ key, title, icon }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={title}
         accessibilityHint={counts && counts[key] !== undefined ? `${counts[key]} 条` : undefined}
         accessibilityState={{ selected: key === pane }} onPress={() => onPane(key)}
         style={({ pressed }) => [local.pane, pressed && local.pressed]}>
         {key === pane && <GlassLayer roundness={radius.control} />}
-        {counts ? <Text style={local.count}>{counts[key] ?? '—'}</Text> : <Icon name={icon} size={20} />}
-        <Text style={[key === pane ? styles.strong : styles.muted, local.paneLabel]}>{title}</Text>
+        {counts ? <Text style={local.count}>{counts[key] ?? '—'}</Text> : <Icon name={icon} size={20} color={immersive && key !== pane ? palette.light.ink : colors.ink} />}
+        <Text style={[key === pane ? styles.strong : styles.muted, immersive && key !== pane && local.homeMeta, local.paneLabel]}>{title}</Text>
       </Pressable>)}
     </View>
   </View>;
@@ -71,6 +72,13 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
 
 const local = StyleSheet.create({
   header: { backgroundColor: colors.panel, overflow: 'hidden', borderRadius: radius.sheet },
+  home: { backgroundColor: '#FFFFFF' },
+  fade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 130 },
+  homeIdentity: { marginTop: -68, width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
+  homeAvatar: { backgroundColor: '#FFFFFF' },
+  homeName: { color: palette.light.text },
+  homeMeta: { color: palette.light.quiet },
+  homePanes: { width: '100%', alignSelf: 'center', maxWidth: contentWidth, backgroundColor: '#FFFFFF' },
   cover: { height: 158, overflow: 'hidden' },
   shade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 88 },
   coverAction: { position: 'absolute', top: space.sm, right: space.sm },

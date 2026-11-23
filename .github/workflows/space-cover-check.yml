@@ -1,0 +1,76 @@
+name: Penlia immersive space Android check
+on:
+  push:
+    tags: [penlia-space-pull-runtime-v3]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: "1"
+      CI: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the prior verified native build
+        uses: actions/download-artifact@v4
+        with:
+          name: penlia-play-card-x86_64-release
+          path: out
+          run-id: 45123555174
+          github-token: ${{ github.token }}
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: sdkmanager --channel=3 'build-tools;37.0.0'
+      - run: npm ci
+      - name: Rebuild the current Hermes app bundle on the unchanged native runtime
+        run: bash scripts/penlia-prepare-android-smoke.sh out/Penlia-x86_64.apk out/current.apk
+      - name: Allow hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle --timeout=15
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod u+rw /dev/kvm
+      - name: Record and check the space cover and feed
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-build: '16970787'
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -skin 540x1200 -memory 1536 -cores 2 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash scripts/penlia-space-cover-smoke.sh out/current.apk output/
+      - name: Emulator host diagnostics
+        if: failure()
+        run: |
+          free -m
+          cat /sys/fs/cgroup/memory.events || true
+          sudo dmesg | grep -Ei 'out of memory|oom-kill|killed process|qemu.*segfault' | tail -10 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: penlia-space-cover-api-${{ matrix.api }}
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore
