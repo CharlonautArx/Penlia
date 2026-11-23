@@ -1,0 +1,45 @@
+name: Penlia profile cover account permissions
+on:
+  push:
+    tags: [penlia-friend-directory-verify-v1]
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local_admin_password_for_cover
+          POSTGRES_DB: penlia_profile_cover_test
+        ports: ['55432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 55432
+      PGDATABASE: penlia_profile_cover_test
+      PG_TLS: disable
+      PGUSER: postgres
+      PGPASSWORD: local_admin_password_for_cover
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --prefix server
+      - name: Migrate isolated PostgreSQL and grant least privileges
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE penlia_app LOGIN PASSWORD 'local_app_password_for_cover';"
+          node server/migrate.mjs
+          psql -v ON_ERROR_STOP=1 -c 'GRANT USAGE ON SCHEMA public TO penlia_app; GRANT SELECT,INSERT,UPDATE ON public.users,public.sessions,public.friendships,public.rate_limits TO penlia_app;'
+          for grant in server/p0/grants.sql server/p1/grants.sql server/p1/followup-grants.sql server/p2/grants.sql server/p3/grants.sql server/deploy/unified-moments-grants.sql server/deploy/friend-profile-cover-grants.sql; do
+            psql -v ON_ERROR_STOP=1 -f "$grant"
+          done
+          node server/migrate.mjs
+      - name: Check per-owner access over HTTP
+        env:
+          PGUSER: penlia_app
+          PGPASSWORD: local_app_password_for_cover
+        run: node --test server/p0/profile-cover.test.mjs
