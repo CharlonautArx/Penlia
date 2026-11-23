@@ -8,6 +8,8 @@ import { offlineRequest } from './life';
 import { seed, type Rows } from './life-fixtures';
 import { demoMessages, demoPeople, demoRelationship, demoRelationships, demoUnread } from './data';
 
+type MessageOptions = Pick<TextMessage, 'silent' | 'noReply'>;
+
 const DemoContext = createContext<{
   loading: boolean;
   storageError: string;
@@ -19,7 +21,7 @@ const DemoContext = createContext<{
   addMedia: (peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine?: boolean) => void;
   unread: Record<string, number>;
   markRead: (peerId: string) => void;
-  send: (peerId: string, text: string) => void;
+  send: (peerId: string, text: string, options?: MessageOptions) => void;
   receive: (peerId: string, text: string) => void;
   request: <T>(path: string, options?: { method?: string; body?: Record<string, unknown> }) => Promise<T>;
 } | null>(null);
@@ -53,14 +55,15 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setUnread((current) => current[peerId] ? { ...current, [peerId]: 0 } : current);
   }, []);
 
-  const addMessage = useCallback((peerId: string, text: string, mine: boolean) => {
+  const addMessage = useCallback((peerId: string, text: string, mine: boolean, options?: MessageOptions) => {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
-    const message = { id: 'simulated-' + messageSession.current + '-' + ++messageSequence.current, mine, text, timestamp: Date.now() };
+    const message: TextMessage = { id: 'simulated-' + messageSession.current + '-' + ++messageSequence.current, mine, text, timestamp: Date.now(),
+      ...(options?.silent ? { silent: true } : {}), ...(options?.noReply ? { noReply: true } : {}) };
     store.current.update((current) => ({ ...current, messages: { ...current.messages,
       [peerId]: [...(current.messages[peerId] ?? []), message].slice(-150) } }));
     if (!mine) setUnread((current) => ({ ...current, [peerId]: (current[peerId] ?? 0) + 1 }));
   }, []);
-  const send = useCallback((peerId: string, text: string) => addMessage(peerId, text, true), [addMessage]);
+  const send = useCallback((peerId: string, text: string, options?: MessageOptions) => addMessage(peerId, text, true, options), [addMessage]);
   const receive = useCallback((peerId: string, text: string) => addMessage(peerId, text, false), [addMessage]);
 
   function addMedia(peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine = true) {

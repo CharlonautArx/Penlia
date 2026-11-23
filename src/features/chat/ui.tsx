@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAppearance } from '../../components/appearance';
 import { GlassLayer, UnreadMark } from '../../components/material';
@@ -108,11 +108,12 @@ export function MessageBody({ text }: { text: string }) {
 }
 
 export function MessageComposer({ label, placeholder, value, onChange, maxLength,
-  attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, photoBusy, sendLabel, sendDisabled, onSend, mode, floating = false }: {
+  attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, photoBusy, sendLabel, sendDisabled, onSend,
+  onSendLongPress, onLayout, mode, floating = false }: {
   label: string; placeholder?: string; value: string; onChange: (value: string) => void; maxLength: number;
   attachLabel: string; photoLabel: string; onAttach: () => void; onPhoto: () => void; onEmoji?: () => void;
   toolsDisabled?: boolean; photoDisabled?: boolean; photoBusy?: boolean; sendLabel: string; sendDisabled: boolean; onSend: () => void;
-  mode?: ReactNode; floating?: boolean;
+  onSendLongPress?: () => void; onLayout?: (event: LayoutChangeEvent) => void; mode?: ReactNode; floating?: boolean;
 }) {
   const { scheme } = useAppearance();
   const dark = scheme === 'dark';
@@ -129,7 +130,7 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
       iconOffsetX={floating ? -9 : undefined} busy={photoBusy}
       disabled={toolsDisabled || photoDisabled} onPress={() => openTool(onPhoto)} />
   </>;
-  return <View style={floating ? ui.floatingComposer : ui.composer}>
+  return <View onLayout={onLayout} style={floating ? ui.floatingComposer : ui.composer}>
     {mode && <View style={ui.composerMode}>{mode}</View>}
     <View style={ui.composerControls}>
       {!floating && tools}
@@ -143,7 +144,12 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
           disabled={toolsDisabled} onPress={() => openTool(onEmoji)} />}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={sendLabel} accessibilityState={{ disabled: sendDisabled, busy: sendLabel !== '发送' }}
-        disabled={sendDisabled} onPress={onSend} style={({ pressed }) => [ui.send, floating && ui.floatingSend,
+        accessibilityActions={onSendLongPress && !sendDisabled ? [{ name: 'longpress', label: '发送选项' }] : undefined}
+        onAccessibilityAction={onSendLongPress && !sendDisabled ? ({ nativeEvent }) => {
+          if (nativeEvent.actionName === 'longpress') onSendLongPress();
+        } : undefined}
+        disabled={sendDisabled} onPress={onSend} onLongPress={onSendLongPress} delayLongPress={onSendLongPress ? 380 : undefined}
+        style={({ pressed }) => [ui.send, floating && ui.floatingSend,
           !floating && sendDisabled && ui.sendDisabled, pressed && ui.pressedBubble]}>
         {floating ? <View pointerEvents="none" style={[ui.sendFace, dark ? ui.neutralDark : ui.neutralLight, sendDisabled && ui.sendFaceDisabled]}>
           <Icon name="arrow-up" size={19} color={ink} />
