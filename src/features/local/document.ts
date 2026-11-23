@@ -9,6 +9,7 @@ export function useLocalDocument<T>(key: string | undefined, load: () => Promise
   const current = useRef<T | undefined>(undefined);
   const loadRef = useRef(load);
   const writes = useRef(Promise.resolve());
+  const confirmedWrites = useRef(0);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -26,29 +27,63 @@ export function useLocalDocument<T>(key: string | undefined, load: () => Promise
     return () => { active = false; alive.current = false; };
   }, [key, attempt]);
 
-  function persist(data: T) {
+  function publish(data: T) {
+    current.current = data;
+    if (alive.current) setValue(data);
+  }
+
+  async function write(data: T) {
     if (!key) return;
-    writes.current = writes.current.then(async () => {
-      try {
-        await AsyncStorage.setItem(key, JSON.stringify(data));
-        if (alive.current) setError('');
-      } catch {
-        if (alive.current) setError('本机保存失败，请重试。');
-      }
-    });
+    await AsyncStorage.setItem(key, JSON.stringify(data));
+    if (alive.current) setError('');
+  }
+
+  async function persist(data: T) {
+    try { await write(data); }
+    catch { if (alive.current) setError('本机保存失败，请重试。'); }
+  }
+
+  function apply(change: (previous: T) => T) {
+    if (current.current === undefined) return;
+    const next = change(current.current);
+    if (current.current !== next) {
+      publish(next);
+      return next;
+    }
   }
 
   function update(change: (previous: T) => T) {
-    if (current.current === undefined) return;
-    const next = change(current.current);
-    if (current.current === next) return;
-    current.current = next;
-    setValue(next);
-    persist(next);
+    if (confirmedWrites.current) {
+      // Apply subsequent optimistic edits to the result of the confirmed write.
+      writes.current = writes.current.then(async () => {
+        const next = apply(change);
+        if (next !== undefined) await persist(next);
+      });
+      return;
+    }
+    const next = apply(change);
+    if (next !== undefined) writes.current = writes.current.then(() => persist(next));
   }
 
-  return { value, getLatest: () => current.current, loading, error, update, retry: () => {
-    if (current.current !== undefined) persist(current.current);
+  function save(change: (previous: T) => T) {
+    confirmedWrites.current++;
+    const pending = writes.current.then(async () => {
+      if (!key || current.current === undefined) throw new Error('没有可保存的本机记录。');
+      const next = change(current.current);
+      if (next === current.current) return;
+      await write(next);
+      publish(next);
+    }).finally(() => { confirmedWrites.current--; });
+    writes.current = pending.catch(() => {});
+    return pending;
+  }
+
+  return { value, getLatest: () => current.current, loading, error, update, save, retry: () => {
+    if (current.current !== undefined) {
+      writes.current = writes.current.then(async () => {
+        if (current.current !== undefined) await persist(current.current);
+      });
+    }
     else if (key && !loading) {
       setLoading(true);
       setError('');
