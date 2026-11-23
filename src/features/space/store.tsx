@@ -20,7 +20,11 @@ type LegacyPost = {
 
 async function readSpace(key: string, ownerId: string, samples: ReturnType<typeof spaceSamples> | undefined): Promise<SpaceDocument> {
   const stored = await AsyncStorage.getItem(key);
-  if (stored) return JSON.parse(stored) as SpaceDocument;
+  if (stored) {
+    const document = JSON.parse(stored) as SpaceDocument;
+    return document.space.cover ? document
+      : { ...document, space: { ...document.space, cover: emptySpace().cover } };
+  }
   const old = await AsyncStorage.getItem('penlia.moments.v1.' + ownerId);
   const legacy = old ? JSON.parse(old) as LegacyPost[] : [];
   const entries = samples?.entries ?? [];
