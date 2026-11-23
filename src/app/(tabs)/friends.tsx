@@ -85,7 +85,7 @@ export default function FriendsScreen() {
 
   function scrollToLetter(letter: string) {
     const y = offsets.current[letter];
-    if (y !== undefined) scroll.current?.scrollTo({ y: directoryY.current + y, animated: false });
+    if (y !== undefined) scroll.current?.scrollTo({ y: y === 0 ? 0 : directoryY.current + y, animated: false });
   }
 
   async function reload() {

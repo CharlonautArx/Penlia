@@ -62,13 +62,15 @@ export function AlphabetRail({ letters, onSelect }: { letters: string[]; onSelec
 
   if (!letters.length) return null;
   return <View pointerEvents="box-none" style={local.railPosition}>
-    <View ref={frame} accessibilityLabel="好友字母索引" style={[local.rail, { height: letters.length * 21 }]}
-      {...pan.panHandlers}>
-      {letters.map((letter) => <Pressable key={letter} accessibilityRole="button" accessibilityLabel={letter + ' 段好友'}
-        style={({ pressed }) => [local.letterKey, (active === letter || pressed) && local.letterActive]}
-        onPress={() => onSelect(letter)}>
-        <Text allowFontScaling={false} style={local.letterText}>{letter}</Text>
-      </Pressable>)}
+    <View pointerEvents="box-none" style={local.railColumn}>
+      <View ref={frame} accessibilityLabel="好友字母索引" style={[local.rail, { height: letters.length * 21 }]}
+        {...pan.panHandlers}>
+        {letters.map((letter) => <Pressable key={letter} accessibilityRole="button" accessibilityLabel={letter + ' 段好友'}
+          style={({ pressed }) => [local.letterKey, (active === letter || pressed) && local.letterActive]}
+          onPress={() => onSelect(letter)}>
+          <Text allowFontScaling={false} style={local.letterText}>{letter}</Text>
+        </Pressable>)}
+      </View>
     </View>
   </View>;
 }
@@ -179,8 +181,8 @@ const local = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   contactName: { ...type.body, fontWeight: weight.medium, color: colors.text },
   pressed: { backgroundColor: colors.search },
-  railPosition: { position: 'absolute', top: 0, bottom: 0, right: 0, left: 0, alignSelf: 'center', maxWidth: contentWidth, width: '100%',
-    justifyContent: 'center', alignItems: 'flex-end', paddingRight: 4, paddingVertical: 16 },
+  railPosition: { position: 'absolute', top: 0, bottom: 0, right: 0, left: 0, alignItems: 'center', paddingVertical: 16 },
+  railColumn: { flex: 1, width: '100%', maxWidth: contentWidth, justifyContent: 'center', alignItems: 'flex-end', paddingRight: 4 },
   rail: { width: 30, maxHeight: '100%', borderRadius: radius.pill, backgroundColor: colors.panel },
   letterKey: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
   letterActive: { backgroundColor: colors.tint },
