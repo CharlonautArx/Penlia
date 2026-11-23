@@ -1,0 +1,99 @@
+name: Penlia clear cover edge Android check
+on:
+  push:
+    tags: [penlia-clear-cover-android-v1]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: "1"
+      CI: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the prior verified native build
+        uses: actions/download-artifact@v4
+        with:
+          name: space-cover-runtime-apk
+          path: out
+          run-id: 45151711619
+          github-token: ${{ github.token }}
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: sdkmanager --channel=3 'build-tools;37.0.0'
+      - run: npm ci && npm run typecheck && node --test --test-isolation=none tests/*.test.mjs
+      - name: Build and sign the Android Release bundle
+        run: bash scripts/penlia-prepare-android-smoke.sh out/current.apk out/clear.apk
+      - name: Read previous screenshots for pixel comparison
+        uses: actions/download-artifact@v4
+        with:
+          name: penlia-space-cover-api-35
+          path: before
+          run-id: 45154950117
+          github-token: ${{ github.token }}
+      - name: Allow hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle --timeout=15
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod u+rw /dev/kvm
+      - name: Start a virtual display for host-side recording
+        run: |
+          # Limit apt to Ubuntu's base packages, independent of third-party tool mirrors.
+          opts=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          if test -f /etc/apt/sources.list.d/ubuntu.sources; then
+            opts+=(-o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          fi
+          sudo apt-get "${opts[@]}" update -qq
+          sudo apt-get "${opts[@]}" install -y --no-install-recommends python3-pil libpulse0 xvfb libgl1-mesa-dri libxcb-cursor0 libxkbcommon-x11-0
+          Xvfb :93 -screen 0 880x1440x24 -ac +extension GLX > /tmp/space-xvfb.log 2>&1 &
+          sleep 1
+          test -S /tmp/.X11-unix/X93
+          echo 'DISPLAY=:93' >> "$GITHUB_ENV"
+          echo 'LIBGL_ALWAYS_SOFTWARE=1' >> "$GITHUB_ENV"
+          echo 'QT_QPA_PLATFORM=xcb' >> "$GITHUB_ENV"
+      - name: Verify the unshaded cover edge and cover interactions
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-boot-timeout: 200
+          emulator-build: '16970787'
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -gpu host -no-skin -skin 540x1200 -memory 2048 -cores 2 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash scripts/penlia-space-cover-smoke.sh out/clear.apk output/ before/initial.png
+      - name: Emulator host diagnostics
+        if: failure()
+        run: |
+          free -m
+          cat /sys/fs/cgroup/memory.events || true
+          sudo dmesg | grep -Ei 'out of memory|oom-kill|killed process|qemu.*segfault' | tail -10 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: penlia-clear-cover-api-${{ matrix.api }}
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore
