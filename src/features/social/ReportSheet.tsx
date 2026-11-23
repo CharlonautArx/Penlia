@@ -65,7 +65,7 @@ export function ReportSheet({
   return (
     <Sheet
       title={
-        status === 'submitted' ? (isUiDemo ? '举报已在本机保存' : '举报已受理') : status === 'preview' ? '确认提交的证据' : '生活边界保护举报'
+        status === 'submitted' ? (isUiDemo ? '举报已在本机保存' : '举报已受理') : status === 'preview' ? '确认提交的证据' : '生活边界保护计划举报'
       }
       onClose={() => {
         if (!busy) onClose();
@@ -125,7 +125,7 @@ export function ReportSheet({
       )}
       {status === 'submitted' && (
         <>
-          <Text style={styles.body}>处理状态可在「我的」里的生活边界保护查看。</Text>
+          <Text style={styles.body}>处理状态可在「我的」里的生活边界保护计划查看。</Text>
           <Button label="完成" onPress={onClose} />
         </>
       )}

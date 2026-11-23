@@ -57,9 +57,9 @@ export default function MeScreen() {
         onPress={() => router.push('/privacy')} />
     </SettingGroup>
     <SettingGroup title="我的生活">
-      <ListRow title="生活边界保护" detail="举报记录、处置与申诉"
+      <ListRow title="生活边界保护计划" detail="举报记录、处置与申诉"
         left={<Tile icon="flag-outline" />} onPress={() => router.push('/boundary')} />
-      {isUiDemo && <ListRow title="想去的地方" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
+      {isUiDemo && <ListRow title="想去的地点" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
         onPress={() => router.push('/playground/saved')} />}
       <ListRow title="状态" detail="文字、图片和可见范围" left={<Tile icon="happy-outline" />} onPress={()=>router.push('/life/status')}/>
       <ListRow title="我的收藏与好友推荐" left={<Tile icon="bookmark-outline" />} onPress={()=>router.push('/life/items')}/>

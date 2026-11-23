@@ -25,7 +25,7 @@ export default function PlayScreen() {
       <View style={[styles.row, local.heading]}>
         <View style={local.headingActions}>
           <Text accessibilityRole="header" style={styles.section}>线下去处</Text>
-          <IconButton label="想去的地方" icon="bookmark-outline" onPress={() => router.push('/playground/saved')} />
+          <IconButton label="想去的地点" icon="bookmark-outline" onPress={() => router.push('/playground/saved')} />
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel={'选择城市，当前' + city}
           onPress={() => setChoosingCity(true)} style={({ pressed }) => [local.city, pressed && local.pressed]}>

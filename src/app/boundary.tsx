@@ -32,7 +32,7 @@ export default function Boundary() {
   const [selected, setSelected] = useState<Action>();
   const [reason, setReason] = useState('');
   return (
-    <Screen title="生活边界保护" back={back} refreshing={busy} onRefresh={() => void load()}>
+    <Screen title="生活边界保护计划" back={back} refreshing={busy} onRefresh={() => void load()}>
       <Text style={styles.muted}>{isUiDemo ? '长按群聊消息可体验举报预览。记录仅保存在本机。' : '长按聊天消息可以举报。确认提交前，可以查看将交给审核人员的内容。'}</Text>
       {!!error && <Notice>{error}</Notice>}
       {data?.canReview && (
