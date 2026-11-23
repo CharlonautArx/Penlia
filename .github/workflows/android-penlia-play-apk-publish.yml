@@ -1,0 +1,30 @@
+name: Publish verified Penlia ARM64 APK download
+on:
+  push:
+    tags: [penlia-play-card-apk-publish-v1]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8cd6727d87f75e02c5510e50d75a9eb4f2ac7fc7
+      - uses: actions/download-artifact@v4
+        with:
+          name: penlia-play-card-arm64-v8a-release
+          path: out
+          run-id: 45123555174
+          github-token: ${{ github.token }}
+      - name: Verify the previously tested APK and publish the raw file
+        run: |
+          printf '%s  %s\n' 9efa79d0f9787680359245cbabfc6a602668654fec085e246c528ef0363e1f72 out/Penlia-arm64-v8a.apk | sha256sum -c -
+          install -m 0644 out/Penlia-arm64-v8a.apk demo-preview/Penlia-arm64.apk
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- demo-preview/Penlia-arm64.apk
+          git commit -m 'Publish Penlia Together card ARM64 APK [skip ci]'
+          git push origin HEAD:refs/tags/penlia-play-card-arm64-apk
