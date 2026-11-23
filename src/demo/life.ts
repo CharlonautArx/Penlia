@@ -1,6 +1,8 @@
 import { randomUUID } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
+import type { Relationship } from '../services/api';
+import { demoMomentInteractions } from './moment-interactions';
 import { demoPeople, demoUser } from './data';
 import { friend, friendName, members, self, type Row, type Rows } from './life-fixtures';
 
@@ -15,7 +17,7 @@ const owner = { ownerId: self, owner: demoUser.name, state: 'active', canWrite: 
 const add = (body: Input, fields: Input = {}) => ({ ...body, ...fields, id: randomUUID() });
 const waiting = (ids: string[]) => members(ids).map((person) => ({ ...person, state: 'invited' }));
 
-export function offlineRequest(store: Rows, path: string, method: string, body: Input) {
+export function offlineRequest(store: Rows, path: string, method: string, body: Input, relationships: Relationship[] = []) {
   const [pathname, search] = path.split('?');
   const query = new URLSearchParams(search);
   const parts = pathname.split('/').filter(Boolean);
@@ -119,34 +121,52 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       return duplicate ?? save('groupLines', add(body, { groupId: area, senderId: self, name: demoUser.name, sentAt: now(), media: assetRefs() }));
     }
   }
+  if (['moment-chat-shares','moment-forward-requests','moment-notifications'].includes(root)) {
+    const interactions = demoMomentInteractions(store, relationships);
+    if (root === 'moment-notifications') return interactions.notificationRoute(area, body, query);
+    if (root === 'moment-chat-shares' && get && area) return interactions.shared(area);
+    if (root === 'moment-forward-requests' && method === 'POST' && area) return interactions.forwardAction(area, body);
+    throw new Error(unavailable);
+  }
   if (root === 'moments') {
     const selected = query.get('author');
     const timeline = selected === self && query.get('order') === 'pinned';
-    const visible = (item: Row) => item.authorId === self ||
-      (item.scope !== 'private' && (item.scope !== 'selected' || strings(item.memberIds).includes(self)));
-    const project = (item: Row) => {
-      const likes = strings(item.demoLikes);
-      return { ...item, authorUsername: item.authorId === self ? demoUser.username : demoPeople.find((person) => person.id === item.authorId)?.username, pinned: item.authorId === self ? !!item.pinned : null,
-        liked: likes.includes(self), likeCount: likes.length,
-        commentCount: rows('momentComments').filter((entry) => entry.momentId === item.id).length };
-    };
+    const interactions = demoMomentInteractions(store, relationships);
+    const { visible, project } = interactions;
     if (area === 'count' && get) return { count: rows('moments').filter((item) => item.authorId === self).length };
     if (!area && method === 'POST') {
       const previous = rows('moments').find((item) => item.authorId === self && item.clientId === body.clientId);
-      return previous ?? save('moments', add(body, { ...author, createdAt: now(), media: assetRefs() }));
+      return previous ?? save('moments', add({ clientId: body.clientId, body: body.body,
+        scope: body.scope, memberIds: body.memberIds, groupId: body.groupId }, { ...author, createdAt: now(), media: assetRefs() }));
     }
     if (area) {
       const moment = requireRow('moments');
       if (!visible(moment)) throw new Error('找不到可查看的内容。');
+      if (id === 'original' && get) {
+        const source = find('moments', String(moment.sourceMomentId));
+        if (!source || !visible(source)) throw new Error('原动态当前不可见。');
+        return { moment: project(source) };
+      }
+      if (id === 'share-chat' && method === 'POST') return { id: interactions.share(moment, body.receiver).id };
+      if (id === 'request-forward' && method === 'POST') return interactions.forwardRequest(moment, self);
+      if (id === 'forward-permission' && method === 'PUT') {
+        if (moment.authorId !== self || moment.sourceMomentId || typeof body.allowed !== 'boolean') throw new Error('无法修改这个动态。');
+        save('moments', { ...moment, allowForward: body.allowed });
+        if (!body.allowed) interactions.revoke(moment.id);
+        return { canForward: body.allowed };
+      }
       if (id === 'like' && method === 'PUT') {
         if (typeof body.liked !== 'boolean') throw new Error('请选择点赞状态。');
         const likes = strings(moment.demoLikes).filter((user) => user !== self);
-        if (body.liked) likes.push(self);
+        if (body.liked) {
+          likes.push(self);
+          interactions.notify(moment, self, moment.authorId, 'ye', moment.id + ':' + self);
+        }
         return project(save('moments', { ...moment, demoLikes: likes }));
       }
       if (id === 'comments') {
         if (get) {
-          const all = rows('momentComments').filter((entry) => entry.momentId === area).sort(newestFirst);
+          const all = rows('momentComments').filter((entry) => entry.momentId === area && visible(moment, entry.authorId)).sort(newestFirst);
           const before = query.get('before');
           const start = before ? all.findIndex((entry) => entry.id === before) + 1 : 0;
           const page = all.slice(start, start + 30);
@@ -154,7 +174,10 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
         }
         if (typeof body.body !== 'string' || !body.body.trim() || body.body.length > 500) throw new Error('请输入留言。');
         const previous = rows('momentComments').find((entry) => entry.momentId === area && entry.clientId === body.clientId);
-        return previous ?? save('momentComments', add(body, { ...author, momentId: area, createdAt: now() }));
+        if (previous) return previous;
+        const comment = save('momentComments', add({ body: body.body.trim(), clientId: body.clientId }, { ...author, momentId: area, createdAt: now() }));
+        interactions.notify(moment, self, moment.authorId, 'comment', comment.id, comment.id);
+        return comment;
       }
       if (get) return { moment: project(moment) };
       if (moment.authorId !== self) throw new Error('只有发布者能修改这条动态。');
@@ -163,10 +186,18 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
         return save('moments', { ...moment, pinned: body.pinned });
       }
       if (remove) {
-        store.momentComments = rows('momentComments').filter((entry) => entry.momentId !== area);
-        return drop('moments', moment);
+        const affected = new Set([area, ...rows('moments').filter((item) => item.sourceMomentId === area).map((item) => item.id)]);
+        store.momentComments = rows('momentComments').filter((entry) => !affected.has(String(entry.momentId)));
+        store.momentNotifications = rows('momentNotifications').filter((entry) => !affected.has(String(entry.momentId)));
+        store.momentForwards = rows('momentForwards').filter((entry) => !affected.has(String(entry.momentId)));
+        store.momentShares = rows('momentShares').filter((entry) => !affected.has(String(entry.momentId)));
+        store.moments = rows('moments').filter((item) => !affected.has(item.id));
+        return {};
       }
-      return edit('moments', moment);
+      if (moment.sourceMomentId || method !== 'PATCH') throw new Error('无法修改这个动态。');
+      if (body.scope === 'private') interactions.revoke(moment.id);
+      return save('moments', { ...moment, body: body.body ?? moment.body, scope: body.scope,
+        groupId: body.groupId, memberIds: body.memberIds, revision: Number(moment.revision) + 1 });
     }
     const all = rows('moments').filter((item) => visible(item) && (!selected || item.authorId === selected)
       && (query.get('feed') !== 'friends' || item.authorId !== self))

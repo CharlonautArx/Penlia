@@ -21,6 +21,10 @@ export type Moment = {
   body: string;
   createdAt: string;
   revision: number;
+  forwardRequest?: ForwardRequest | null;
+  forwarded?: boolean;
+  canForward?: boolean;
+  allowForward?: boolean | null;
   pinned?: boolean | null;
   liked?: boolean;
   likeCount?: number;
@@ -38,4 +42,18 @@ export type MomentComment = {
   author: string;
   body: string;
   createdAt: string;
+};
+
+export const momentChatSharePath = '/life/moment-share/';
+
+export type ForwardStatus = 'pending' | 'approved' | 'rejected' | 'published' | 'revoked';
+export type ForwardRequest = { id: string; status: ForwardStatus; publishedId?: string | null };
+export const forwardLabels: Record<ForwardStatus, string> = {
+  pending: '待同意', approved: '已同意', rejected: '已拒绝', published: '已转发', revoked: '授权已撤回',
+};
+
+export type MomentNotice = {
+  id: string; momentId: string; actorId: string; actor: string; createdAt: string; unread: boolean;
+  kind: 'ye' | 'comment' | 'forward_request' | 'forward_result';
+  comment?: string | null; requestId?: string | null; status?: ForwardStatus | null; decision?: ForwardStatus | null;
 };

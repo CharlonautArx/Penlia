@@ -6,6 +6,7 @@ import { Button, Empty, Notice, Section, Sheet } from '../../components/ui';
 import { colors, styles } from '../../theme';
 import { localId } from '../local/document';
 import { Chips } from '../play/Cards';
+import { FrostedAction } from "./FrostedAction";
 import { JournalLink } from './EntryCard';
 import { SpacePhoto } from './media';
 import { useSpace } from './store';
@@ -28,7 +29,7 @@ export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
       && state.entryVisible(entry, viewer)).sort((a, b) => b.at - a.at);
     return <>
       <Section title="空间日志" detail={entries.length + ' 条'}>
-        {mine && <Button label="写日志" icon="add-outline" variant="soft"
+        {mine && <FrostedAction label="写日志" icon="add-outline"
           onPress={() => router.push({ pathname: '/space/compose', params: { kind: 'journal' } })} />}
       </Section>
       {entries.map((entry) => <JournalLink key={entry.id} entry={entry} viewer={viewer} />)}
@@ -39,7 +40,7 @@ export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
     && (theme === '全部' || album.theme === theme));
   return <>
     <Section title="主题相册" detail={albums.length + ' 本'}>
-      {mine && <Button label="新建相册" icon="add-outline" variant="soft" onPress={() => setCreating(true)} />}
+      {mine && <FrostedAction label="新建相册" icon="add-outline" onPress={() => setCreating(true)} />}
     </Section>
     <Chips items={albumThemes} value={theme} onChange={onTheme} />
     {albums.length ? <View style={local.grid}>

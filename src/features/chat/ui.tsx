@@ -8,7 +8,7 @@ import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Button, Icon, IconButton, Sheet } from '../../components/ui';
 import { colors, radius, space, styles, touch, type } from '../../theme';
 import { useWallpaperLabel } from './background/WallpaperImage';
-import { momentShareCaption, momentSharePath } from '../moments/model';
+import { momentChatSharePath, momentShareCaption, momentSharePath } from '../moments/model';
 
 export const chatLayout = StyleSheet.create({
   page: { flex: 1, width: '100%', maxWidth: 620, alignSelf: 'center' },
@@ -100,11 +100,14 @@ export function MessageBody({ text }: { text: string }) {
   const [caption, link, extra] = text.split('\n', 3);
   if (caption === momentShareCaption && link && extra === undefined) {
     const id = link.slice(-36);
-    const path = momentSharePath + id;
-    if (/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) &&
-      (link === 'penlia://' + path.slice(1) || link === 'penlia://' + path || link === Linking.createURL(path))) {
+    const matches = (prefix: string) => {
+      const path = prefix + id;
+      return link === 'penlia://' + path.slice(1) || link === 'penlia://' + path || link === Linking.createURL(path);
+    };
+    const ticket = matches(momentChatSharePath);
+    if (/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) && (ticket || matches(momentSharePath))) {
       return <Pressable accessibilityRole="link" accessibilityLabel="查看分享的动态"
-        onPress={() => router.push({ pathname: '/life/moment/[id]', params: { id } })}
+        onPress={() => router.push({ pathname: ticket ? '/life/moment-share/[id]' : '/life/moment/[id]', params: { id } })}
         style={({ pressed }) => [styles.row, ui.postLink, pressed && ui.pressedBubble]}>
         <Icon name="images-outline" size={18} color={colors.accent} />
         <Text style={[styles.strong, styles.grow, ui.linkText]}>查看分享的动态</Text>

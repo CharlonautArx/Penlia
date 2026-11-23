@@ -100,7 +100,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
     {restored && <Text style={local.saved}>已恢复本机草稿</Text>}
     {!!(error || state.error) && <Notice>{error || state.error}</Notice>}
     <View style={local.paper}>
-      {journal && <TextInput accessibilityLabel="日志标题" placeholder="给这段日子起个标题" maxLength={80}
+      {journal && <TextInput accessibilityLabel="日志标题" placeholder="标题" maxLength={80}
         placeholderTextColor={colors.quiet} value={draft.title} onChangeText={(title) => setDraft({ ...draft, title })}
         style={local.title} />}
       <TextInput accessibilityLabel={journal ? '日志正文' : '动态内容'}

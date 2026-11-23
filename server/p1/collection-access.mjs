@@ -1,11 +1,25 @@
 import { blocked, related, restricted } from '../p0/access.mjs';
 
-export const momentVisible = (post, viewer) => `(${post}.author_id=${viewer} OR
+const baseMomentVisible = (post, viewer) => `(${post}.author_id=${viewer} OR
   (${related(viewer, post + '.author_id')} AND NOT ${restricted(post + '.author_id', viewer)} AND (
     ${post}.scope='friends' OR
     (${post}.scope='selected' AND EXISTS(SELECT 1 FROM private_moment_viewers v WHERE v.moment_id=${post}.id AND v.user_id=${viewer})) OR
     (${post}.scope IN ('circle','group') AND EXISTS(SELECT 1 FROM relationship_groups g JOIN relationship_group_members gm ON gm.group_id=g.id
       WHERE g.id=${post}.audience_group AND g.owner_id=${post}.author_id AND gm.user_id=${viewer} AND g.circle=(${post}.scope='circle')))
+  )))`;
+
+export const forwardableMoment = (post) =>
+  `(${post}.source_moment_id IS NULL AND ${post}.allow_forward AND ${post}.scope<>'private')`;
+
+export const momentVisible = (post, viewer) => `(${baseMomentVisible(post, viewer)} AND (
+  ${post}.source_moment_id IS NULL OR EXISTS(
+    SELECT 1 FROM private_moments original
+    JOIN moment_forward_requests approval ON approval.moment_id=original.id
+    WHERE original.id=${post}.source_moment_id AND approval.published_id=${post}.id
+    AND approval.requester_id=${post}.author_id AND approval.status='published'
+    AND ${forwardableMoment('original')}
+    AND ${baseMomentVisible('original', post + '.author_id')}
+    AND ${baseMomentVisible('original', viewer)}
   )))`;
 
 export const activeMember = (collection, viewer) => `(${collection}.owner_id=${viewer} OR (

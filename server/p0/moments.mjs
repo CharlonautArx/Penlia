@@ -3,8 +3,10 @@ import { p3MediaVisible } from '../p3/access.mjs';
 import { randomUUID } from 'node:crypto';
 import { cleanText, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
-import { blocked, idsOf, lockUsers, restricted, verifyFriends } from './access.mjs';
-import { collectionReadable, contributionReadable, contributionScope, momentReaders, momentVisible, unusedMedia } from '../p1/collection-access.mjs';
+import { blocked, idsOf, lockUsers, related, restricted, verifyFriends } from './access.mjs';
+import { collectionReadable, contributionReadable, contributionScope, forwardableMoment, momentReaders, momentVisible, unusedMedia } from '../p1/collection-access.mjs';
+
+import { notifyMoment, revokeMomentSharing } from './moment-interactions.mjs';
 
 export const mediaLimit = 4 * 1024 * 1024;
 const notFound = () => new HttpError(404, '找不到可查看的内容。');
@@ -12,6 +14,11 @@ const canRead = momentVisible('p', '$1::uuid');
 const participantVisible = (actor) => `${momentVisible('p', actor)}
   AND NOT ${blocked(actor, '$1::uuid')} AND NOT ${restricted(actor, '$1::uuid')}`;
 const projection = `p.id,p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.revision,p.created_at AS "createdAt",
+  (p.source_moment_id IS NOT NULL) AS forwarded,
+  ${forwardableMoment('p')} AS "canForward",
+  CASE WHEN p.author_id=$1 THEN p.allow_forward END AS "allowForward",
+  (SELECT jsonb_build_object('id',r.id,'status',r.status,'publishedId',r.published_id)
+    FROM moment_forward_requests r WHERE r.moment_id=p.id AND r.requester_id=$1) AS "forwardRequest",
   CASE WHEN p.author_id=$1 THEN p.pinned ELSE NULL END AS pinned,
   CASE WHEN p.author_id=$1 THEN p.scope END AS scope,
   EXISTS(SELECT 1 FROM moment_likes l WHERE l.moment_id=p.id AND l.user_id=$1) AS liked,
@@ -62,7 +69,7 @@ export async function listMoments(userId, query) {
 
 export async function ownMomentCount(userId) {
   const { rows: [row] } = await pool.query(
-    'SELECT count(*)::integer AS count FROM private_moments WHERE author_id=$1', [userId],
+    `SELECT count(*)::integer AS count FROM private_moments p WHERE p.author_id=$1 AND ${canRead}`, [userId],
   );
   return row;
 }
@@ -78,17 +85,18 @@ export async function pinMoment(userId, id, pinned) {
 
 async function interact(userId, id, action) {
   return inTransaction(pool, async (db) => {
-    const visible = await db.query(`SELECT p.id FROM private_moments p WHERE p.id=$2 AND ${canRead} FOR SHARE OF p`, [userId, id]);
+    const visible = await db.query(`SELECT p.id,p.author_id FROM private_moments p WHERE p.id=$2 AND ${canRead} FOR SHARE OF p`, [userId, id]);
     if (!visible.rowCount) throw notFound();
-    return action(db);
+    return action(db, visible.rows[0].author_id);
   });
 }
 
 export async function setMomentLike(userId, id, liked) {
-  if (typeof liked !== 'boolean') throw new HttpError(400, '请选择点赞状态。');
-  return interact(userId, id, async (db) => {
+  if (typeof liked !== 'boolean') throw new HttpError(400, '请选择比耶状态。');
+  return interact(userId, id, async (db, recipient) => {
     if (liked) {
-      await db.query('INSERT INTO moment_likes(moment_id,user_id) VALUES($2,$1) ON CONFLICT DO NOTHING', [userId, id]);
+      const inserted = await db.query('INSERT INTO moment_likes(moment_id,user_id) VALUES($2,$1) ON CONFLICT DO NOTHING', [userId, id]);
+      if (inserted.rowCount) await notifyMoment(db, { moment: id, actor: userId, recipient, kind: 'ye', key: id + ':' + userId });
     } else {
       await db.query('DELETE FROM moment_likes WHERE user_id=$1 AND moment_id=$2', [userId, id]);
     }
@@ -119,19 +127,29 @@ export async function addMomentComment(userId, id, body) {
   const message = cleanText(body.body, 500);
   if (!message) throw new HttpError(400, '请输入留言。');
   const clientId = readId(body.clientId);
-  return interact(userId, id, async (db) => {
-    await db.query(`INSERT INTO moment_comments(moment_id,user_id,client_id,body)
-      VALUES($2,$1,$3,$4) ON CONFLICT(moment_id,user_id,client_id) DO NOTHING`, [userId, id, clientId, message]);
+  return interact(userId, id, async (db, recipient) => {
+    const { rows: [comment] } = await db.query(`INSERT INTO moment_comments(moment_id,user_id,client_id,body)
+      VALUES($2,$1,$3,$4) ON CONFLICT(moment_id,user_id,client_id) DO NOTHING RETURNING id`, [userId, id, clientId, message]);
+    if (comment) await notifyMoment(db, { moment: id, actor: userId, recipient, kind: 'comment', key: comment.id, comment: comment.id });
     return {};
   });
 }
 
-export async function getMoment(userId, id) {
+export async function getMoment(userId, id, reference) {
+  const entry = reference === 'chat'
+    ? `JOIN moment_chat_shares ticket ON ticket.moment_id=p.id WHERE ticket.id=$2
+      AND $1 IN (ticket.sender_id,ticket.recipient_id)
+      AND ${related('ticket.sender_id','ticket.recipient_id')}
+      AND ${momentVisible('p','ticket.sender_id')} AND ${momentVisible('p','ticket.recipient_id')}
+      AND ${forwardableMoment('p')}`
+    : reference === 'forward'
+      ? `JOIN private_moments relay ON relay.source_moment_id=p.id WHERE relay.id=$2 AND ${momentVisible('relay','$1::uuid')}`
+      : 'WHERE p.id=$2';
   const {
     rows: [moment],
   } = await pool.query(
     `SELECT ${projection} FROM private_moments p JOIN users u ON u.id=p.author_id
-    WHERE p.id=$2 AND ${canRead}`,
+    ${entry} AND ${canRead}`,
     [userId, id],
   );
   if (!moment) throw notFound();
@@ -207,7 +225,7 @@ export async function updateMoment(userId, id, body) {
     await lockUsers(db, userId);
     const {
       rows: [previous],
-    } = await db.query('SELECT body,revision FROM private_moments WHERE id=$1 AND author_id=$2 FOR UPDATE', [id, userId]);
+    } = await db.query('SELECT body,revision FROM private_moments WHERE id=$1 AND author_id=$2 AND source_moment_id IS NULL FOR UPDATE', [id, userId]);
     if (!previous) throw notFound();
     if (body.revision !== previous.revision) throw new HttpError(409, '动态已经更新，请刷新后重试。');
     const value = await audience(db, userId, body);
@@ -229,6 +247,7 @@ export async function updateMoment(userId, id, body) {
     ]);
     await db.query(`DELETE FROM p1_contribution_public_readers grant_row WHERE moment_id=$1
       AND NOT EXISTS(SELECT 1 FROM (${momentReaders('$1','$2::uuid')}) r WHERE r.id=grant_row.viewer_id)`,[id,userId]);
+    if (value.scope === 'private') await revokeMomentSharing(db, id, userId);
     return saved;
   });
 }

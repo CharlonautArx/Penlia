@@ -112,7 +112,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const current = store.current.getLatest();
     if (!current) throw new Error('正在读取本机预览数据，请稍后重试。');
     const draft = { ...current.rows };
-    const result = offlineRequest(draft, path, method, body ?? {});
+    const result = offlineRequest(draft, path, method, body ?? {}, relationships.current);
     if (Object.keys(draft).some((key) => draft[key] !== current.rows[key])) {
       store.current.update((value) => ({ ...value, rows: draft }));
     }

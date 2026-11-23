@@ -41,6 +41,8 @@ import {
   updateMoment,
 } from './moments.mjs';
 
+import { createMomentChatShare, manageMomentForward, markMomentNotificationsRead, momentInbox,
+  requestMomentForward, setMomentSharePermission } from './moment-interactions.mjs';
 import { getProfileCover, saveProfileCover } from './profile-cover.mjs';
 
 const missing = () => new HttpError(404, '找不到可操作的记录。');
@@ -104,6 +106,10 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
     case 'POST /v1/group-invites/accept':
     case 'POST /v1/group-invites/decline':
       return result(await decideGroupInvite(id, readId((await readBody()).id), route.endsWith('/accept')));
+    case 'GET /v1/moment-notifications':
+      return result(await momentInbox(id, query));
+    case 'POST /v1/moment-notifications/read':
+      return result(await markMomentNotificationsRead(id, (await readBody()).ids));
     case 'GET /v1/moments/count':
       return result(await ownMomentCount(id));
     case 'GET /v1/moments':
@@ -191,7 +197,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   }
 
   const match =
-    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media)\/([0-9a-f-]{36})(?:\/(invites|messages|leave|pin|like|comments|profile-cover))?$/.exec(
+    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media|moment-chat-shares|moment-forward-requests)\/([0-9a-f-]{36})(?:\/(invites|messages|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
       route,
     );
   if (!match) return undefined;
@@ -234,7 +240,26 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       }
       if (action === 'leave' && method === 'POST') return result(await leaveGroup(id, item));
       break;
+    case 'moment-chat-shares':
+      if (method === 'GET' && !action) return result(await getMoment(id, item, 'chat'));
+      break;
+    case 'moment-forward-requests':
+      if (method === 'POST' && !action) {
+        await rateLimit('moment-forward:' + id, 35, 60);
+        return result(await manageMomentForward(id, item, (await readBody()).action));
+      }
+      break;
     case 'moments':
+      if (action === 'original' && method === 'GET') return result(await getMoment(id, item, 'forward'));
+      if (action === 'forward-permission' && method === 'PUT') return result(await setMomentSharePermission(id, item, (await readBody()).allowed));
+      if (action === 'share-chat' && method === 'POST') {
+        await rateLimit('moment-share:' + id, 35, 60);
+        return result(await createMomentChatShare(id, item, (await readBody()).receiver));
+      }
+      if (action === 'request-forward' && method === 'POST') {
+        await rateLimit('moment-forward:' + id, 35, 60);
+        return result(await requestMomentForward(id, item));
+      }
       if (action === 'pin' && method === 'PUT') return result(await pinMoment(id, item, (await readBody()).pinned));
       if (action === 'like' && method === 'PUT') return result(await setMomentLike(id, item, (await readBody()).liked));
       if (action === 'comments' && method === 'GET') return result(await listMomentComments(id, item, query.get('before')));

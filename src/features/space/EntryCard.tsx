@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar, Button, Icon, IconButton, ListRow, Sheet, Tag } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { colors, styles, type } from '../../theme';
+import { PeaceIcon } from '../moments/PeaceIcon';
 import { localId } from '../local/document';
 import { SpacePhoto } from './media';
 import { audienceName, blankDraft, createdTime, type Entry, type Photo, type Reply } from './model';
@@ -58,7 +59,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
   }
 
   function forward() {
-    if (!state.me || viewer) return;
+    if (!state.me || viewer || !mine) return;
     const ownerId = state.me.id;
     state.update((data) => ({ ...data, entries: [{
       ...blankDraft('thought'),
@@ -117,7 +118,7 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
       left={<Icon name="arrow-redo-outline" />} onPress={() => openEntry(source.id, viewer)} />
       : <Text style={styles.small}>原动态当前不可见。</Text>)}
     {!viewer && <View style={local.actions}>
-      <Action label={entry.liked ? '取消点赞' : '点赞'} icon={entry.liked ? 'heart' : 'heart-outline'} active={entry.liked}
+      <Action label={entry.liked ? '取消比耶' : '比耶'} icon="peace" active={entry.liked}
         text={String(entry.likes)} onPress={() => state.updateEntry(entry.id, (current) => ({
           ...current, liked: !current.liked, likes: current.likes + (current.liked ? -1 : 1),
         }))} />
@@ -180,7 +181,8 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
     </Sheet>}
     {sheet === 'share' && <Sheet title="转发动态" onClose={() => setSheet(undefined)}>
       <Text style={styles.muted}>转发只在本机创建原动态的引用。你的转发默认仅自己可见，原内容继续遵循原可见范围。</Text>
-      <Button label="转发到我的动态" variant="gradient" onPress={forward} />
+      {mine ? <Button label="转发到我的动态" variant="gradient" onPress={forward} />
+        : <Text style={styles.muted}>本机旧动态无法向原作者发起授权。</Text>}
     </Sheet>}
     {sheet === 'video' && <Sheet title="视频动态样式" onClose={() => setSheet(undefined)}>
       <Text style={styles.muted}>此处仅预览视频封面与入口。</Text>
@@ -189,11 +191,11 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
 }
 
 function Action({ label, icon, text, active, onPress }: {
-  label: string; icon: Parameters<typeof Icon>[0]['name']; text?: string; active?: boolean; onPress: () => void;
+  label: string; icon: Parameters<typeof Icon>[0]['name'] | 'peace'; text?: string; active?: boolean; onPress: () => void;
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     style={({ pressed }) => [local.action, pressed && local.pressed]} onPress={onPress}>
-    <Icon name={icon} size={19} color={active ? colors.accent : colors.ink} />
+    {icon === 'peace' ? <PeaceIcon active={active} /> : <Icon name={icon} size={19} color={active ? colors.accent : colors.ink} />}
     {!!text && <Text style={styles.muted}>{text}</Text>}
   </Pressable>;
 }

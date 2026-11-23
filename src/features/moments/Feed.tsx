@@ -1,6 +1,7 @@
+import { BlurTargetView } from 'expo-blur';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type FlatListProps } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,11 +13,13 @@ import { errorMessage, type User } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, contentWidth, radius, space, styles, touch } from '../../theme';
 import { SpaceCollections, type AlbumTheme } from '../space/Collections';
+import { FrostedAction } from '../space/FrostedAction';
 import { CoverEditor } from '../space/CoverEditor';
 import { coverMetrics } from '../space/ImmersiveCover';
 import { HomeFeedList } from './HomeFeedList';
 import { emptySpace } from '../space/model';
 import { SpaceHeader, type SpacePane } from '../space/SpaceHeader';
+import { useRecord } from '../social/ui';
 import { useSpace } from '../space/store';
 import type { Moment } from './model';
 import { PostCard } from './PostCard';
@@ -34,6 +37,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const width = Math.max(1, window.width - insets.left - insets.right);
   const metrics = coverMetrics(width, window.height, insets.top);
   const reveal = useSharedValue(0);
+  const homeBlurTarget = useRef<ComponentRef<typeof View>>(null);
   const coverHeaderHeight = useRef(0);
   const [statusSurface, setStatusSurface] = useState<'cover' | 'profile' | 'feed'>('cover');
   const mine = !!author && author === me?.id;
@@ -142,7 +146,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     contentContainerStyle: home ? local.homeList : local.list, ListHeaderComponent: header,
     refreshing: pane === 'thought' && busy, onRefresh: pane === 'thought' ? () => void load() : undefined,
     renderItem: ({ item }) => {
-      const post = <PostCard item={item} onUpdate={(change) => update(item.id, change)}
+      const post = <PostCard item={item} onRemove={() => { void load(); }} onUpdate={(change) => update(item.id, change)}
         onPin={mine ? async (pinned) => {
           await request('/moments/' + item.id + '/pin', { method: 'PUT', body: { pinned } });
           void load();
@@ -164,7 +168,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
         <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
       </>} />}
-    {home ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
+    {home ? <BlurTargetView ref={homeBlurTarget} style={styles.grow}><HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
       onScroll={({ nativeEvent }) => {
         const barCenter = nativeEvent.contentOffset.y + insets.top / 2;
         const headerHeight = coverHeaderHeight.current;
@@ -172,7 +176,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         const nextSurface = headerHeight > 0 && barCenter >= headerHeight ? 'feed'
           : barCenter >= metrics.resting - 72 ? 'profile' : 'cover';
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
-      }} /> : <FlatList {...list} />}
+      }} /></BlurTargetView> : <FlatList {...list} />}
+    {home && <HomeNotificationBell target={homeBlurTarget} top={insets.top + space.xs} />}
     {home && focused && person && statusSurface !== 'feed' && <StatusBar
       style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={home ? { width, ...metrics } : undefined} onClose={() => setPanel(undefined)} />}
@@ -190,6 +195,12 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
       }} separator={false} />
     </Sheet>}
   </SafeAreaView>;
+}
+
+function HomeNotificationBell({ target, top }: { target: React.RefObject<ComponentRef<typeof View> | null>; top: number }) {
+  const { data } = useRecord<{ unread: boolean }>('/moment-notifications?badge=1', 20000);
+  return <FrostedAction label="动态消息" icon="notifications-outline" small unread={data?.unread} target={target}
+    style={[local.bell, { top }]} onPress={() => router.push('/life/moment-notifications')} />;
 }
 
 function HomePublishBar({ onPublish }: { onPublish: () => void }) {
@@ -225,5 +236,6 @@ const local = StyleSheet.create({
   publishButton: { ...styles.grow, flexDirection: 'row', gap: space.xs, paddingHorizontal: space.md, paddingVertical: space.xs },
   publishLabel: { flexShrink: 1 },
   pressed: { opacity: 0.72 },
+  bell: { position: 'absolute', right: space.md, zIndex: 2 },
   footer: { padding: space.md },
 });
