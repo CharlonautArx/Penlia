@@ -29,10 +29,10 @@ function mediaStore<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore)
   });
 }
 
-export async function selectPhotos(account: string, remaining: number): Promise<Photo[]> {
+export async function selectPhotos(account: string, remaining: number, quality = 0.8): Promise<Photo[]> {
   if (remaining < 1) return [];
   const picked = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'], allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality: 0.8,
+    mediaTypes: ['images'], allowsMultipleSelection: remaining > 1, selectionLimit: remaining, quality,
   });
   if (picked.canceled) return [];
   const items = picked.assets.slice(0, remaining);
