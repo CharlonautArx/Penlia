@@ -7,10 +7,11 @@ import { useAppearance } from '../../components/appearance';
 import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Button, Icon, IconButton, Sheet } from '../../components/ui';
 import { colors, radius, space, styles, touch, type } from '../../theme';
+import { useWallpaperLabel } from './background/WallpaperImage';
 import { momentShareCaption, momentSharePath } from '../moments/model';
 
 export const chatLayout = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.backdrop, width: '100%', maxWidth: 620, alignSelf: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: 620, alignSelf: 'center' },
   messages: { paddingHorizontal: space.sm, paddingVertical: space.md },
   inverted: { transform: [{ scaleY: -1 }] },
 });
@@ -42,7 +43,13 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
 }
 
 export function ChatTimestamp({ value }: { value: number }) {
-  return <View style={ui.timestamp}><Text style={ui.time}>{messageDate(value)}</Text></View>;
+  const wall = useWallpaperLabel();
+  return <View style={ui.timestamp}>
+    <View>
+      {wall && <View pointerEvents="none" style={[ui.wallLabel, wall]} />}
+      <Text style={ui.time}>{messageDate(value)}</Text>
+    </View>
+  </View>;
 }
 
 export function startsMessageBlock(timestamp: number, previous?: number) {
@@ -61,10 +68,11 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
   mine: boolean; first: boolean; last: boolean; author?: string; avatar?: ReactNode;
   children: ReactNode; onActions: () => void;
 }) {
+  const wall = useWallpaperLabel();
   return <View style={[ui.messageRow, mine && ui.sentRow, first && ui.firstMessage]}>
     {!mine && <View style={ui.bubbleAvatar}>{first && avatar}</View>}
     <View style={[ui.messageContent, mine && ui.sentContent]}>
-      {!!author && first && !mine && <Text numberOfLines={1} style={ui.sender}>{author}</Text>}
+      {!!author && first && !mine && <Text numberOfLines={1} style={[ui.sender, wall]}>{author}</Text>}
       <Pressable
         onLongPress={onActions}
         accessibilityActions={[{ name: 'longpress', label: '消息操作' }]}
@@ -170,6 +178,7 @@ const ui = StyleSheet.create({
   line: { ...styles.row, gap: space.xs },
   time: { ...type.time, color: colors.quiet },
   pressedRow: { backgroundColor: colors.backdrop },
+  wallLabel: { position: 'absolute', top: -1, bottom: -1, left: -5, right: -5 },
   timestamp: { alignItems: 'center', paddingTop: space.md, paddingBottom: space.xs },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 3, gap: space.xs },
   firstMessage: { paddingTop: space.xs },

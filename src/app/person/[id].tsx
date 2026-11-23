@@ -9,6 +9,7 @@ import { demoPortrait } from '../../demo/visuals';
 import { errorMessage, type User } from '../../services/api';
 import { StatusBlock,type LifeStatus } from '../life/status';
 import { useRecord } from '../../features/social/ui';
+import { nativeChatBackgrounds } from '../../features/chat/background/store';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, type } from '../../theme';
@@ -58,6 +59,10 @@ export default function PersonScreen() {
       <FriendLifeStatus id={id}/>
       <Button label="发消息" icon="chatbubble-outline"
         onPress={() => router.push({ pathname: '/chat/[id]', params: { id: friend.userId } })} />
+      {nativeChatBackgrounds && <SettingGroup>
+        <ListRow title="聊天背景" left={<Icon name="image-outline" />}
+          onPress={() => router.push({ pathname: '/chat-background', params: { peer: friend.userId } })} separator={false} />
+      </SettingGroup>}
       {isUiDemo?<View style={local.shortcuts}>
         <Button label="个人空间" icon="albums-outline" variant="soft"
           onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id: friend.userId } })} />
