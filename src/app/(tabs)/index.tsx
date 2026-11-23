@@ -1,36 +1,55 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSharedValue } from 'react-native-reanimated';
 
-import { Avatar, Empty, LoadingSkeleton, Notice, Screen, SearchField } from '../../components/ui';
+import { Avatar, Button, Empty, LoadingSkeleton, Notice, Screen, SearchField } from '../../components/ui';
 import { PetSignal } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
-import { type Relationship } from '../../services/api';
+import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { readPeerMessage, summaryOf, type RichMessage } from '../../features/media/messages';
 import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
-import { space } from '../../theme';
+import { colors, space, styles } from '../../theme';
 import { KeyboardInsets } from '../../features/chat/Viewport';
+import {
+  conversationAppearance, conversationMatches, orderConversations, setConversationPreference,
+} from '../../features/chat/conversation-preferences';
+import { ConversationSwipe, type ConversationAction } from '../../features/chat/ConversationSwipe';
+import { useConversationPreferences } from '../../features/chat/useConversationPreferences';
+import { useDirectory } from '../../features/friends/store';
+import { formatHandle } from '../../services/handle';
 import { ConversationRow } from '../../features/chat/ui';
 import { useReportConversationUnread } from '../../features/chat/unread';
 
-type Thread = { person: Relationship; last: RichMessage; unread: number; pinned?: boolean; pinnedTime?: number };
+type Thread = { person: Relationship; last: RichMessage; unread: number; pinned?: boolean };
 
 export default function ChatsScreen() {
   const { session } = useSession();
   const { relationships, refresh, error: friendsError } = useFriends();
-  const { connection, status, retry, revision } = useIm();
+  const { connection, status, retry, revision, changed } = useIm();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [listError, setListError] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  const owner = useSharedValue<string | null>(null);
+  const closeSwipe = useCallback(() => { owner.value = null; }, [owner]);
   const ownId = session?.user.id;
   const demo = useDemo();
+  const preferences = useConversationPreferences();
+  const { value: directory } = useDirectory();
 
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  useFocusEffect(useCallback(() => {
+    void refresh();
+    return closeSwipe;
+  }, [refresh, closeSwipe]));
 
   useEffect(() => {
     if (!connection || !relationships || !ownId) return;
@@ -46,12 +65,10 @@ export default function ChatsScreen() {
           const [message, unread] = await Promise.all([item.getLatestMessage(), item.getUnreadCount()]);
           const last = readPeerMessage(connection!, message, imUserId(ownId!), item.convId);
           if (!last) return [];
-          return [{ person: accepted.get(item.convId)!, last, unread, pinned: item.isPinned, pinnedTime: item.pinnedTime }];
+          return [{ person: accepted.get(item.convId)!, last, unread, pinned: item.isPinned }];
         }));
         if (active) {
-          setThreads(rows.flat().sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)
-            || (a.pinned && b.pinned ? (b.pinnedTime ?? 0) - (a.pinnedTime ?? 0) : 0)
-            || b.last.timestamp - a.last.timestamp));
+          setThreads(rows.flat());
           setListError('');
           setLoaded(true);
         }
@@ -69,43 +86,109 @@ export default function ChatsScreen() {
       const lastMedia = demo.media[person.userId]?.at(-1);
       const last = lastMedia && (!lastText || lastMedia.timestamp >= lastText.timestamp) ? lastMedia : lastText;
       return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
-    }).sort((a, b) => b.last.timestamp - a.last.timestamp)
+    })
     : threads.filter(({ person }) => relationships?.some((contact) => contact.userId === person.userId && contact.status === 'accepted'));
 
+  const rows = orderConversations(visibleThreads.map((thread) => ({
+    ...thread, ...conversationAppearance(preferences.value?.[thread.person.userId], thread.pinned),
+  })));
   const reportUnread = useReportConversationUnread();
-  const unreadTotal = visibleThreads.reduce((sum, thread) => sum + thread.unread, 0);
-  useEffect(() => { reportUnread(unreadTotal); }, [reportUnread, unreadTotal]);
+  const unreadTotal = rows.reduce((sum, thread) => sum + thread.unread, 0);
+  const hasManualUnread = rows.some((thread) => thread.manualUnread && thread.unread === 0);
+  useEffect(() => { reportUnread(unreadTotal, hasManualUnread); }, [reportUnread, unreadTotal, hasManualUnread]);
 
-  const term = query.trim().toLowerCase();
-  const filtered = visibleThreads.filter(({ person, last }) =>
-    !term || [person.name, person.username, summaryOf(last)].some((value) => value.toLowerCase().includes(term)));
+  const term = formatHandle(query).toLowerCase();
+  const filtered = rows.filter(({ person, last, hidden }) => conversationMatches(
+    [person.name, formatHandle(person.username), directory?.remarks[person.userId] ?? '', summaryOf(last)], term, hidden,
+  ));
+
+  function openPeer(id: string) {
+    const wasOpen = owner.value === id;
+    closeSwipe();
+    if (!wasOpen) router.push({ pathname: '/chat/[id]', params: { id } });
+  }
+
+  async function act(thread: typeof rows[number], action: ConversationAction | 'restore') {
+    if (!preferences.value || saving.current) return;
+    const id = thread.person.userId;
+    saving.current = true;
+    setBusy(true);
+    setActionError('');
+    closeSwipe();
+    try {
+      switch (action) {
+        case 'pin':
+          await preferences.save((value) => setConversationPreference(value, id, { pinned: !thread.pinned }));
+          break;
+        case 'hide':
+        case 'restore':
+          await preferences.save((value) => setConversationPreference(value, id, { hidden: action === 'hide' }));
+          break;
+        case 'unread': {
+          const makeUnread = !thread.manualUnread && !thread.unread;
+          if (!makeUnread && thread.unread) {
+            if (demo) demo.markRead(id);
+            else if (connection) {
+              await connection.client.chatManager.clearConversationUnreadMessageCount(imUserId(id));
+              setThreads((current) => current.map((entry) => entry.person.userId === id ? { ...entry, unread: 0 } : entry));
+              changed();
+            } else throw new Error('暂时无法读取会话，请重试。');
+          }
+          await preferences.save((value) => setConversationPreference(value, id, { manualUnread: makeUnread }));
+          break;
+        }
+      }
+    } catch (failure) {
+      setActionError(errorMessage(failure));
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
+
   async function reload() {
     setRefreshing(true);
     try { await refresh(); } finally { setRefreshing(false); }
   }
 
   return (
-    <KeyboardInsets>
-      <Screen solid inset={false} refreshing={refreshing} onRefresh={() => void reload()}>
-        <View style={local.controls}>
-          <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query} onChangeText={setQuery} returnKeyType="search" />
-          {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
-          {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
-        </View>
-        {filtered.map(({ person, last, unread, pinned }) => (
-          <ConversationRow key={person.userId} name={person.name}
-            avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
-            preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
-            time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent}
-            signal={<PetSignal peer={person.userId} />}
-            onPress={() => router.push({ pathname: '/chat/[id]', params: { id: person.userId } })} />
-        ))}
-        {filtered.length === 0 && !(friendsError || listError) && (
-          !relationships || (!demo && connection && !loaded) ? <LoadingSkeleton label="正在加载会话" /> :
-            (demo || connection) && <Empty>{term ? '没有找到符合条件的会话。' : '还没有会话。可以从好友页开始聊天。'}</Empty>
-        )}
-      </Screen>
-    </KeyboardInsets>
+    <GestureHandlerRootView style={local.root}>
+      <KeyboardInsets>
+        <Screen solid inset={false} fill refreshing={refreshing} onRefresh={() => void reload()}
+          onScroll={() => { if (owner.value) closeSwipe(); }}>
+          <View style={local.controls}>
+            <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query}
+              onFocus={closeSwipe} onChangeText={(next) => { closeSwipe(); setQuery(next); }} returnKeyType="search" />
+            {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
+            {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
+            {!!preferences.error && <Notice action="重试" onAction={preferences.retry}>{preferences.error}</Notice>}
+            {!!actionError && <Notice>{actionError}</Notice>}
+          </View>
+          {preferences.value && filtered.map((thread) => {
+            const { person, last, unread, pinned, manualUnread, hidden } = thread;
+            const row = <ConversationRow name={person.name}
+              avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
+              preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
+              time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent}
+              manualUnread={manualUnread} signal={<PetSignal peer={person.userId} />}
+              onPress={() => openPeer(person.userId)} />;
+            return hidden
+              ? <View key={person.userId} style={local.searchResult}>
+                <View style={styles.grow}>{row}</View>
+                <Button label="恢复显示" variant="quiet" disabled={busy} onPress={() => void act(thread, 'restore')} />
+              </View>
+              : <ConversationSwipe key={person.userId} id={person.userId} owner={owner} pinned={pinned}
+                unread={manualUnread || unread > 0} busy={busy} onAction={(action) => void act(thread, action)}>{row}</ConversationSwipe>;
+          })}
+          {preferences.loading || (!relationships && !friendsError) || (!demo && connection && !loaded && !listError)
+            ? <LoadingSkeleton label="正在加载会话" />
+            : preferences.value && filtered.length === 0 && !(friendsError || listError) && (demo || connection) &&
+            <Empty>{term ? '没有找到符合条件的会话。' : rows.some((row) => row.hidden)
+              ? '没有可见会话。可通过搜索恢复隐藏的会话。' : '还没有会话。可以从好友页开始聊天。'}</Empty>}
+          <Pressable accessible={false} onPress={closeSwipe} style={local.blank} />
+        </Screen>
+      </KeyboardInsets>
+    </GestureHandlerRootView>
   );
 }
 
@@ -123,5 +206,8 @@ function threadTime(timestamp: number) {
 }
 
 const local = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.panel },
+  blank: { flexGrow: 1 },
+  searchResult: { flexDirection: 'row', alignItems: 'center', paddingRight: space.xs },
   controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm },
 });

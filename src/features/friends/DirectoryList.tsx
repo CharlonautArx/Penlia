@@ -11,8 +11,6 @@ import { localId } from '../local/document';
 import { useDirectory } from './store';
 
 type Contact = ReturnType<typeof sortFriends>[number];
-export type DirectoryMode = 'all' | 'groups';
-export const directoryModes = [{ id: 'all', label: '全部' }, { id: 'groups', label: '分组' }] as const;
 
 export function ContactRow({ friend, indexed }: { friend: Contact; indexed?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={friend.displayName}

@@ -25,6 +25,7 @@ import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
+import { useConversationPreferences } from '../../features/chat/useConversationPreferences';
 import { ChatViewport } from '../../features/chat/Viewport';
 import { PeerChatFog } from '../../features/chat/PeerChatFog';
 import { PeerSendMenu, type PeerSendOptions } from '../../features/chat/PeerSendMenu';
@@ -41,6 +42,11 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const { session, request } = useSession();
   const demo = useDemo();
   const markDemoRead = demo?.markRead;
+  const { value: preferences, clearManualUnread } = useConversationPreferences();
+  const preferencesReady = !!preferences;
+  useFocusEffect(useCallback(() => {
+    if (preferencesReady) clearManualUnread(person.userId);
+  }, [clearManualUnread, person.userId, preferencesReady]));
   const demoText = demo?.messages[person.userId];
   const demoMedia = demo?.media[person.userId];
   const isDemo = !!demo;

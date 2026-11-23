@@ -5,6 +5,7 @@ import { LoadingSkeleton, Screen } from '../components/ui';
 
 import { isUiDemo } from '../demo/mode';
 import { PetProvider } from '../features/pet/store';
+import { ConversationPreferencesProvider } from '../features/chat/useConversationPreferences';
 import { ChatBackgroundProvider } from '../features/chat/background/store';
 import { SpaceProvider } from '../features/space/store';
 import { FriendsProvider } from '../services/friends';
@@ -22,6 +23,7 @@ function AppNavigation() {
 
   return (
     <FriendsProvider key={session?.user.id ?? 'signed-out'}>
+      <ConversationPreferencesProvider account={session?.user.id}>
       <ChatBackgroundProvider account={session?.user.id}>
         <SpaceProvider>
           <PetProvider>
@@ -62,6 +64,7 @@ function AppNavigation() {
           </PetProvider>
         </SpaceProvider>
       </ChatBackgroundProvider>
+      </ConversationPreferencesProvider>
     </FriendsProvider>
   );
 }

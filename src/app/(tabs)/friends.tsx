@@ -1,10 +1,14 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { type ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassLayer } from '../../components/material';
-import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Screen, SearchField, Segments, Sheet, Tag } from '../../components/ui';
-import { AlphabetRail, ContactRow, directoryModes, type DirectoryMode, GroupList } from '../../features/friends/DirectoryList';
+import { Avatar, Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, SearchField, Sheet, Tag } from '../../components/ui';
+import { AlphabetRail, ContactRow, GroupList } from '../../features/friends/DirectoryList';
+import { DirectoryPager, DirectoryScroll } from '../../features/friends/DirectoryPager';
+import { GroupChats } from '../../features/groups/GroupChats';
 import { emptyDirectory, sortFriends } from '../../features/friends/directory';
 import { useDirectory } from '../../features/friends/store';
 import { isUiDemo } from '../../demo/mode';
@@ -14,7 +18,7 @@ import { errorMessage, type User } from '../../services/api';
 import { formatHandle } from '../../services/handle';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, radius, space, styles, type } from '../../theme';
+import { colors, contentWidth, radius, space, styles, type } from '../../theme';
 
 export default function FriendsScreen() {
   const { request } = useSession();
@@ -31,8 +35,7 @@ export default function FriendsScreen() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const directory = useDirectory();
-  const [mode, setMode] = useState<DirectoryMode>('all');
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scroll = useRef<ComponentRef<typeof DirectoryScroll>>(null);
   const directoryY = useRef(0);
   const offsets = useRef<Record<string, number>>({});
   const foundRelationship = relationships?.find((item) => item.userId === result?.id);
@@ -99,8 +102,8 @@ export default function FriendsScreen() {
   }
 
   return (
-    <Screen solid inset={false} refreshing={refreshing} onRefresh={() => void reload()} scrollRef={scroll}
-      overlay={mode === 'all' && <AlphabetRail letters={[...sections.keys()]} onSelect={scrollToLetter} />}>
+    <SafeAreaView style={local.safe} edges={['top', 'left', 'right']}>
+      <GestureHandlerRootView style={local.column}>
       <View style={local.control}>
         <View style={local.searchRow}>
           <IconButton label="添加好友" icon="add" onPress={() => openSheet('add')} />
@@ -117,20 +120,40 @@ export default function FriendsScreen() {
           {incoming.length > 0 && <Tag>{String(incoming.length)}</Tag>}
           <Icon name="chevron-forward" size={16} color={colors.quiet} />
         </View>} onPress={() => openSheet('requests')} />
-      <ListRow title="群聊" style={local.managementRow} trailing={<Icon name="chevron-forward" size={16} color={colors.quiet} />}
-        onPress={() => router.push('/groups')} />
-      <View style={local.mode}><Segments options={directoryModes} label="好友浏览方式" value={mode} onChange={setMode} /></View>
-      {!!directory.error && <Notice action="重试" onAction={directory.retry}>{directory.error}</Notice>}
-      {(!relationships && !listError || directory.loading) && <LoadingSkeleton label="正在加载好友" />}
-      {relationships && !directory.loading && (mode === 'groups' ? <GroupList contacts={shown} searching={!!key} /> :
-        <View onLayout={({ nativeEvent }) => { directoryY.current = nativeEvent.layout.y; }}>
-          {!shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
-          {[...sections].map(([letter, entries]) => <View key={letter}
-            onLayout={({ nativeEvent }) => { offsets.current[letter] = nativeEvent.layout.y; }}>
-            <Text accessibilityRole="header" style={local.letterHeading}>{letter}</Text>
-            {entries.map((friend) => <ContactRow key={friend.userId} friend={friend} indexed />)}
-          </View>)}
-        </View>)}
+      <DirectoryPager>{(pan) => [
+        <View style={styles.grow} key="all">
+          <DirectoryScroll ref={scroll} pan={pan} refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => void reload()} tintColor={colors.accent} />
+          }>
+            {!!directory.error && <Notice action="重试" onAction={directory.retry}>{directory.error}</Notice>}
+            {(!relationships && !listError || directory.loading) && <LoadingSkeleton label="正在加载好友" />}
+            {relationships && !directory.loading && <>
+              {!shown.length && <Empty icon="people-outline">{key ? '找不到匹配的好友。' : '添加一位好友，随时聊聊。'}</Empty>}
+              <View onLayout={({ nativeEvent }) => { directoryY.current = nativeEvent.layout.y; }}>
+                {[...sections].map(([letter, entries]) => <View key={letter}
+                  onLayout={({ nativeEvent }) => { offsets.current[letter] = nativeEvent.layout.y; }}>
+                  <Text accessibilityRole="header" style={local.letterHeading}>{letter}</Text>
+                  {entries.map((friend) => <ContactRow key={friend.userId} friend={friend} indexed />)}
+                </View>)}
+              </View>
+            </>}
+          </DirectoryScroll>
+          <AlphabetRail letters={[...sections.keys()]} onSelect={scrollToLetter} />
+        </View>,
+        <DirectoryScroll key="groups" pan={pan} refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => void reload()} tintColor={colors.accent} />
+        }>
+          {!!directory.error && <Notice action="重试" onAction={directory.retry}>{directory.error}</Notice>}
+          {(!relationships && !listError || directory.loading) && <LoadingSkeleton label="正在加载好友" />}
+          {relationships && !directory.loading && <GroupList contacts={shown} searching={!!key} />}
+        </DirectoryScroll>,
+        <GroupChats key="chats" render={({ actions, children, reload, refreshing }) => <>
+          <View style={local.groupActions}>{actions}</View>
+          <DirectoryScroll pan={pan} contentContainerStyle={local.groupContent} refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />
+          }>{children}</DirectoryScroll>
+        </>} />,
+      ]}</DirectoryPager>
       {sheet && <Sheet title={sheet === 'add' ? '添加好友' : '新的朋友'} onClose={() => setSheet(undefined)}>
         {!!error && <Notice>{error}</Notice>}
         {sheet === 'add' ? <>
@@ -176,7 +199,8 @@ export default function FriendsScreen() {
         setCodeSheet(undefined);setSheet('add');setResult(undefined);
         void run(async()=>{const {person}=await request<{person:User|null}>('/people/code',{method:'POST',body:{code}});setResult(person);});
       }}/>}
-    </Screen>
+      </GestureHandlerRootView>
+    </SafeAreaView>
   );
 }
 
@@ -184,7 +208,10 @@ const local = StyleSheet.create({
   control: { paddingLeft: space.xs, paddingRight: space.md, paddingTop: space.sm, paddingBottom: space.sm, gap: space.xs },
   searchRow: { ...styles.row, gap: space.xxs },
   managementRow: { minHeight: 60 },
-  mode: { paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.xs },
+  safe: { flex: 1, backgroundColor: colors.panel },
+  column: { flex: 1, width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
+  groupActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.xxs, paddingHorizontal: space.md },
+  groupContent: { gap: space.md, paddingHorizontal: space.md, paddingTop: space.xs },
   letterHeading: { ...type.caption, color: colors.muted, paddingHorizontal: space.md, paddingVertical: 5 },
   requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   requestActions: { flexDirection: 'row' },

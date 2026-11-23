@@ -16,11 +16,11 @@ export const chatLayout = StyleSheet.create({
   inverted: { transform: [{ scaleY: -1 }] },
 });
 
-export function ConversationRow({ name, avatar, preview, time, unread, pinned, silent, signal, onPress }: {
+export function ConversationRow({ name, avatar, preview, time, unread, pinned, silent, signal, manualUnread, onPress }: {
   name: string; avatar?: ReactNode; preview: string; time: string; unread: number;
-  pinned?: boolean; silent?: boolean; signal?: ReactNode; onPress: () => void;
+  pinned?: boolean; silent?: boolean; signal?: ReactNode; manualUnread?: boolean; onPress: () => void;
 }) {
-  const accessible = [name, pinned ? '置顶' : '', unread ? unread + ' 条未读消息' : '', preview].filter(Boolean).join('，');
+  const accessible = [name, pinned ? '置顶' : '', unread ? unread + ' 条未读消息' : manualUnread ? '已标为未读' : '', preview].filter(Boolean).join('，');
   return <Pressable accessibilityRole="button" accessibilityLabel={accessible} onPress={onPress}
     style={({ pressed }) => [ui.thread, pressed && ui.pressedRow]}>
     {avatar ?? <Avatar name={name} size={48} />}
@@ -36,7 +36,7 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
       <View style={ui.line}>
         {silent && <Icon name="moon-outline" size={13} color={colors.moon} />}
         <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{preview}</Text>
-        <UnreadMark count={unread} />
+        <UnreadMark count={unread || Number(manualUnread === true)} dot={!unread} />
       </View>
     </View>
   </Pressable>;

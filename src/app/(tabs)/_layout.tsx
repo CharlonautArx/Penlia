@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,14 +21,17 @@ const tabs: { name: string; title: string; icon?: IconName; activeIcon?: IconNam
 
 export default function TabLayout() {
   const { reduced } = useAppearance();
-  const [unread, setUnread] = useState(0);
+  const [unread, setUnread] = useState({ count: 0, marked: false });
+  const reportUnread = useCallback((count: number, marked: boolean) => {
+    setUnread((current) => current.count === count && current.marked === marked ? current : { count, marked });
+  }, []);
   const { fontScale } = useWindowDimensions();
   const { bottom } = useSafeAreaInsets();
   // Give the scaled label its own space above the system navigation inset.
   const scaledAndroidBar = Platform.OS === 'android' && fontScale > 1
     ? { height: 49 + bottom + Math.ceil(type.tag.lineHeight * (fontScale - 1)) + space.xxs }
     : undefined;
-  return <ConversationUnread.Provider value={setUnread}>
+  return <ConversationUnread.Provider value={reportUnread}>
     <Tabs
       backBehavior="initialRoute"
       screenOptions={{
@@ -54,9 +57,11 @@ export default function TabLayout() {
           options={{
             title,
             tabBarAllowFontScaling: true,
-            tabBarAccessibilityLabel: name === 'index' && unread > 0 ? title + '，' + unread + ' 条未读消息' : title,
+            tabBarAccessibilityLabel: name === 'index'
+              ? title + (unread.count ? '，' + unread.count + ' 条未读消息' : '') + (unread.marked ? '，有手动标记未读的会话' : '')
+              : title,
             tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon={icon} activeIcon={activeIcon}
-              unread={name === 'index' ? unread : 0} />,
+              unread={name === 'index' ? unread.count || Number(unread.marked) : 0} />,
           }}
         />
       ))}

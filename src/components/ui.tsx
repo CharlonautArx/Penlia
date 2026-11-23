@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref, type ComponentRef } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Image, type ImageSourcePropType, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
   type ScrollViewProps, type StyleProp, StyleSheet, Text, TextInput, type TextInputProps, View, type ViewStyle,
@@ -36,19 +36,18 @@ export function IconButton({ label, icon, onPress, color, tinted = false, disabl
   );
 }
 
-export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back, scrollRef, overlay }: {
+export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back, onScroll, fill = false }: {
   title?: string; actions?: ReactNode; children: ReactNode; inset?: boolean; refreshing?: boolean;
-  onRefresh?: () => void; solid?: boolean; back?: () => void; scrollRef?: Ref<ComponentRef<typeof ScrollView>>; overlay?: ReactNode;
+  onRefresh?: () => void; solid?: boolean; back?: () => void; onScroll?: ScrollViewProps['onScroll']; fill?: boolean;
 }) {
   return (
     <SafeAreaView style={[ui.safe, solid && ui.white]} edges={back ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
       {title && <TopBar title={title} actions={actions} back={back} />}
-      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+      <ScrollView onScroll={onScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
         refreshControl={onRefresh && <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
-        contentContainerStyle={[ui.column, inset && ui.inset]}>
+        contentContainerStyle={[ui.column, inset && ui.inset, fill && ui.fill]}>
         {children}
       </ScrollView>
-      {overlay}
     </SafeAreaView>
   );
 }
@@ -252,6 +251,7 @@ const ui = StyleSheet.create({
   white: { backgroundColor: colors.panel },
   width: { width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
   column: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', paddingBottom: space.xl },
+  fill: { flexGrow: 1 },
   inset: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.md },
   barWrap: { backgroundColor: colors.panel },
   bar: { minHeight: 60, paddingHorizontal: space.md, flexDirection: 'row', alignItems: 'center', gap: space.xs },
