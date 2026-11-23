@@ -27,6 +27,7 @@ import { colors, radius, space, styles, touch } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 import { ChatViewport } from '../../features/chat/Viewport';
 import { PeerChatFog } from '../../features/chat/PeerChatFog';
+import { PeerSendMenu, type PeerSendOptions } from '../../features/chat/PeerSendMenu';
 
 const headerHeight = 54;
 const slowPhotoThreshold = 450;
@@ -59,6 +60,10 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const photo=photos[0];
   const [quiet,setQuiet]=useState(false);
   const [noReply,setNoReply]=useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [sendMenuOpen, setSendMenuOpen] = useState(false);
+  const [sendOptions, setSendOptions] = useState<PeerSendOptions>({ silent: false, noReply: false });
+  const closeSendMenu = useCallback(() => setSendMenuOpen(false), []);
   const [video,setVideo]=useState<Awaited<ReturnType<typeof chooseMomentVideo>>>();
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [actions, setActions] = useState<RichMessage>();
@@ -189,7 +194,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     setSending(true); setActionError(''); setSendError(false); setTransferProgress(undefined);
     try {
       if (demo) {
-        if (value.kind === 'text') demo.send(person.userId, value.text);
+        if (value.kind === 'text') demo.send(person.userId, value.text, value);
         else if(value.kind!=='video') demo.addMedia(person.userId, value);
       } else if (connection) {
         await request('/im/contact', { method: 'POST', body: { userId: person.userId } });
@@ -218,13 +223,17 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     }
   }
 
-  function sendText() {
+  async function sendText(options = { silent: quiet, noReply }) {
     const text = draft.trim();
     if (!text) return;
     const previous = pending.current;
-    if (previous?.value.kind === 'text' && previous.value.text === text) {
-      if (!previous.uncertain) void transmit(previous.value, previous.original);
-    } else void transmit({ kind: 'text', text, silent:quiet,noReply });
+    const retry = previous?.value.kind === 'text' && previous.value.text === text ? previous : undefined;
+    if (retry?.uncertain) return;
+    if (retry && !!retry.value.silent === options.silent && !!retry.value.noReply === options.noReply) {
+      await transmit(retry.value, retry.original);
+    } else {
+      await transmit({ kind: 'text', text, ...options });
+    }
   }
 
   async function sendImages() {
@@ -263,6 +272,8 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   }, [changed, connection, items, online, person.name, person.username]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
+  const sendDisabled = (!demo && !online) || !draft.trim() || sending
+    || !!(pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim());
   return (
     <>
       <View style={styles.grow}>
@@ -286,16 +297,20 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         <Notice action="重试选图" onAction={() => void prepareImage()}>{photoError}</Notice>
       </View>}
       {!!(actionError || historyError) && <View style={local.notice}>
-        <Notice action={sendError && online ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
+        <Notice action={sendError && (demo || online) ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
       <MessageComposer label="消息" floating
         value={draft} onChange={setDraft} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
         photoDisabled={photoLocked} photoBusy={photoBusy} toolsDisabled={sending}
-        sendLabel={sending ? '发送中…' : '发送'} onSend={sendText}
-        sendDisabled={(!demo && !online) || !draft.trim() || sending || (pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim()) || false}
+        sendLabel={sending ? '发送中…' : '发送'} onSend={() => void sendText()} sendDisabled={sendDisabled}
+        onLayout={({ nativeEvent }) => setComposerHeight(nativeEvent.layout.height)}
+        onSendLongPress={() => { setSendOptions({ silent: quiet, noReply }); setSendMenuOpen(true); }}
         mode={!demo && (quiet || noReply) ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />
+      <PeerSendMenu open={sendMenuOpen} bottom={composerHeight} options={sendOptions} disabled={sendDisabled} sending={sending}
+        onToggle={(option) => setSendOptions((current) => ({ ...current, [option]: !current[option] }))}
+        onSend={() => void sendText(sendOptions).then(closeSendMenu)} onClose={closeSendMenu} />
       {actions && <MessageActions timestamp={actions.timestamp}
         text={'text' in actions ? actions.text : undefined} onClose={() => setActions(undefined)}
         report={!demo && !actions.mine ? () => {
