@@ -1,0 +1,30 @@
+name: Publish verified Penlia ARM64 APK download
+on:
+  push:
+    tags: [penlia-chat-background-publish-v1]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8d5edab8f67bdfb40f956f8f2d2363eb74628e1e
+      - uses: actions/download-artifact@v4
+        with:
+          name: penlia-chat-background-arm64-release
+          path: out
+          run-id: 45193257642
+          github-token: ${{ github.token }}
+      - name: Verify the previously tested APK and publish the raw file
+        run: |
+          printf '%s  %s\n' 82e18a96d2d68f4f0abd3ea721c2600f503066dfaa3b3ad5dbff1eb9ffe734c6 out/Penlia-arm64.apk | sha256sum -c -
+          install -m 0644 out/Penlia-arm64.apk demo-preview/Penlia-arm64.apk
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- demo-preview/Penlia-arm64.apk
+          git commit -m 'Publish Penlia Chat Background ARM64 APK [skip ci]'
+          git push origin HEAD:refs/tags/penlia-chat-background-arm64-apk
