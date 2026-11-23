@@ -136,13 +136,20 @@ function AlbumTile({ photo, index, size, count, active, target, move, managing, 
 }) {
   const x = useSharedValue(0);
   const y = useSharedValue(0);
+  const originX = useSharedValue(0);
+  const originY = useSharedValue(0);
   const step = size + gap;
   const pan = usePanGesture({
     enabled: managing && !busy, activateAfterLongPress: 240, maxPointers: 1,
-    onActivate: () => { 'worklet'; active.value = index; target.value = index; },
+    onActivate: (event) => {
+      'worklet';
+      originX.value = event.absoluteX; originY.value = event.absoluteY;
+      active.value = index; target.value = index;
+    },
     onUpdate: (event) => {
       'worklet';
-      x.value = event.translationX; y.value = event.translationY;
+      // The tile moves with the pointer. Screen coordinates keep that movement out of the drag distance.
+      x.value = event.absoluteX - originX.value; y.value = event.absoluteY - originY.value;
       const col = Math.max(0, Math.min(2, index % 3 + Math.round(x.value / step)));
       const row = Math.max(0, Math.floor(index / 3) + Math.round(y.value / step));
       target.value = Math.min(count - 1, row * 3 + col);
