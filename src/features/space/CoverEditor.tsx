@@ -1,13 +1,10 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Image, Platform, View } from 'react-native';
 
 import { Button, Notice, Sheet } from '../../components/ui';
-import { styles } from '../../theme';
-import { Choice } from './AudienceSheet';
-import { selectPhotos } from './media';
+import { nativePhotoUri, readLocalPhoto, selectPhotos } from './media';
 import type { SpaceCard } from './model';
-import { coverTones, ImmersiveCover } from './ImmersiveCover';
+import { ImmersiveCover } from './ImmersiveCover';
 import { CoverPreview } from './SpaceHeader';
 import { useSpace } from './store';
 
@@ -18,36 +15,72 @@ export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard;
   const [previewWidth, setPreviewWidth] = useState(0);
   const previewScale = framing ? previewWidth / framing.width : 1;
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<'pick' | 'save'>();
+  const pending = useRef<'pick' | 'save' | undefined>(undefined);
+  const changed = !!cover.photo && (cover.photo.id !== initial.cover.photo?.id
+    || cover.photo.type !== initial.cover.photo?.type
+    || (cover.focus?.x ?? 0.5) !== (initial.cover.focus?.x ?? 0.5)
+    || (cover.focus?.y ?? 0.5) !== (initial.cover.focus?.y ?? 0.5));
 
   async function pick() {
-    if (!state.me || busy) return;
-    setError(''); setBusy(true);
+    if (!state.me || pending.current) return;
+    setError('');
+    pending.current = 'pick';
+    setOperation('pick');
     try {
       const [photo] = await selectPhotos(state.me.id, 1);
-      if (photo) setCover({ tone: cover.tone, photo });
-    } catch { setError('暂时无法读取这张照片。'); }
-    finally { setBusy(false); }
+      if (photo) {
+        await checkPhoto(photo.id);
+        setCover({ tone: cover.tone, photo });
+      }
+    } catch {
+      setError('暂时无法读取这张照片，请重新选择。');
+    } finally {
+      pending.current = undefined;
+      setOperation(undefined);
+    }
   }
 
-  return <Sheet scrollEnabled={!dragging} title="编辑封面" onClose={onClose}>
+  async function save() {
+    if (!changed || pending.current) return;
+    setError('');
+    pending.current = 'save';
+    setOperation('save');
+    try {
+      await state.save((previous) => ({ ...previous, space: { ...previous.space, cover } }));
+      onClose();
+    } catch {
+      setError('封面保存失败，已保留原封面。请重试。');
+    } finally {
+      pending.current = undefined;
+      setOperation(undefined);
+    }
+  }
+
+  return <Sheet scrollEnabled={!dragging} title="编辑封面" onClose={() => {
+    if (pending.current !== 'save') onClose();
+  }}>
     {framing ? <View onLayout={({ nativeEvent }) => setPreviewWidth(nativeEvent.layout.width)}
       style={{ aspectRatio: framing.width / framing.resting }}>
       {previewWidth > 0 && <ImmersiveCover cover={cover} width={previewWidth} resting={framing.resting * previewScale}
-        reserve={framing.reserve * previewScale} onDrag={setDragging} onFocus={(focus) => setCover((current) => ({ ...current, focus }))} />}
+        reserve={framing.reserve * previewScale} onDrag={setDragging}
+        onFocus={!operation ? (focus) => setCover((current) => ({ ...current, focus })) : undefined} />}
     </View> : <CoverPreview cover={cover} />}
-    <Text style={styles.strong}>空间封面</Text>
-    {([['mist', '粉蓝柔雾'], ['dawn', '暖调晨光'], ['blue', '蓝调傍晚']] as const).map(([tone, label]) =>
-      <Choice key={tone} label={label} picked={!cover.photo && cover.tone === tone} onPress={() => setCover({ tone })}
-        left={<LinearGradient colors={coverTones[tone]} style={local.swatch} />} />)}
-    <Button label={busy ? '正在读取…' : cover.photo ? '更换自定义封面' : '选择自定义封面'}
-      icon="image-outline" variant="soft" disabled={busy} onPress={() => void pick()} />
+    <Button label={operation === 'pick' ? '正在读取…' : '选择自定义封面'}
+      icon="image-outline" variant="soft" disabled={!!operation} onPress={() => void pick()} />
     {!!error && <Notice>{error}</Notice>}
-    <Button label="保存封面" variant="gradient" disabled={busy} onPress={() => {
-      state.update((previous) => ({ ...previous, space: { ...previous.space, cover } }));
-      onClose();
-    }} />
+    <Button label={operation === 'save' ? '正在保存…' : '保存封面'} variant="gradient"
+      disabled={!!operation || !changed} onPress={() => void save()} />
   </Sheet>;
 }
 
-const local = StyleSheet.create({ swatch: { width: 36, height: 29, borderRadius: 8 } });
+async function checkPhoto(id: string) {
+  const blob = Platform.OS === 'web' ? await readLocalPhoto(id) : undefined;
+  const uri = blob ? URL.createObjectURL(blob) : nativePhotoUri(id);
+  if (!uri) throw new Error('无法读取照片。');
+  try {
+    await new Promise<void>((resolve, reject) => Image.getSize(uri, () => resolve(), reject));
+  } finally {
+    if (blob) URL.revokeObjectURL(uri);
+  }
+}

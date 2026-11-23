@@ -44,7 +44,6 @@ export function spaceSamples() {
   ];
   const space: SpaceCard = {
     ...emptySpace(), region: '上海', status: '周末去散步',
-    cover: { tone: 'mist', photo: alley },
     guestbook: [{ id: 'sample-note', authorId: 'demo-xiaoman', text: '路过，留一杯咖啡 ☕', at: ago(1.4) }],
   };
   const friendSpace: Record<string, SpaceCard> = {

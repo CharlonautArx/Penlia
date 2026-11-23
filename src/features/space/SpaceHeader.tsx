@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GlassLayer } from '../../components/material';
@@ -39,13 +40,27 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
   counts?: Partial<Record<SpacePane, number>>;
 }) {
   const avatar = <Avatar userId={person.id} name={person.name} source={demoPortrait(avatarKey ?? person.username)} size={62} />;
+  const press = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const coverImage = immersive && <ImmersiveCover cover={card.cover} {...immersive} />;
   return <View style={immersive ? local.home : local.header}>
     {immersive ? <View>
-      <ImmersiveCover cover={card.cover} {...immersive} />
+      {onCover ? <Pressable accessibilityRole="button" accessibilityLabel="更换空间封面"
+        onPressIn={({ nativeEvent }) => { press.current = { x: nativeEvent.pageX, y: nativeEvent.pageY, moved: false }; }}
+        onPressMove={({ nativeEvent }) => {
+          const start = press.current;
+          if (start && Math.hypot(nativeEvent.pageX - start.x, nativeEvent.pageY - start.y) > space.xs) start.moved = true;
+        }}
+        onPress={({ nativeEvent }) => {
+          const start = press.current;
+          press.current = undefined;
+          if (!start || nativeEvent.pageX == null || (!start.moved
+            && Math.hypot(nativeEvent.pageX - start.x, nativeEvent.pageY - start.y) <= space.xs)) onCover();
+        }}
+        style={({ pressed }) => pressed && local.coverPressed}>{coverImage}</Pressable> : coverImage}
       <LinearGradient pointerEvents="none" colors={['#FFFFFF00', '#FFFFFF28', '#FFFFFFA3', '#FFFFFFF2', '#FFFFFF']}
         locations={[0, 0.23, 0.58, 0.86, 1]} style={local.fade} />
     </View> : <CoverPreview cover={card.cover} />}
-    {onCover && <View style={[local.coverAction, immersive && { top: immersive.top + space.xs }]}>
+    {!immersive && onCover && <View style={local.coverAction}>
       <IconButton label="更换空间封面" icon="image-outline" onPress={onCover} tinted />
     </View>}
     <View style={[local.identity, immersive && local.homeIdentity]}>
@@ -82,6 +97,7 @@ const local = StyleSheet.create({
   cover: { height: 158, overflow: 'hidden' },
   shade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 88 },
   coverAction: { position: 'absolute', top: space.sm, right: space.sm },
+  coverPressed: { opacity: 0.94 },
   identity: { ...styles.row, alignItems: 'flex-end', paddingHorizontal: space.md, marginTop: -25 },
   avatar: { backgroundColor: colors.panel, borderRadius: radius.pill, padding: 3 },
   identityText: { paddingTop: 27, paddingBottom: space.xxs },
