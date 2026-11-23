@@ -1,0 +1,53 @@
+name: Penlia verify both shipped Android bundles
+on:
+  push:
+    tags: [penlia-play-card-apk-check-v2]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download successful x86_64 Release
+        uses: actions/download-artifact@v4
+        with:
+          name: penlia-play-card-x86_64-release
+          path: packages/x86
+          run-id: 45123555174
+          github-token: ${{ github.token }}
+      - name: Download successful ARM64 Release
+        uses: actions/download-artifact@v4
+        with:
+          name: penlia-play-card-arm64-v8a-release
+          path: packages/arm
+          run-id: 45123555174
+          github-token: ${{ github.token }}
+      - name: Read the labels, signature and version from the packaged Release artifacts
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          known_cert = 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c'
+          bundles = []
+          for path in sorted(Path('packages').rglob('*.apk')):
+              signature_sha = next(line.rsplit(':', 1)[1].strip() for line in path.with_name('signer.txt').read_text().splitlines()
+                                   if 'certificate SHA-256 digest:' in line)
+              assert signature_sha == known_cert, (path, signature_sha)
+              badging = path.with_name('badging.txt').read_text()
+              assert "name='app.penlia.mobile.preview' versionCode='11'" in badging, path
+              assert "application-label:'朋聊'" in badging, path
+              with ZipFile(path) as apk:
+                  assert apk.testzip() is None, path
+                  bundle = apk.read('assets/index.android.bundle')
+              for text in ['生活边界保护计划', '想去的地点', '生活边界保护计划举报']:
+                  assert text.encode('utf-16le') in bundle, (path, text)
+              for text in ['想去的地方', '生活边界保护举报']:
+                  assert text.encode('utf-16le') not in bundle, (path, text)
+              bundles.append(hashlib.sha256(bundle).hexdigest())
+              print(f'{path.name}: current labels, signer and upgrade metadata verified. APK SHA256 = {hashlib.sha256(path.read_bytes()).hexdigest()}.')
+          assert len(bundles) == 2, bundles
+          print(f'Both Release app bundle SHA-256 values: {bundles}. Identical: {bundles[0] == bundles[1]}')
+          PY
