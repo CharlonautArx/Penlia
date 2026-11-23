@@ -4,7 +4,10 @@
     "slug": "penlia",
     "version": "0.1.0",
     "scheme": "penlia",
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "userInterfaceStyle": "light",
     "backgroundColor": "#F7F8F3",
     "icon": "./assets/icon.png",
@@ -14,6 +17,7 @@
     },
     "android": {
       "package": "app.penlia.mobile",
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#47745C"
@@ -27,6 +31,15 @@
           "image": "./assets/adaptive-icon.png",
           "imageWidth": 160,
           "backgroundColor": "#47745C"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "-keep class com.hyphenate.** { *; }\n-dontwarn com.hyphenate.**"
+          }
         }
       ]
     ]
