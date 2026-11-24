@@ -1,7 +1,8 @@
+import { BlurTargetView, BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { ReactNode } from 'react';
-import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ComponentRef, ReactNode, RefObject } from 'react';
+import { createContext, useContext, useMemo, useRef, useState } from 'react';
+import { PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
@@ -11,12 +12,18 @@ import type { LocalPicture } from '../chat/background/model';
 import { space, type } from '../../theme';
 import type { ImageSourcePropType } from 'react-native';
 
+const CallBackdrop = createContext<RefObject<ComponentRef<typeof View> | null> | undefined>(undefined);
+
 type Action = { label: string; icon: IconName; onPress: () => void; selected?: boolean; disabled?: boolean };
 export function CallAction({ action, small = false }: { action: Action; small?: boolean }) {
+  const backdrop = useContext(CallBackdrop);
   return <Pressable accessibilityRole="button" accessibilityLabel={action.label}
     accessibilityState={{ selected: action.selected, disabled: action.disabled }} disabled={action.disabled}
     onPress={action.onPress} style={({ pressed }) => [ui.action, small && ui.small, action.selected && ui.selected,
       action.disabled && ui.disabled, pressed && ui.pressed]}>
+    {backdrop && (Platform.OS !== 'android' || Number(Platform.Version) >= 31) &&
+      <BlurView pointerEvents="none" intensity={16} tint="default" blurTarget={backdrop}
+        blurMethod="dimezisBlurViewSdk31Plus" style={StyleSheet.absoluteFill} />}
     <LinearGradient pointerEvents="none" colors={['#FFFFFF28', '#FFFFFF06', '#FFFFFF14']}
       start={{ x: 0.1, y: 0 }} end={{ x: 0.8, y: 1 }} style={StyleSheet.absoluteFill} />
     <Icon name={action.icon} size={small ? 20 : 27} color="#FFFFFF" />
@@ -57,10 +64,14 @@ export function CallStage({ name, avatar, background, status, remoteVideo, previ
   name: string; avatar?: ImageSourcePropType; background?: LocalPicture; status: string; remoteVideo?: ReactNode;
   preview?: ReactNode; tools?: ReactNode; controls: ReactNode; extra?: ReactNode; compact: boolean; video: boolean; simulated?: boolean;
 }) {
-  return <View style={ui.black}>
+  const backdrop = useRef<ComponentRef<typeof View>>(null);
+  const hasImage = Boolean(background || remoteVideo);
+  return <CallBackdrop.Provider value={hasImage && !compact ? backdrop : undefined}><View style={ui.black}>
     <StatusBar style="light" hidden={compact} />
-    {background && <><WallpaperImage picture={background} style={StyleSheet.absoluteFill} /><View style={ui.shade} /></>}
-    {remoteVideo && <View style={StyleSheet.absoluteFill}>{remoteVideo}</View>}
+    {hasImage && <BlurTargetView ref={backdrop} style={StyleSheet.absoluteFill}>
+      {background && <><WallpaperImage picture={background} style={StyleSheet.absoluteFill} /><View style={ui.shade} /></>}
+      {remoteVideo && <View style={StyleSheet.absoluteFill}>{remoteVideo}</View>}
+    </BlurTargetView>}
     <SafeAreaView style={ui.safe} edges={compact ? [] : ['top', 'bottom', 'left', 'right']}>
       {!compact && <View style={ui.top}><Text style={ui.muted}>{simulated ? '本机模拟 · ' : ''}{video ? '视频通话' : '语音通话'}</Text>
         <View style={ui.tools}>{tools}</View></View>}
@@ -75,7 +86,7 @@ export function CallStage({ name, avatar, background, status, remoteVideo, previ
       </View>
       {!compact && <View style={ui.footer}>{extra}<View style={ui.controls}>{controls}</View></View>}
     </SafeAreaView>
-  </View>;
+  </View></CallBackdrop.Provider>;
 }
 
 const ui = StyleSheet.create({

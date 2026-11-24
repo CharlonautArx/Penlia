@@ -9,7 +9,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppearance } from '../../components/appearance';
-import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Sheet, TopBar } from '../../components/ui';
+import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { ApiError, errorMessage, type User } from '../../services/api';
 import { useSession } from '../../services/session';
@@ -174,6 +174,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     </View> : spaceHeader}
     <View style={home ? [local.column, local.homeBody] : mine ? local.timelineBody : local.body}>
       {pane === 'thought' ? <>
+        {!immersive && <Section title="动态记录" />}
         {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
         {!!error && <Notice action="重试" onAction={() => void load()}>{error}</Notice>}
         {mine && !!state.error && <Notice action="重试" onAction={state.retry}>{state.error}</Notice>}
