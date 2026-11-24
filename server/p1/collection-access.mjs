@@ -5,7 +5,8 @@ const baseMomentVisible = (post, viewer) => `(${post}.author_id=${viewer} OR
     ${post}.scope='friends' OR
     (${post}.scope='selected' AND EXISTS(SELECT 1 FROM private_moment_viewers v WHERE v.moment_id=${post}.id AND v.user_id=${viewer})) OR
     (${post}.scope IN ('circle','group') AND EXISTS(SELECT 1 FROM relationship_groups g JOIN relationship_group_members gm ON gm.group_id=g.id
-      WHERE g.id=${post}.audience_group AND g.owner_id=${post}.author_id AND gm.user_id=${viewer} AND g.circle=(${post}.scope='circle')))
+      WHERE g.id=${post}.audience_group AND g.owner_id=${post}.author_id AND gm.user_id=${viewer} AND g.circle=(${post}.scope='circle'))
+      AND (${post}.scope='circle' OR EXISTS(SELECT 1 FROM private_moment_viewers snapshot WHERE snapshot.moment_id=${post}.id AND snapshot.user_id=${viewer}))))
   )))`;
 
 export const forwardableMoment = (post) =>
@@ -33,7 +34,7 @@ export const collectionReadable = (collection, viewer) => `(${activeMember(colle
 export const contributionReadable = (contribution, viewer) => `(${contribution}.removed_at IS NULL
   AND NOT ${blocked(contribution + '.author_id', viewer)} AND NOT ${restricted(contribution + '.author_id', viewer)})`;
 
-export const unusedMedia = (alias) => `(${alias}.moment_id IS NULL AND ${alias}.group_message_id IS NULL
+export const unusedMedia = (alias) => `(${alias}.moment_id IS NULL AND ${alias}.group_message_id IS NULL AND ${alias}.comment_id IS NULL AND ${alias}.chat_record_id IS NULL
  AND NOT EXISTS(SELECT 1 FROM p1_contribution_media link WHERE link.media_id=${alias}.id)
  AND NOT EXISTS(SELECT 1 FROM p2_assets pa WHERE pa.media_id=${alias}.id)
  AND NOT EXISTS(SELECT 1 FROM p3_media px WHERE px.media_id=${alias}.id))`;

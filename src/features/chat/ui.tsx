@@ -1,13 +1,14 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAppearance } from '../../components/appearance';
 import { GlassLayer, UnreadMark } from '../../components/material';
-import { Avatar, Button, Icon, IconButton, Sheet } from '../../components/ui';
+import { Avatar, Icon, IconButton } from '../../components/ui';
 import { colors, radius, space, styles, touch, type } from '../../theme';
 import { useWallpaperLabel } from './background/WallpaperImage';
+import { MessageMarks } from '../media/NoReply';
 import { momentChatSharePath, momentShareCaption, momentSharePath } from '../moments/model';
 
 export const chatLayout = StyleSheet.create({
@@ -16,9 +17,9 @@ export const chatLayout = StyleSheet.create({
   inverted: { transform: [{ scaleY: -1 }] },
 });
 
-export function ConversationRow({ name, avatar, preview, time, unread, pinned, silent, signal, manualUnread, onPress }: {
+export function ConversationRow({ name, avatar, preview, time, unread, pinned, silent, noReply, signal, manualUnread, onPress }: {
   name: string; avatar?: ReactNode; preview: string; time: string; unread: number;
-  pinned?: boolean; silent?: boolean; signal?: ReactNode; manualUnread?: boolean; onPress: () => void;
+  pinned?: boolean; silent?: boolean; noReply?: boolean; signal?: ReactNode; manualUnread?: boolean; onPress: () => void;
 }) {
   const accessible = [name, pinned ? '置顶' : '', unread ? unread + ' 条未读消息' : manualUnread ? '已标为未读' : '', preview].filter(Boolean).join('，');
   return <Pressable accessibilityRole="button" accessibilityLabel={accessible} onPress={onPress}
@@ -34,8 +35,10 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
         <Text style={ui.time}>{time}</Text>
       </View>
       <View style={ui.line}>
-        {silent && <Icon name="moon-outline" size={13} color={colors.moon} />}
-        <Text numberOfLines={1} style={[ui.preview, styles.grow]}>{preview}</Text>
+        <View style={ui.previewGroup}>
+          <Text numberOfLines={1} style={ui.preview}>{preview}</Text>
+          <MessageMarks sharing={noReply} silent={silent} preview />
+        </View>
         <UnreadMark count={unread || Number(manualUnread === true)} dot={!unread} />
       </View>
     </View>
@@ -64,9 +67,9 @@ function messageDate(value: number) {
   return day + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-export function ChatBubble({ mine, first, last, author, avatar, children, onActions }: {
+export function ChatBubble({ mine, first, last, author, avatar, children, onActions, report }: {
   mine: boolean; first: boolean; last: boolean; author?: string; avatar?: ReactNode;
-  children: ReactNode; onActions: () => void;
+  children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void; report?: () => void;
 }) {
   const wall = useWallpaperLabel();
   return <View style={[ui.messageRow, mine && ui.sentRow, first && ui.firstMessage]}>
@@ -74,9 +77,9 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
     <View style={[ui.messageContent, mine && ui.sentContent]}>
       {!!author && first && !mine && <Text numberOfLines={1} style={[ui.sender, wall]}>{author}</Text>}
       <Pressable
-        onLongPress={onActions}
-        accessibilityActions={[{ name: 'longpress', label: '消息操作' }]}
-        onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); }}
+        onLongPress={({ nativeEvent }) => onActions({ x: nativeEvent.pageX, y: nativeEvent.pageY })}
+        accessibilityActions={[{ name: 'longpress', label: '消息操作' }, ...(report ? [{ name: 'report', label: '举报这条消息' }] : [])]}
+        onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); else if (nativeEvent.actionName === 'report') report?.(); }}
         delayLongPress={380}
         style={({ pressed }) => [ui.bubble, mine ? ui.sent : ui.received,
           !last && (mine ? ui.sentJoined : ui.receivedJoined), pressed && ui.pressedBubble]}>
@@ -84,16 +87,6 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
       </Pressable>
     </View>
   </View>;
-}
-
-export function MessageActions({ timestamp, text, report, onClose }: {
-  timestamp: number; text?: string; report?: () => void; onClose: () => void;
-}) {
-  return <Sheet title="消息操作" onClose={onClose}>
-    <Text style={styles.muted}>{messageDate(timestamp)}</Text>
-    {!!text && <Text selectable style={styles.body}>{text}</Text>}
-    {report && <Button label="举报这条消息" variant="danger" icon="flag-outline" onPress={report} />}
-  </Sheet>;
 }
 
 export function MessageBody({ text }: { text: string }) {
@@ -120,13 +113,19 @@ export function MessageBody({ text }: { text: string }) {
 
 export function MessageComposer({ label, placeholder, value, onChange, maxLength,
   attachLabel, photoLabel, onAttach, onPhoto, onEmoji, toolsDisabled, photoDisabled, photoBusy, sendLabel, sendDisabled, onSend,
-  onSendLongPress, onLayout, mode, floating = false }: {
+  onSendLongPress, onLayout, mode, focusKey, floating = false }: {
   label: string; placeholder?: string; value: string; onChange: (value: string) => void; maxLength: number;
   attachLabel: string; photoLabel: string; onAttach: () => void; onPhoto: () => void; onEmoji?: () => void;
   toolsDisabled?: boolean; photoDisabled?: boolean; photoBusy?: boolean; sendLabel: string; sendDisabled: boolean; onSend: () => void;
-  onSendLongPress?: () => void; onLayout?: (event: LayoutChangeEvent) => void; mode?: ReactNode; floating?: boolean;
+  onSendLongPress?: () => void; onLayout?: (event: LayoutChangeEvent) => void; mode?: ReactNode; focusKey?: string; floating?: boolean;
 }) {
   const { scheme } = useAppearance();
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (!focusKey) return;
+    const timer = setTimeout(() => input.current?.focus(), 230);
+    return () => clearTimeout(timer);
+  }, [focusKey]);
   const dark = scheme === 'dark';
   const ink = dark ? '#F5F5F6' : '#202124';
   function openTool(action: () => void) {
@@ -147,7 +146,7 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
       {!floating && tools}
       <View style={[ui.composerEntry, floating && ui.floatingEntry, floating && (dark ? ui.neutralDark : ui.neutralLight)]}>
         {floating && tools}
-        <TextInput accessibilityLabel={label} placeholder={placeholder} placeholderTextColor={colors.quiet}
+        <TextInput ref={input} accessibilityLabel={label} placeholder={placeholder} placeholderTextColor={colors.quiet}
           cursorColor={floating ? ink : undefined}
           multiline scrollEnabled maxLength={maxLength} value={value} onChangeText={onChange}
           style={[ui.composerInput, floating && ui.floatingInput, floating && { color: ink }]} />
@@ -177,8 +176,9 @@ const ui = StyleSheet.create({
   thread: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: space.sm, paddingLeft: space.md },
   threadBody: { ...styles.grow, ...styles.divider, alignSelf: 'stretch', justifyContent: 'center', gap: space.xxs, paddingRight: space.md, paddingVertical: space.xs },
   threadName: { ...styles.row, gap: space.xxs },
-  name: { flexShrink: 1, fontSize: 17 },
-  preview: { ...type.support, color: colors.quiet },
+  name: { flexShrink: 1, fontSize: 17, fontWeight: '500' },
+  previewGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 0 },
+  preview: { ...type.support, color: colors.quiet, flexShrink: 1 },
   line: { ...styles.row, gap: space.xs },
   time: { ...type.time, color: colors.quiet },
   pinnedRow: { backgroundColor: colors.search },

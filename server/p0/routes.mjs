@@ -1,3 +1,4 @@
+import { getChatRecord, saveChatRecord, saveChatFavorite } from './chat-records.mjs';
 import { cleanText, hash, HttpError, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
 import {
@@ -29,6 +30,7 @@ import {
 } from './groups.mjs';
 import {
   addMomentComment,
+  deleteMomentComment,
   deleteMoment,
   discardMedia,
   getMedia,
@@ -96,6 +98,12 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
     case 'POST /v1/friends/unrestrict':
       await rateLimit('p0-friend-change:' + id, 30, 60);
       return result(await manageContact(id, (await readBody()).userId, route.split('/').at(-1)));
+    case 'POST /v1/chat-records':
+      await rateLimit('chat-records:' + id, 45, 60);
+      return result(await saveChatRecord(id, await readBody()), 201);
+    case 'POST /v1/chat-favorites':
+      await rateLimit('chat-favorites:' + id, 30, 60);
+      return result(await saveChatFavorite(id, await readBody()), 201);
     case 'GET /v1/groups':
       return result(await listChatGroups(id));
     case 'POST /v1/groups':
@@ -202,7 +210,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   }
 
   const match =
-    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|group-invites|groups|moments|moment-media|moment-chat-shares|moment-forward-requests)\/([0-9a-f-]{36})(?:\/(invites|members|avatar|messages|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
+    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|group-invites|groups|moments|moment-media|moment-chat-shares|moment-forward-requests|chat-records)\/([0-9a-f-]{36})(?:\/(invites|members|avatar|messages|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
       route,
     );
   if (!match) return undefined;
@@ -274,6 +282,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       }
       if (action === 'pin' && method === 'PUT') return result(await pinMoment(id, item, (await readBody()).pinned));
       if (action === 'like' && method === 'PUT') return result(await setMomentLike(id, item, (await readBody()).liked));
+      if (action === 'comments' && method === 'DELETE') return result(await deleteMomentComment(id, item, query.get('id')));
       if (action === 'comments' && method === 'GET') return result(await listMomentComments(id, item, query.get('before')));
       if (action === 'comments' && method === 'POST') {
         await rateLimit('moment-comments:' + id, 45, 1);
@@ -282,6 +291,9 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       if (!action && method === 'GET') return result(await getMoment(id, item));
       if (!action && method === 'PATCH') return result(await updateMoment(id, item, await readBody()));
       if (!action && method === 'DELETE') return result(await deleteMoment(id, item));
+      break;
+    case 'chat-records':
+      if (!action && method === 'GET') return result(await getChatRecord(id, item));
       break;
     case 'moment-media':
       if (!action && ['GET', 'HEAD'].includes(method)) return getMedia(id, item, headers.range, method === 'HEAD');

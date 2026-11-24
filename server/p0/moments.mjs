@@ -1,3 +1,4 @@
+import { recordReadable } from './chat-records.mjs';
 import { p2MediaVisible } from '../p2/access.mjs';
 import { p3MediaVisible } from '../p3/access.mjs';
 import { randomUUID } from 'node:crypto';
@@ -121,7 +122,10 @@ export async function listMomentComments(userId, id, before) {
   if (before !== null) readId(before);
   const { rows: [row] } = await pool.query(`SELECT coalesce((
     SELECT jsonb_agg(to_jsonb(page) ORDER BY page."createdAt" DESC,page.id DESC) FROM (
-      SELECT c.id,c.user_id AS "authorId",u.name AS author,c.body,c.created_at AS "createdAt"
+      SELECT c.id,c.user_id AS "authorId",u.name AS author,u.username AS "authorUsername",c.body,c.created_at AS "createdAt",
+        (SELECT parent.id FROM moment_comments parent WHERE parent.moment_id=p.id AND parent.id=c.reply_to
+          AND ${participantVisible('parent.user_id')}) AS "replyTo",
+        (SELECT jsonb_build_object('id',m.id,'mime',m.mime) FROM private_media m WHERE m.comment_id=c.id) AS photo
       FROM moment_comments c JOIN users u ON u.id=c.user_id
       WHERE c.moment_id=p.id AND ${participantVisible('c.user_id')}
         AND ($3::uuid IS NULL OR (c.created_at,c.id)<(SELECT older.created_at,older.id
@@ -134,13 +138,37 @@ export async function listMomentComments(userId, id, before) {
 }
 
 export async function addMomentComment(userId, id, body) {
-  const message = cleanText(body.body, 500);
-  if (!message) throw new HttpError(400, '请输入留言。');
+  const message = cleanText(body.body ?? '', 500);
+  const photo = body.mediaId ? readId(body.mediaId) : null;
+  if (!message && !photo) throw new HttpError(400, '请输入评论或选择图片。');
+  const parent = body.replyTo ? readId(body.replyTo) : null;
   const clientId = readId(body.clientId);
   return interact(userId, id, async (db, recipient) => {
-    const { rows: [comment] } = await db.query(`INSERT INTO moment_comments(moment_id,user_id,client_id,body)
-      VALUES($2,$1,$3,$4) ON CONFLICT(moment_id,user_id,client_id) DO NOTHING RETURNING id`, [userId, id, clientId, message]);
-    if (comment) await notifyMoment(db, { moment: id, actor: userId, recipient, kind: 'comment', key: comment.id, comment: comment.id });
+    const { rows: [comment] } = await db.query(`INSERT INTO moment_comments(moment_id,user_id,client_id,body,reply_to)
+      SELECT $2,$1,$3,$4,$5 FROM private_moments p WHERE p.id=$2 AND ($5::uuid IS NULL OR EXISTS(
+        SELECT 1 FROM moment_comments parent WHERE parent.id=$5 AND parent.moment_id=p.id
+        AND ${participantVisible('parent.user_id')}))
+      ON CONFLICT(moment_id,user_id,client_id) DO NOTHING RETURNING id`, [userId, id, clientId, message, parent]);
+    if (!comment) {
+      if (!(await db.query('SELECT 1 FROM moment_comments WHERE moment_id=$1 AND user_id=$2 AND client_id=$3',
+        [id, userId, clientId])).rowCount) throw notFound();
+      return {};
+    }
+    if (photo) {
+      const attached = await db.query(`UPDATE private_media b SET comment_id=$3 WHERE id=$2 AND owner_id=$1
+        AND mime='image/jpeg' AND created_at>now()-interval '1 day' AND ${unusedMedia('b')}`, [userId, photo, comment.id]);
+      if (!attached.rowCount) throw notFound();
+    }
+    await notifyMoment(db, { moment: id, actor: userId, recipient, kind: 'comment', key: comment.id, comment: comment.id });
+    return {};
+  });
+}
+
+export async function deleteMomentComment(userId, id, commentId) {
+  return interact(userId, id, async (db, recipient) => {
+    const result = await db.query('DELETE FROM moment_comments WHERE id=$1 AND moment_id=$2 AND ($3=$4::uuid OR user_id=$3)',
+      [readId(commentId), id, userId, recipient]);
+    if (!result.rowCount) throw notFound();
     return {};
   });
 }
@@ -180,7 +208,9 @@ async function audience(db, userId, body) {
       [userId, scope === 'circle', id],
     );
     if (!group) throw new HttpError(400, '请先设置对应的关系组。');
-    return { scope, group: group.id, ids: [] };
+    const members = scope === 'group' ? await db.query(`SELECT gm.user_id AS id FROM relationship_group_members gm
+      WHERE gm.group_id=$1 AND ${related('$2::uuid', 'gm.user_id')}`, [group.id, userId]) : { rows: [] };
+    return { scope, group: group.id, ids: members.rows.map(({ id }) => id) };
   }
   const ids = scope === 'selected' ? idsOf(body.memberIds) : [];
   if (scope === 'selected' && !ids.length) throw new HttpError(400, '请至少选择一位好友。');
@@ -235,7 +265,7 @@ export async function updateMoment(userId, id, body) {
     await lockUsers(db, userId);
     const {
       rows: [previous],
-    } = await db.query('SELECT body,revision FROM private_moments WHERE id=$1 AND author_id=$2 AND source_moment_id IS NULL FOR UPDATE', [id, userId]);
+    } = await db.query('SELECT body,revision,scope,audience_group FROM private_moments WHERE id=$1 AND author_id=$2 AND source_moment_id IS NULL FOR UPDATE', [id, userId]);
     if (!previous) throw notFound();
     if (body.revision !== previous.revision) throw new HttpError(409, '动态已经更新，请刷新后重试。');
     const value = await audience(db, userId, body);
@@ -250,11 +280,10 @@ export async function updateMoment(userId, id, body) {
       revision=revision+1,edited_at=now() WHERE id=$1 RETURNING revision`,
       [id, text, value.scope, value.group],
     );
-    await db.query('DELETE FROM private_moment_viewers WHERE moment_id=$1', [id]);
-    await db.query('INSERT INTO private_moment_viewers SELECT $1,id FROM unnest($2::uuid[]) AS viewer(id)', [
-      id,
-      value.ids,
-    ]);
+    if (!(value.scope === 'group' && previous.scope === 'group' && value.group === previous.audience_group)) {
+      await db.query('DELETE FROM private_moment_viewers WHERE moment_id=$1', [id]);
+      await db.query('INSERT INTO private_moment_viewers SELECT $1,id FROM unnest($2::uuid[]) AS viewer(id)', [id, value.ids]);
+    }
     await db.query(`DELETE FROM p1_contribution_public_readers grant_row WHERE moment_id=$1
       AND NOT EXISTS(SELECT 1 FROM (${momentReaders('$1','$2::uuid')}) r WHERE r.id=grant_row.viewer_id)`,[id,userId]);
     if (value.scope === 'private') await revokeMomentSharing(db, id, userId);
@@ -374,6 +403,10 @@ export async function getMedia(userId, id, range, head) {
         JOIN p1_entries pe ON pe.id=pc.entry_id JOIN p1_collections coll ON coll.id=pe.collection_id
         WHERE link.media_id=b.id AND ${collectionReadable('coll','$1::uuid')} AND
         ${contributionReadable('pc','$1::uuid')} AND ${contributionScope('pc','coll','$1::uuid')} AND NOT ${blocked('pe.author_id','$1::uuid')})
+      OR EXISTS(SELECT 1 FROM moment_comments cmt JOIN private_moments post ON post.id=cmt.moment_id
+        WHERE cmt.id=b.comment_id AND ${momentVisible('post','$1::uuid')} AND ${momentVisible('post','cmt.user_id')}
+        AND NOT ${blocked('cmt.user_id','$1::uuid')} AND NOT ${restricted('cmt.user_id','$1::uuid')})
+      OR EXISTS(SELECT 1 FROM chat_records cr WHERE cr.id=b.chat_record_id AND ${recordReadable('cr','$1::uuid')})
       OR ${p2MediaVisible('b','$1::uuid')} OR ${p3MediaVisible('b','$1::uuid')})`;
   const {
     rows: [metadata],

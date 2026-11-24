@@ -8,7 +8,7 @@ import { offlineRequest } from './life';
 import { seed, type Rows } from './life-fixtures';
 import { demoMessages, demoPeople, demoRelationship, demoRelationships, demoUnread } from './data';
 
-type MessageOptions = Pick<TextMessage, 'silent' | 'noReply'>;
+type MessageOptions = Pick<TextMessage, 'silent' | 'noReply' | 'quote' | 'recordId'>;
 
 const DemoContext = createContext<{
   loading: boolean;
@@ -58,6 +58,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const addMessage = useCallback((peerId: string, text: string, mine: boolean, options?: MessageOptions) => {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
     const message: TextMessage = { id: 'simulated-' + messageSession.current + '-' + ++messageSequence.current, mine, text, timestamp: Date.now(),
+      quote: options?.quote, recordId: options?.recordId,
       ...(options?.silent ? { silent: true } : {}), ...(options?.noReply ? { noReply: true } : {}) };
     store.current.update((current) => ({ ...current, messages: { ...current.messages,
       [peerId]: [...(current.messages[peerId] ?? []), message].slice(-150) } }));

@@ -28,7 +28,8 @@ export function demoMomentInteractions(store: Rows, relationships: Relationship[
       (post.scope === 'selected' && array(post.memberIds).includes(String(viewer))) ||
       (post.authorId === self && (post.scope === 'group' || post.scope === 'circle') &&
         rows('relationGroups').some((group) => (post.scope === 'circle' ? group.circle === true : group.id === post.groupId) &&
-          array(group.memberIds).includes(String(viewer))))
+          array(group.memberIds).includes(String(viewer))) &&
+        (post.scope === 'circle' || !Array.isArray(post.memberIds) || array(post.memberIds).includes(String(viewer))))
     ));
   const canForward = (post: Row) => !post.sourceMomentId && post.allowForward !== false && post.scope !== 'private';
 
@@ -41,11 +42,14 @@ export function demoMomentInteractions(store: Rows, relationships: Relationship[
         item.requester === post.authorId && item.status === 'published');
   }
 
+  const commentVisible = (post: Row, item: Row) => visible(post, item.authorId)
+    && !blocked(item.authorId, self) && !restricted(item.authorId, self);
+
   function project(post: Row) {
     const { sourceMomentId, demoLikes, allowForward, ...data } = post;
     const likes = array(demoLikes).filter((actor) => visible(post, actor) && !blocked(actor, self) && !restricted(actor, self));
     const comments = rows('momentComments').filter((item) => item.momentId === post.id &&
-      visible(post, item.authorId) && !blocked(item.authorId, self) && !restricted(item.authorId, self));
+      commentVisible(post, item));
     return { ...data, authorUsername: post.authorId === self ? demoUser.username : demoPeople.find((person) => person.id === post.authorId)?.username,
       pinned: post.authorId === self ? !!post.pinned : null, forwarded: !!sourceMomentId,
       ...(post.authorId === self && { allowForward: allowForward !== false }),
@@ -156,5 +160,5 @@ export function demoMomentInteractions(store: Rows, relationships: Relationship[
     })), next: notifications.length > index + 30 ? page.at(-1)?.id ?? null : null };
   }
 
-  return { visible, project, notify, revoke, forwardRequest, forwardAction, share, shared, notificationRoute };
+  return { visible, project, commentVisible, notify, revoke, forwardRequest, forwardAction, share, shared, notificationRoute };
 }

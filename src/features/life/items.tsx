@@ -28,6 +28,7 @@ type Kind = 'saved' | 'place';
 type Item = {
   id: string;
   ownerId: string;
+  chatRecordId?: string;
   kind: Kind;
   title: string;
   category: Category;
@@ -175,7 +176,11 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
               }}
             />
           )}
-          <Button
+          {expanded.chatRecordId && <Button label="查看聊天记录" icon="reader-outline" variant="soft" onPress={() => {
+            setExpanded(undefined);
+            router.push({ pathname: '/life/chat-record/[id]', params: { id: expanded.chatRecordId! } });
+          }} />}
+          {!expanded.chatRecordId && <Button
             label="从这里发起约局"
             variant="soft"
             onPress={() => {
@@ -196,7 +201,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
                 },
               });
             }}
-          />
+          />}
           {kind === 'place' && (
             <Button
               label="从地点记录新心愿"

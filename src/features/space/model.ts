@@ -17,7 +17,7 @@ export type Privacy = {
   interact: 'friends' | 'closed';
   revealReplies: 'viewers' | 'author';
 };
-export type Reply = { id: string; authorId: string; text: string; at: number; replyTo?: string };
+export type Reply = { id: string; authorId: string; text: string; at: number; replyTo?: string; photoId?: string };
 export type EntryDraft = {
   kind: EntryKind;
   title: string;

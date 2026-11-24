@@ -1,18 +1,20 @@
 import { router } from 'expo-router';
 import { Fragment, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Sheet, Tag } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { colors, styles, type } from '../../theme';
+import { CommentList } from '../moments/Comments';
+import type { MomentComment } from '../moments/model';
 import { PeaceIcon } from '../moments/PeaceIcon';
 import { localId } from '../local/document';
 import { SpacePhoto } from './media';
-import { audienceName, blankDraft, createdTime, type Entry, type Photo, type Reply } from './model';
+import { audienceName, blankDraft, createdTime, type Entry, type Photo } from './model';
 import { useSpace } from './store';
 
-export function openEntry(id: string, viewer?: string) {
-  router.push({ pathname: '/space/post/[id]', params: { id, ...(viewer ? { viewer } : {}) } });
+export function openEntry(id: string, viewer?: string, compose?: string, reply?: string) {
+  router.push({ pathname: '/space/post/[id]', params: { id, ...(viewer ? { viewer } : {}), compose, reply } });
 }
 
 export function JournalLink({ entry, viewer }: { entry: Entry; viewer?: string }) {
@@ -30,33 +32,26 @@ export function JournalLink({ entry, viewer }: { entry: Entry; viewer?: string }
   </Pressable>;
 }
 
-export function EntryCard({ entry, full = false, viewer, timeline = false }: { entry: Entry; full?: boolean; viewer?: string; timeline?: boolean }) {
+export function EntryCard({ entry, full = false, viewer, timeline = false, onReply }: { entry: Entry; full?: boolean; viewer?: string; timeline?: boolean; onReply?: (comment?: MomentComment) => void }) {
   const state = useSpace();
   const author = state.person(entry.ownerId);
   const mine = state.owns(entry.ownerId);
-  const [sheet, setSheet] = useState<'options' | 'react' | 'share' | 'delete' | 'video'>();
+  const [sheet, setSheet] = useState<'options' | 'share' | 'delete' | 'video'>();
   const [focusPhoto, setFocusPhoto] = useState<Photo>();
-  const [comments, setComments] = useState(false);
-  const [replyTo, setReplyTo] = useState<Reply>();
-  const [comment, setComment] = useState('');
   const [forwarded, setForwarded] = useState(false);
   if (!author) return null;
 
   const settings = state.card(entry.ownerId).privacy;
   const visibleReplies = (viewer ? entry.ownerId === viewer : mine) || settings.revealReplies === 'viewers';
   const canReply = !viewer && state.canInteract(entry.ownerId);
-  const shownComments = visibleReplies ? entry.comments : [];
+  const shownComments: MomentComment[] = visibleReplies ? entry.comments.map((row) => {
+    const person = state.person(row.authorId);
+    return { id: row.id, authorId: row.authorId, author: person?.name ?? '好友', authorUsername: person?.username,
+      body: row.text, createdAt: new Date(row.at).toISOString(), replyTo: row.replyTo,
+      photo: row.photoId ? { id: row.photoId, mime: 'image/jpeg', demoUri: 'space-local:' + row.photoId } : undefined };
+  }) : [];
   const source = entry.sourceId && state.value?.entries.find((item) => item.id === entry.sourceId && state.entryVisible(item, viewer));
   const paragraphs = entry.text.split(/\n\s*\n/).filter(Boolean);
-
-  function addComment() {
-    const text = comment.trim();
-    if (!state.me || !text || !canReply) return;
-    const reply = { id: localId(), text, authorId: state.me.id, at: Date.now(), replyTo: replyTo?.id };
-    state.updateEntry(entry.id, (current) => ({ ...current, comments: [...current.comments, reply] }));
-    setComment('');
-    setReplyTo(undefined);
-  }
 
   function forward() {
     if (!state.me || viewer || !mine) return;
@@ -104,7 +99,10 @@ export function EntryCard({ entry, full = false, viewer, timeline = false }: { e
           </Fragment>)}
         </>
         : <>
-          <Text style={styles.body}>{entry.text}</Text>
+          {full ? <Text style={styles.body}>{entry.text}</Text> :
+            <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openEntry(entry.id, viewer)}>
+              <Text style={styles.body}>{entry.text || '查看动态详情'}</Text>
+            </Pressable>}
           {!entry.videoPreview && photos(entry.photos)}
         </>}
     {entry.videoPreview && <Pressable accessibilityRole="button" accessibilityLabel="视频动态样式预览"
@@ -123,40 +121,23 @@ export function EntryCard({ entry, full = false, viewer, timeline = false }: { e
         text={String(entry.likes)} onPress={() => state.updateEntry(entry.id, (current) => ({
           ...current, liked: !current.liked, likes: current.likes + (current.liked ? -1 : 1),
         }))} />
-      <Action label="展开评论" icon="chatbubble-outline" text={visibleReplies ? String(shownComments.length) : undefined}
-        onPress={() => setComments(!comments)} />
-      <Action label="表情回应" icon="happy-outline" text={entry.reaction} onPress={() => setSheet('react')} />
-      <View style={styles.grow} />
+      <Action label="评论" icon="chatbubble-outline" text={visibleReplies && shownComments.length ? String(shownComments.length) : undefined}
+        onPress={() => onReply && canReply ? onReply() : openEntry(entry.id, viewer, canReply ? '1' : undefined)} />
       <Action label="转发" icon="arrow-redo-outline" onPress={() => setSheet('share')} />
     </View>}
-    {!comments && shownComments[0] && <Pressable accessibilityRole="button" accessibilityLabel="查看评论" style={local.comment}
-      onPress={() => setComments(true)}>
-      <Text style={styles.muted} numberOfLines={1}><Text style={styles.strong}>{state.person(shownComments[0].authorId)?.name ?? '好友'} </Text>
-        {shownComments[0].text}</Text>
-    </Pressable>}
     {forwarded && <Text accessibilityLiveRegion="polite" style={local.kind}>已转发到我的动态 · 仅自己可见</Text>}
-    {comments && <View style={local.comments}>
-      {shownComments.map((reply) => {
-        const parent = reply.replyTo && entry.comments.find((item) => item.id === reply.replyTo);
-        return <View key={reply.id} style={local.commentLine}>
-          <Text style={styles.muted}><Text style={styles.strong}>{state.person(reply.authorId)?.name ?? '好友'}</Text>
-            {parent ? ' 回复 ' + (state.person(parent.authorId)?.name ?? '好友') : ''}　{reply.text}</Text>
-          {canReply && <Button label={'回复 ' + (state.person(reply.authorId)?.name ?? '好友')} variant="quiet" onPress={() => setReplyTo(reply)} />}
-        </View>;
-      })}
-      {!visibleReplies && <Text style={styles.small}>留言仅空间主人可见。</Text>}
-      {visibleReplies && !shownComments.length && <Text style={styles.small}>还没有评论。</Text>}
-      {canReply && <>
-        {replyTo && <ListRow title={'回复 ' + (state.person(replyTo.authorId)?.name ?? '好友')}
-          trailing={<IconButton label="取消回复" icon="close-outline" onPress={() => setReplyTo(undefined)} />} />}
-        <View style={styles.row}>
-          <TextInput accessibilityLabel="评论内容" value={comment} onChangeText={setComment} maxLength={140}
-            placeholder="说点什么…" placeholderTextColor={colors.quiet} style={[styles.input, styles.grow]} />
-          <Button label="发表评论" disabled={!comment.trim()} onPress={addComment} />
-        </View>
-      </>}
-      {!canReply && !viewer && <Text style={styles.small}>空间主人关闭了好友评论。</Text>}
-    </View>}
+    {visibleReplies && <CommentList comments={shownComments} owner={entry.ownerId} showEmpty={full}
+      reply={canReply ? (comment) => onReply ? onReply(comment) : openEntry(entry.id, viewer, '1', comment.id) : undefined}
+      remove={viewer ? undefined : async (comment) => {
+        const own = state.me?.id;
+        if (!own || !state.entryVisible(entry) || (entry.ownerId !== own && comment.authorId !== own)) throw new Error('无法删除这条评论。');
+        state.updateEntry(entry.id, (current) => ({
+          ...current, comments: current.comments.filter((row) => row.id !== comment.id)
+            .map((row) => row.replyTo === comment.id ? { ...row, replyTo: undefined } : row),
+        }));
+      }} />}
+    {!visibleReplies && full && <Text style={styles.small}>评论仅空间主人可见。</Text>}
+    {!canReply && full && !viewer && <Text style={styles.small}>空间主人关闭了好友评论。</Text>}
     {focusPhoto && <Sheet title="照片" onClose={() => setFocusPhoto(undefined)}>
       <SpacePhoto photo={focusPhoto} style={local.fullPhoto} />
     </Sheet>}
@@ -176,13 +157,6 @@ export function EntryCard({ entry, full = false, viewer, timeline = false }: { e
         setSheet(undefined);
         if (full) { if (router.canGoBack()) router.back(); else router.replace('/moments'); }
       }} />
-    </Sheet>}
-    {sheet === 'react' && <Sheet title="表情回应" onClose={() => setSheet(undefined)}>
-      <View style={local.actions}>{['❤️', '🙌', '😂', '✨', '☕'].map((emoji) => <Button key={emoji} label={emoji} variant="soft"
-        onPress={() => {
-          state.updateEntry(entry.id, (current) => ({ ...current, reaction: current.reaction === emoji ? undefined : emoji }));
-          setSheet(undefined);
-        }} />)}</View>
     </Sheet>}
     {sheet === 'share' && <Sheet title="转发动态" onClose={() => setSheet(undefined)}>
       <Text style={styles.muted}>转发只在本机创建原动态的引用。你的转发默认仅自己可见，原内容继续遵循原可见范围。</Text>
@@ -221,12 +195,9 @@ const local = StyleSheet.create({
   video: { height: 145, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.ink, justifyContent: 'center' },
   videoLabel: { ...styles.row, gap: 6, position: 'absolute', alignSelf: 'center', borderRadius: 12, backgroundColor: '#261D30CC', padding: 10 },
   videoText: { ...type.control, color: '#FFFFFF', fontSize: 13 },
-  actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 0 },
   action: { ...styles.row, gap: 5, minHeight: 44, minWidth: 43, paddingHorizontal: 4 },
   pressed: { opacity: 0.72 },
-  comment: { backgroundColor: colors.backdrop, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 },
-  comments: { backgroundColor: colors.backdrop, borderRadius: 10, padding: 10, gap: 7 },
-  commentLine: { ...styles.divider, paddingBottom: 4 },
   journalLink: { ...styles.row, borderRadius: 12, padding: 10, backgroundColor: colors.backdrop, minHeight: 94 },
   journalThumb: { width: 81, height: 87, borderRadius: 9 },
   journalTitle: { ...styles.strong, fontSize: 17, marginVertical: 4 },

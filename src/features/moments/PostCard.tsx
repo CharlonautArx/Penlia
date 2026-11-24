@@ -1,7 +1,6 @@
-import { randomUUID } from 'expo-crypto';
 import { router } from 'expo-router';
-import { useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Sheet, Tag, type IconName } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
@@ -12,10 +11,14 @@ import { createdTime } from '../space/model';
 import { scopes, type Moment, type MomentComment } from './model';
 import { MomentMediaGrid } from './media';
 import { PeaceIcon } from './PeaceIcon';
+import { CommentList } from './Comments';
 import { MomentShareSheet } from './ShareSheet';
 
-export function PostCard({ item, onUpdate, onPin, onRemove }: {
+export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = false, hideComments = false }: {
   item: Moment;
+  onReply?: (comment?: MomentComment) => void;
+  detail?: boolean;
+  hideComments?: boolean;
   onUpdate?: (change: Partial<Moment>) => void;
   onPin?: (pinned: boolean) => Promise<void>;
   onRemove?: () => void;
@@ -23,16 +26,13 @@ export function PostCard({ item, onUpdate, onPin, onRemove }: {
   const { request, session } = useSession();
   const mine = item.authorId === session?.user.id;
   const path = '/moments/' + item.id;
-  const [sheet, setSheet] = useState<'comments' | 'share' | 'options' | 'deleteForward'>();
+  const [sheet, setSheet] = useState<'share' | 'options' | 'deleteForward'>();
   const [sharing, setSharing] = useState<Partial<Moment>>();
   const shareState = { ...item, ...sharing };
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [optimistic, setOptimistic] = useState<Pick<Moment, 'liked' | 'likeCount'>>();
   const [comments, setComments] = useState<MomentComment[]>();
-  const [next, setNext] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
-  const attempt = useRef<{ body: string; id: string } | undefined>(undefined);
   const locked = useRef(false);
   const liked = optimistic?.liked ?? item.liked ?? false;
   const count = optimistic?.likeCount ?? item.likeCount ?? 0;
@@ -47,12 +47,30 @@ export function PostCard({ item, onUpdate, onPin, onRemove }: {
     finally { locked.current = false; setPending(false); }
   }
 
-  async function readComments(cursor?: string) {
-    const result = await request<{ comments: MomentComment[]; next: string | null }>(
-      path + '/comments' + (cursor ? '?before=' + encodeURIComponent(cursor) : ''),
-    );
-    setComments((previous) => cursor ? [...(previous ?? []), ...result.comments] : result.comments);
-    setNext(result.next);
+  useEffect(() => {
+    if (hideComments || !item.commentCount) { setComments(undefined); return; }
+    let active = true;
+    const all = new Map<string, MomentComment>();
+    async function load() {
+      let cursor: string | null = null;
+      do {
+        const page: { comments: MomentComment[]; next: string | null } = await request(path + '/comments' +
+          (cursor ? '?before=' + encodeURIComponent(cursor) : ''));
+        if (!active) return;
+        page.comments.forEach((comment) => all.set(comment.id, comment));
+        setComments([...all.values()]);
+        if (cursor === page.next) break;
+        cursor = page.next;
+      } while (cursor);
+    }
+    setComments(undefined);
+    void load().catch((failure) => { if (active) setError(errorMessage(failure)); });
+    return () => { active = false; };
+  }, [hideComments, item.commentCount, path, request]);
+
+  function openDetail(comment?: MomentComment, compose = false) {
+    router.push({ pathname: '/life/moment/[id]', params: { id: item.id, ...(compose ? { compose: '1' } : {}),
+      ...(comment ? { reply: comment.id } : {}) } });
   }
 
   function like() {
@@ -63,21 +81,6 @@ export function PostCard({ item, onUpdate, onPin, onRemove }: {
       onUpdate?.(result);
       setOptimistic(onUpdate ? undefined : result);
     }, () => setOptimistic(undefined));
-  }
-
-  function sendComment() {
-    if (!draft.trim()) return;
-    const body = draft.trim();
-    if (attempt.current?.body !== body) attempt.current = { body, id: randomUUID() };
-    const clientId = attempt.current.id;
-    void run(async () => {
-      await request(path + '/comments', { method: 'POST', body: { body, clientId } });
-      await readComments();
-      const { moment } = await request<{ moment: Moment }>(path);
-      onUpdate?.({ commentCount: moment.commentCount });
-      attempt.current = undefined;
-      setDraft('');
-    });
   }
 
   const avatar = <Avatar userId={item.authorId} name={item.author} source={demoPortrait(item.authorUsername ?? '')} size={43} />;
@@ -95,7 +98,10 @@ export function PostCard({ item, onUpdate, onPin, onRemove }: {
     </View>
     {item.forwarded && <ListRow title="查看转发的原动态" left={<Icon name="arrow-redo-outline" />}
       onPress={() => router.push({ pathname: '/life/moment/[id]', params: { id: item.id, original: '1' } })} separator={false} />}
-    {!!item.body && <Text style={local.caption}>{item.body}</Text>}
+    {!detail && <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openDetail()}>
+      {!!item.body ? <Text style={local.caption}>{item.body}</Text> : <Text style={styles.small}>查看动态详情</Text>}
+    </Pressable>}
+    {detail && !!item.body && <Text style={local.caption}>{item.body}</Text>}
     {!!item.media.length && <MomentMediaGrid media={item.media} />}
     {!!item.collaborationId && <ListRow title="查看共同创作" left={<Icon name="people-outline" color={colors.accent} />}
       onPress={() => router.push({ pathname: '/collection/[id]', params: { id: item.collaborationId! } })}
@@ -103,28 +109,16 @@ export function PostCard({ item, onUpdate, onPin, onRemove }: {
     <View style={local.actions}>
       <Action icon={<PeaceIcon active={liked} />} label={liked ? '取消比耶' : '比耶'} badge={count}
         selected={liked} onPress={like} disabled={pending} />
-      <Action icon="chatbubble-outline" label="留言" badge={item.commentCount} onPress={() => {
-        setSheet('comments'); setComments(undefined); setNext(null); void run(() => readComments());
-      }} />
+      <Action icon="chatbubble-outline" label="评论" badge={item.commentCount} onPress={() => onReply ? onReply() : openDetail(undefined, true)} />
       {shareState.canForward !== false && !item.forwarded && item.scope !== 'private' && <Action icon="arrow-redo-outline" label="转发" onPress={() => { setError(''); setSheet('share'); }} />}
     </View>
     {!!error && !sheet && <Notice>{error}</Notice>}
-    {sheet === 'comments' && <Sheet avoidKeyboard title="留言" onClose={() => { setSheet(undefined); setError(''); }}
-      footer={<View style={local.reply}>
-        <TextInput accessibilityLabel="留言内容" value={draft} onChangeText={setDraft} maxLength={500}
-          placeholder="写一句留言" placeholderTextColor={colors.quiet} editable={!pending} style={[styles.input, styles.grow]} multiline />
-        <Button label="发表留言" onPress={sendComment} disabled={pending || !draft.trim()} />
-      </View>}>
-      {!!error && <Notice action="重试" onAction={() => void run(() => readComments())}>{error}</Notice>}
-      {!comments && !error && <Text style={styles.muted}>正在读取留言…</Text>}
-      {!!comments && !comments.length && <Text style={styles.muted}>还没有留言。</Text>}
-      {comments?.map((comment) => <View key={comment.id} style={local.comment}>
-        <Text style={styles.strong}>{comment.author}</Text>
-        <Text style={styles.body}>{comment.body}</Text>
-        <Text style={styles.small}>{createdTime(Date.parse(comment.createdAt))}</Text>
-      </View>)}
-      {!!next && <Button label="更早留言" variant="soft" disabled={pending} onPress={() => void run(() => readComments(next))} />}
-    </Sheet>}
+    {!hideComments && !!comments?.length && <CommentList comments={comments} owner={item.authorId}
+      reply={(comment) => openDetail(comment, true)} remove={async (comment) => {
+        await request(path + '/comments?id=' + encodeURIComponent(comment.id), { method: 'DELETE' });
+        setComments((old) => old?.filter((row) => row.id !== comment.id));
+        onUpdate?.({ commentCount: Math.max(0, (item.commentCount ?? 1) - 1) });
+      }} />}
     {sheet === 'share' && <MomentShareSheet item={shareState} onClose={() => setSheet(undefined)}
       onUpdate={(forwardRequest) => {
         setSharing((previous) => ({ ...previous, forwardRequest }));
@@ -180,7 +174,5 @@ const local = StyleSheet.create({
   caption: { ...type.body, color: colors.text },
   actions: { ...styles.row, justifyContent: 'flex-end', gap: 0 },
   action: { ...styles.row, minHeight: touch, minWidth: touch, justifyContent: 'center', gap: 3, paddingHorizontal: space.xxs },
-  comment: { ...styles.divider, paddingBottom: space.sm, gap: 3 },
-  reply: { ...styles.row, flexWrap: 'wrap', alignItems: 'flex-end' },
   pressed: { opacity: 0.7 },
 });

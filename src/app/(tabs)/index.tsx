@@ -1,3 +1,4 @@
+import { useChatHistory } from '../../features/chat/history';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -44,6 +45,7 @@ export default function ChatsScreen() {
   const ownId = session?.user.id;
   const demo = useDemo();
   const preferences = useConversationPreferences();
+  const { all: deleted } = useChatHistory();
   const { value: directory } = useDirectory();
 
   useFocusEffect(useCallback(() => {
@@ -62,7 +64,13 @@ export default function ChatsScreen() {
         const local = await client.chatManager.getAllConversations();
         const visible = local.filter((item) => item.convType === sdk.ChatConversationType.PeerChat && accepted.has(item.convId));
         const rows = await Promise.all(visible.map(async (item) => {
-          const [message, unread] = await Promise.all([item.getLatestMessage(), item.getUnreadCount()]);
+          let [message, unread] = await Promise.all([item.getLatestMessage(), item.getUnreadCount()]);
+          const hidden = new Set(deleted?.['peer:' + accepted.get(item.convId)!.userId]);
+          if (message && hidden.has(message.msgId)) {
+            const history = await client.chatManager.getMsgs({ convId: item.convId, convType: item.convType, startMsgId: '', loadCount: 50 });
+            message = history.filter((entry) => !hidden.has(entry.msgId)).sort((a, b) =>
+              (b.serverTime || b.localTime) - (a.serverTime || a.localTime))[0];
+          }
           const last = readPeerMessage(connection!, message, imUserId(ownId!), item.convId);
           if (!last) return [];
           return [{ person: accepted.get(item.convId)!, last, unread, pinned: item.isPinned }];
@@ -78,12 +86,13 @@ export default function ChatsScreen() {
     }
     void load();
     return () => { active = false; };
-  }, [connection, ownId, relationships, revision]);
+  }, [connection, ownId, relationships, revision, deleted]);
 
   const visibleThreads: Thread[] = demo
     ? (relationships ?? []).flatMap((person) => {
-      const lastText = demo.messages[person.userId]?.at(-1);
-      const lastMedia = demo.media[person.userId]?.at(-1);
+      const hidden = new Set(deleted?.['peer:' + person.userId]);
+      const lastText = demo.messages[person.userId]?.findLast((message) => !hidden.has(message.id));
+      const lastMedia = demo.media[person.userId]?.findLast((message) => !hidden.has(message.id));
       const last = lastMedia && (!lastText || lastMedia.timestamp >= lastText.timestamp) ? lastMedia : lastText;
       return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
     })
@@ -169,7 +178,7 @@ export default function ChatsScreen() {
             const row = <ConversationRow name={person.name}
               avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
               preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
-              time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent}
+              time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent} noReply={last.noReply}
               manualUnread={manualUnread} signal={<PetSignal peer={person.userId} />}
               onPress={() => openPeer(person.userId)} />;
             return hidden

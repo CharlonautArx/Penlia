@@ -42,6 +42,7 @@ export function createApiServer(options = {}) {
       headers: request.headers,
       sourceIp: request.socket.remoteAddress ?? 'unknown',
       readBody: () => {
+        if (request.method === 'POST' && url.pathname === '/v1/chat-records') return readBody(request, 144 * 1024);
         if(request.method==='POST'&&url.pathname==='/v1/moment-media')
           return readBody(request,Math.ceil(mediaLimit/3)*4+1024);
         if(request.method==='POST'&&/^\/v1\/p2\/capsule-entries\/[0-9a-f-]{36}\/audio$/.test(url.pathname))

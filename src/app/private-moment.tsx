@@ -12,7 +12,7 @@ import {
   type LocalMedia,
   type Media,
 } from '../features/moments/media';
-import { MemberChoices } from '../features/privacy/MemberChoices';
+import { AudienceFriends } from '../features/moments/AudienceFriends';
 import type { RelationGroup, Settings } from '../features/privacy/types';
 import { errorMessage } from '../services/api';
 import { useFriends } from '../services/friends';
@@ -290,11 +290,11 @@ export default function PrivateMoment() {
                     }}
                   />
                 ))}
-              {!groups.some((group) => !group.circle) && <Notice>请先在隐私中心建立关系组。</Notice>}
+              {!groups.some((group) => !group.circle) && <Notice>请先在隐私中心建立预设关系组。</Notice>}
             </>
           )}
           {scope === 'selected' && (
-            <MemberChoices
+            <AudienceFriends
               ids={memberIds}
               update={(ids) => {
                 setMemberIds(ids);

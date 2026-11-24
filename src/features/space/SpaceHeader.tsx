@@ -28,9 +28,10 @@ export function CoverPreview({ cover }: { cover: Cover }) {
   </View>;
 }
 
-export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true }: {
+export function SpaceHeader({ person, card, signature, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true }: {
   person: { id: string; name: string; username: string };
   card: SpaceCard;
+  signature?: string;
   immersive?: { width: number; resting: number; reserve: number; top: number; reveal: SharedValue<number> };
   avatarKey?: string;
   onAvatar?: () => void;
@@ -70,8 +71,9 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
         style={({ pressed }) => [local.avatar, immersive && local.homeAvatar, pressed && local.pressed]}>{avatar}</Pressable>
         : <View style={[local.avatar, immersive && local.homeAvatar]}>{avatar}</View>}
       <View style={[styles.grow, local.identityText]}>
-        <Text style={[local.name, immersive && local.homeName]}>{person.name}</Text>
-        <Text style={[styles.small, immersive && local.homeMeta]}>{formatHandle(person.username)}{card.region ? ' · ' + card.region : ''}</Text>
+        <Text style={[local.name, immersive && local.homeName, signature !== undefined && local.homeTitle]}>{person.name}</Text>
+        {signature === undefined ? <Text style={[styles.small, immersive && local.homeMeta]}>{formatHandle(person.username)}{card.region ? ' · ' + card.region : ''}</Text>
+          : !!signature && <Text numberOfLines={2} style={[styles.small, local.homeMeta]}>{signature}</Text>}
       </View>
     </View>
     {!hidePanes && <View style={[local.panes, immersive && local.homePanes]}>
@@ -94,6 +96,7 @@ const local = StyleSheet.create({
   homeIdentity: { marginTop: -68, width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
   homeAvatar: { backgroundColor: '#FFFFFF' },
   homeName: { color: palette.light.text },
+  homeTitle: { ...type.heading, fontWeight: '500' },
   homeMeta: { color: palette.light.quiet },
   homePanes: { width: '100%', alignSelf: 'center', maxWidth: contentWidth, backgroundColor: '#FFFFFF' },
   cover: { height: 158, overflow: 'hidden' },

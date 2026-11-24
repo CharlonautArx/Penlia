@@ -1,3 +1,6 @@
+import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
+import { recordAsset } from '../../features/chat/record-media';
+import type { MessageReferences } from '../../features/chat/record-model';
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -23,7 +26,7 @@ import { ApiError, errorMessage } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, space, styles } from '../../theme';
-import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
+import { ChatBubble, ChatTimestamp, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 import { ChatViewport } from '../../features/chat/Viewport';
 
 type Line = {
@@ -35,7 +38,7 @@ type Line = {
   noReply: boolean;
   sentAt: string;
   media: Media[];
-};
+} & MessageReferences;
 
 export default function GroupConversation() {
   const { id, call: requestedCall } = useLocalSearchParams<{ id: string; call?: string }>();
@@ -55,7 +58,7 @@ export default function GroupConversation() {
   const [noReply,setNoReply]=useState(false);
   const [tools,setTools]=useState(false);
   const [emoji, setEmoji] = useState(false);
-  const [actions, setActions] = useState<Line>();
+  const manage = useMessageManagement('group:' + id);
   const [call,setCall]=useState(requestedCall==='1');
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [busy, setBusy] = useState(false);
@@ -143,7 +146,7 @@ export default function GroupConversation() {
   async function send() {
     const content = draft.trim();
     if (!content && !photos.length) return;
-    const signature = JSON.stringify([content, quiet, noReply, photos.map((photo) => photo.id)]);
+    const signature = JSON.stringify([content, quiet, noReply, manage.quote?.id, photos.map((photo) => photo.id)]);
     if (pending.current?.signature !== signature) pending.current = { id: randomUUID(), signature };
     const mediaIds: string[] = [];
     for (let index = 0; index < photos.length; index++) {
@@ -162,7 +165,7 @@ export default function GroupConversation() {
     }
     await request(groupPath + '/messages', {
       method: 'POST',
-      body: { clientId: pending.current.id, content, silent: quiet, noReply, mediaIds },
+      body: { clientId: pending.current.id, content, silent: quiet, noReply, mediaIds, replyTo: manage.quote?.id },
     });
     pending.current = undefined;
     uploaded.current.clear();
@@ -170,7 +173,26 @@ export default function GroupConversation() {
     setDraft((current) => current === draft ? '' : current);
     setQuiet(false);
     setNoReply(false);
+    manage.setQuote(undefined);
     await load();
+  }
+  const items = messages.filter((item) => !manage.history.hidden.has(item.id));
+  function managed(item: Line): ManagedMessage {
+    const asset = item.media[0];
+    return { id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
+      time: Date.parse(item.sentAt), author: item.name, body: item.content,
+      canCopy: !!item.content && !item.recordId, recordId: item.recordId,
+      assets: item.media.map(recordAsset), quote: item.quote && item.quote.author + ' · ' + item.quote.body };
+  }
+  const selected = manage.selected && items.filter((item) => manage.selected?.has(item.id)).map(managed);
+  function reportMessage(item: Line) {
+    const index = items.findIndex((line) => line.id === item.id);
+    const lines = items.slice(Math.max(0, index - 3), index + 4).map((line) => ({
+      id: line.id, author: line.name, mine: line.senderId === own,
+      content: line.content + (line.media.length ? ' [附件 ' + line.media.length + ']' : ''),
+    }));
+    const anchor = lines.find((line) => line.id === item.id);
+    if (anchor) setReport({ anchor, lines });
   }
   return (
     <ChatViewport>
@@ -191,7 +213,7 @@ export default function GroupConversation() {
         }
       />
       <FlatList
-        data={messages}
+        data={items}
         inverted
         keyboardShouldPersistTaps="handled"
         keyExtractor={(line) => line.id}
@@ -226,14 +248,16 @@ export default function GroupConversation() {
         renderItem={({ item, index }) => {
           const mine = item.senderId === own;
           const timestamp = Date.parse(item.sentAt);
-          const older = messages[index + 1];
-          const newer = messages[index - 1];
+          const older = items[index + 1];
+          const newer = items[index - 1];
           const block = startsMessageBlock(timestamp, older ? Date.parse(older.sentAt) : undefined);
-          return <View>
+          return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(item.id)} toggle={() => manage.toggle(item.id)}><View>
             {block && <ChatTimestamp value={timestamp} />}
             <ChatBubble mine={mine} first={block || item.senderId !== older?.senderId}
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
-              author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={() => setActions(item)}>
+              author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)} report={!mine ? () => reportMessage(item) : undefined}>
+              {item.quote && <QuotePreview quote={item.quote} />}
+              {item.recordId && <RecordLink id={item.recordId} />}
               {!!item.content && <MessageBody text={item.content} />}
               {!!item.media.length && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, minWidth: 160 }}>
@@ -242,11 +266,11 @@ export default function GroupConversation() {
               )}
               <MessageMarks sharing={item.noReply} silent={item.silent} />
             </ChatBubble>
-          </View>;
+          </View></SelectionCheck>;
         }}
       />
       {!!error && !!group && !details && <Notice>{error}</Notice>}
-      {!!group && <MessageComposer label="群消息" placeholder="发消息" value={draft} onChange={setDraft}
+      {!!group && (selected ? <SelectionBar manage={manage} selected={selected} /> : <MessageComposer label="群消息" focusKey={manage.quote?.id} placeholder="发消息" value={draft} onChange={setDraft}
         maxLength={1000} attachLabel="更多群消息选项" photoLabel="从图库选择群图片"
         toolsDisabled={busy} onAttach={() => setTools(true)} onEmoji={() => setEmoji(true)}
         onPhoto={() => void run(async () => {
@@ -256,18 +280,9 @@ export default function GroupConversation() {
           }
         })}
         sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || busy}
-        onSend={() => void run(send)} mode={quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />}
-      {actions && <MessageActions timestamp={Date.parse(actions.sentAt)} text={actions.content}
-        onClose={() => setActions(undefined)} report={actions.senderId !== own ? () => {
-          const index = messages.findIndex((line) => line.id === actions.id);
-          const lines = messages.slice(Math.max(0, index - 3), index + 4).map((line) => ({
-            id: line.id, author: line.name, mine: line.senderId === own,
-            content: line.content + (line.media.length ? ' [附件 ' + line.media.length + ']' : ''),
-          }));
-          const anchor = lines.find((line) => line.id === actions.id);
-          setActions(undefined);
-          if (anchor) setReport({ anchor, lines });
-        } : undefined} />}
+        onSend={() => void run(send)} mode={manage.quote ? <QuotePreview quote={manage.quote} cancel={() => manage.setQuote(undefined)} />
+          : quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />)}
+      <ManagementUI manage={manage} />
       {emoji && <Sheet title="表情" onClose={() => setEmoji(false)}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
           {['😊', '😂', '🙌', '🤍', '🎉', '☕', '🌿', '👍'].map((value) =>

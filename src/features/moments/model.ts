@@ -5,7 +5,7 @@ export const scopes: Record<Audience, string> = {
   private: '仅自己',
   friends: '全部好友',
   circle: '亲密圈',
-  group: '自定义关系组',
+  group: '预设关系组',
   selected: '指定好友',
 };
 
@@ -42,7 +42,10 @@ export type MomentComment = {
   authorId: string;
   author: string;
   body: string;
+  authorUsername?: string;
   createdAt: string;
+  replyTo?: string | null;
+  photo?: Media | null;
 };
 
 export const momentChatSharePath = '/life/moment-share/';

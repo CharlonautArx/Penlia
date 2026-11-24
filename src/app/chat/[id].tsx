@@ -1,3 +1,4 @@
+import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
@@ -9,6 +10,7 @@ import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
+import { commentEmoji } from '../../features/moments/Comments';
 import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { PeerVideo } from '../../features/media/PeerVideo';
 import { chooseMomentVideo,MomentVideo } from '../../features/moments/media';
@@ -16,13 +18,13 @@ import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet
 import { Moon } from '../../features/media/Moon';
 import { ImageBubble } from '../../features/media/ImageBubble';
 import { LocationBubble, LocationComposer } from '../../features/media/LocationCard';
-import { deliverPeerMessage, readPeerMessage, SendRejected, UnknownDelivery, type PendingMessage, type RichMessage } from '../../features/media/messages';
+import { deliverPeerMessage, fetchAttachment, readPeerMessage, SendRejected, UnknownDelivery, type PendingMessage, type RichMessage } from '../../features/media/messages';
 import { pickPhotos, preparePhoto, type PreparedPhoto } from '../../features/media/picker';
 import { useLocalPhotoUri } from '../../features/space/media';
 import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
-import { ChatBubble, ChatTimestamp, MessageActions, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
+import { ChatBubble, ChatTimestamp, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
 import { useConversationPreferences } from '../../features/chat/useConversationPreferences';
 import { ChatViewport } from '../../features/chat/Viewport';
 import { PeerChatFog } from '../../features/chat/PeerChatFog';
@@ -70,7 +72,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const closeSendMenu = useCallback(() => setSendMenuOpen(false), []);
   const [video,setVideo]=useState<Awaited<ReturnType<typeof chooseMomentVideo>>>();
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
-  const [actions, setActions] = useState<RichMessage>();
+  const manage = useMessageManagement('peer:' + person.userId);
   const batch=useRef(false);
   const preparingPhoto = useRef(false);
   const [photoLocked, setPhotoLocked] = useState(false);
@@ -132,7 +134,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       pageSize: 40,
       options: new sdk.ChatFetchMessageOptions({
         startTs: -1, endTs: -1, direction: sdk.ChatSearchDirection.UP, needSave: true,
-        msgTypes: [sdk.ChatMessageType.TXT, sdk.ChatMessageType.IMAGE, sdk.ChatMessageType.LOCATION],
+        msgTypes: [sdk.ChatMessageType.TXT, sdk.ChatMessageType.IMAGE, sdk.ChatMessageType.LOCATION, sdk.ChatMessageType.VIDEO],
       }),
     });
   }, [connection, online, peer]);
@@ -233,10 +235,10 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     const previous = pending.current;
     const retry = previous?.value.kind === 'text' && previous.value.text === text ? previous : undefined;
     if (retry?.uncertain) return;
-    if (retry && !!retry.value.silent === options.silent && !!retry.value.noReply === options.noReply) {
-      await transmit(retry.value, retry.original);
+    if (retry && retry.value.quote?.id === manage.quote?.id && !!retry.value.silent === options.silent && !!retry.value.noReply === options.noReply) {
+      if (await transmit(retry.value, retry.original)) manage.setQuote(undefined);
     } else {
-      await transmit({ kind: 'text', text, ...options });
+      if (await transmit({ kind: 'text', text, quote: manage.quote, ...options })) manage.setQuote(undefined);
     }
   }
 
@@ -248,9 +250,9 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         const retry=pending.current;
         if(retry?.value.kind==='image'&&retry.value.photoId===item.id){
           if(retry.uncertain||!await transmit(retry.value,retry.original))return;
-        }else if(!await transmit({kind:'image',photoId:item.id,width:item.width,height:item.height,bytes:item.bytes,silent:quiet,noReply}))return;
+        }else if(!await transmit({kind:'image',photoId:item.id,width:item.width,height:item.height,bytes:item.bytes,silent:quiet,noReply,quote:manage.quote}))return;
       }
-      setQuiet(false);setNoReply(false);
+      setQuiet(false);setNoReply(false);manage.setQuote(undefined);
     }finally{batch.current=false;}
   }
 
@@ -259,27 +261,52 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     router.push({ pathname: '/peer-call', params: { peer: person.userId, kind } });
   }
 
-  const items = shownMessages ?? messages;
+  const items = useMemo(() => (shownMessages ?? messages).filter((message) => !manage.history.hidden.has(message.id)),
+    [shownMessages, messages, manage.history.hidden]);
+  function managed(message: RichMessage): ManagedMessage {
+    const text = 'text' in message;
+    const kind = text ? 'text' : message.kind;
+    const asset = !text && (message.kind === 'image' || message.kind === 'video') ? {
+      mime: message.kind === 'video' ? 'video/mp4' as const : 'image/jpeg' as const,
+      photoId: message.kind === 'image' ? message.photoId : undefined,
+      load: connection && message.source ? () => fetchAttachment(connection, message.source!) : undefined,
+    } : undefined;
+    return { id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+      body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : '',
+      canCopy: (text && !message.recordId) || kind === 'location', recordId: message.recordId,
+      quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
+  }
+  const selected = manage.selected && items.filter((message) => manage.selected?.has(message.id)).map(managed);
+  function reportMessage(message: RichMessage) {
+    const index = items.findIndex((line) => line.id === message.id);
+    const lines = items.slice(Math.max(0, index - 3), index + 4).map((line) => ({ id: line.id, mine: line.mine,
+      content: 'text' in line ? line.text : line.kind === 'image' ? '[图片]' : line.kind === 'video' ? '[视频]' : '[位置]' }));
+    const anchor = lines.find((line) => line.id === message.id);
+    if (anchor) setReport({ anchor, lines });
+  }
+
   const renderMessage = useCallback<ListRenderItem<RichMessage>>(({ item: message, index }) => {
     const older = items[index + 1];
     const newer = items[index - 1];
     const block = startsMessageBlock(message.timestamp, older?.timestamp);
     const first = block || message.mine !== older?.mine;
     const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
-    return <View>
+    return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(message.id)} toggle={() => manage.toggle(message.id)}><View>
       {block && <ChatTimestamp value={message.timestamp} />}
-      <ChatBubble mine={message.mine} first={first} last={last} onActions={() => setActions(message)}
+      <ChatBubble mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
+        report={!demo && !message.mine ? () => reportMessage(message) : undefined}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
         </Pressable>}>
-        {'text' in message ? <MessageBody text={message.text} />
+        {message.quote && <QuotePreview quote={message.quote} />}
+        {message.recordId ? <RecordLink id={message.recordId} /> : 'text' in message ? <MessageBody text={message.text} />
           : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
           : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />}
         <MessageMarks sharing={message.noReply} silent={message.silent} />
       </ChatBubble>
-    </View>;
-  }, [changed, connection, items, online, person.name, person.username, person.userId]);
+    </View></SelectionCheck>;
+  }, [changed, connection, items, online, person, manage.selected, session?.user.name, demo]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
   const sendDisabled = (!demo && !online) || !draft.trim() || sending
@@ -309,7 +336,8 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && (demo || online) ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
-      <MessageComposer label="消息" floating
+      {selected ? <SelectionBar manage={manage} selected={selected} /> : <>
+      <MessageComposer label="消息" floating focusKey={manage.quote?.id}
         value={draft} onChange={setDraft} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
@@ -317,22 +345,13 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         sendLabel={sending ? '发送中…' : '发送'} onSend={() => void sendText()} sendDisabled={sendDisabled}
         onLayout={({ nativeEvent }) => setComposerHeight(nativeEvent.layout.height)}
         onSendLongPress={() => { setSendOptions({ silent: quiet, noReply }); setSendMenuOpen(true); }}
-        mode={!demo && (quiet || noReply) ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />
+        mode={manage.quote ? <QuotePreview quote={manage.quote} cancel={() => manage.setQuote(undefined)} /> :
+          !demo && (quiet || noReply) ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />
       <PeerSendMenu open={sendMenuOpen} bottom={composerHeight} options={sendOptions} disabled={sendDisabled} sending={sending}
         onToggle={(option) => setSendOptions((current) => ({ ...current, [option]: !current[option] }))}
         onSend={() => void sendText(sendOptions).then(closeSendMenu)} onClose={closeSendMenu} />
-      {actions && <MessageActions timestamp={actions.timestamp}
-        text={'text' in actions ? actions.text : undefined} onClose={() => setActions(undefined)}
-        report={!demo && !actions.mine ? () => {
-          const index = items.findIndex((line) => line.id === actions.id);
-          const context = index < 0 ? [] : items.slice(Math.max(0, index - 3), index + 4).map((line) => ({
-            id: line.id, mine: line.mine,
-            content: 'text' in line ? line.text : line.kind === 'image' ? '[图片]' : line.kind === 'video' ? '[视频]' : '[位置]',
-          }));
-          const anchor = context.find((line) => line.id === actions.id);
-          setActions(undefined);
-          if (anchor) setReport({ anchor, lines: context });
-        } : undefined} />}
+      </>}
+      <ManagementUI manage={manage} />
       {picker === 'location' && <LocationComposer online={!!demo || online} onClose={() => setPicker(undefined)} onConfirm={(value) => {
         setPicker(undefined);
         void transmit({ kind: 'location', ...value, silent:quiet });
@@ -340,7 +359,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       {(picker === 'emoji' || picker === 'attachments') && <Sheet
         title={picker === 'emoji' ? '表情' : '添加'} tone="neutral" onClose={() => setPicker(undefined)}>
         {picker === 'emoji' ? <View style={local.emoji}>
-          {['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'].map((emoji) =>
+          {commentEmoji.map((emoji) =>
             <Button key={emoji} label={emoji} variant="soft" onPress={() => {
               setDraft((text) => text.length + emoji.length <= 500 ? text + emoji : text);
               setPicker(undefined);

@@ -41,7 +41,7 @@ const scopes: Record<Scope, string> = {
   private: '仅自己',
   friends: '全部好友',
   selected: '指定好友',
-  group: '自定义关系组',
+  group: '预设关系组',
 };
 const sections = {
   wishes: '心愿共振',

@@ -154,7 +154,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     if (collaboration) router.push({ pathname: '/collection/new', params: { kind: 'collaboration' } });
     else router.push('/private-moment');
   }
-  const spaceHeader = person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
+  const spaceHeader = person && <SpaceHeader person={person} card={card} signature={home ? person.bio ?? '' : undefined} avatarKey={home || mine ? state.demoAvatarKey : undefined}
     immersive={immersive ? { ...metrics, width, reveal, top: insets.top } : undefined} hidePanes={mine}
     pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
     onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}

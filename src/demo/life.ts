@@ -63,6 +63,32 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     ? (remove ? drop(key, requireRow(key)) : edit(key, requireRow(key), fields))
     : save(key, add(body, fields));
 
+  if (root === 'chat-records') {
+    if (get) {
+      const record = requireRow('chatRecords');
+      if (record.ownerId !== self) throw new Error('找不到可查看的聊天记录。');
+      return { lines: list(record.lines).map(({ mediaIds, ...line }) => ({
+        ...line, media: strings(mediaIds).flatMap((file) => find('media', file) ?? []),
+      })) };
+    }
+    if (body.peerId && !relationships.some((friend) => friend.userId === body.peerId && friend.status === 'accepted'))
+      throw new Error('这位好友当前不可用。');
+    if (body.groupId && !find('groups', String(body.groupId))?.active) throw new Error('这个群聊当前不可用。');
+    if (body.peerId && body.groupId) throw new Error('请选择一个会话。');
+    const lines = list(body.lines);
+    if (!lines.length || lines.length > 30 || lines.some((line) => strings(line.mediaIds).some((file) => !find('media', file))))
+      throw new Error('聊天记录或附件无效。');
+    const existing = rows('chatRecords').find((record) => record.ownerId === self && record.clientId === body.clientId);
+    return existing ?? save('chatRecords', add(body, { ownerId: self }));
+  }
+  if (root === 'chat-favorites' && method === 'POST') {
+    const record = requireRow('chatRecords', String(body.recordId));
+    if (record.ownerId !== self || record.peerId || record.groupId) throw new Error('找不到可收藏的聊天记录。');
+    return rows('items').find((item) => item.chatRecordId === record.id) ?? save('items', add({
+      chatRecordId: record.id, kind: 'saved', title: body.title, category: 'other',
+      notes: '', location: '', tags: [], state: 'done', scope: 'private', media: [],
+    }, { ...owner, author: demoUser.name }));
+  }
   if (root === 'moment-media') {
     if (get) throw new Error(unavailable);
     const mime = String(body.mime);
@@ -94,7 +120,15 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'requests' && get) return { requests: [] };
     if (area === 'export' && get) return { demo: true, settings };
   }
-  if (root === 'relationship-groups') return get ? { groups: rows('relationGroups') } : upsert('relationGroups');
+  if (root === 'relationship-groups') {
+    if (get) return { groups: rows('relationGroups') };
+    const original = find('relationGroups', area);
+    if (original && !original.circle) {
+      store.moments = rows('moments').map((moment) => moment.scope === 'group' && moment.groupId === original.id
+        && !Array.isArray(moment.memberIds) ? { ...moment, memberIds: strings(original.memberIds) } : moment);
+    }
+    return upsert('relationGroups');
+  }
   if (root === 'people' && area && get) return { user: demoPeople.find((person) => person.id === area) };
   if (root === 'group-invites') {
     function valid(invite: Row) {
@@ -141,9 +175,20 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     }
     if (id === 'leave') return save('groups', { ...group, active: false });
     if (id === 'messages') {
-      if (get) return { messages: related('groupLines', 'groupId', area).slice(0, 75), next: null };
+      const lines = related('groupLines', 'groupId', area);
+      if (get) {
+        const before = query.get('before');
+        const offset = before ? lines.findIndex((line) => line.id === before) + 1 : 0;
+        const page = lines.slice(offset, offset + 40);
+        return { messages: page, next: lines.length > offset + 40 ? page.at(-1)?.id : null };
+      }
       const duplicate = related('groupLines', 'groupId', area).find((line) => line.clientId === body.clientId);
-      return duplicate ?? save('groupLines', add(body, { groupId: area, senderId: self, name: demoUser.name, sentAt: now(), media: assetRefs() }));
+      if (duplicate) return duplicate;
+      const reply = body.replyTo ? lines.find((line) => line.id === body.replyTo) : undefined;
+      const record = body.recordId ? find('chatRecords', String(body.recordId)) : undefined;
+      if (body.replyTo && !reply || body.recordId && record?.groupId !== area) throw new Error('无法使用这条聊天记录。');
+      return save('groupLines', add(body, { groupId: area, senderId: self, name: demoUser.name, sentAt: now(), media: assetRefs(),
+        quote: reply && { id: reply.id, author: reply.name, body: String(reply.content || (reply.recordId ? '[聊天记录]' : '[附件]')).slice(0, 180) } }));
     }
   }
   if (['moment-chat-shares','moment-forward-requests','moment-notifications'].includes(root)) {
@@ -157,7 +202,9 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     const selected = query.get('author');
     const timeline = selected === self && query.get('order') === 'pinned';
     const interactions = demoMomentInteractions(store, relationships);
-    const { visible, project } = interactions;
+    const { visible, project, commentVisible } = interactions;
+    const audienceIds = () => body.scope === 'group'
+      ? strings(find('relationGroups', String(body.groupId))?.memberIds) : body.memberIds;
     if (area === 'resolve-ids' && method === 'POST') {
       const keys = new Set(Array.isArray(body.keys) ? body.keys : []);
       return { identities: rows('moments').filter((item) => item.authorId === self && visible(item)
@@ -167,7 +214,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (!area && method === 'POST') {
       const previous = rows('moments').find((item) => item.authorId === self && item.clientId === body.clientId);
       return previous ?? save('moments', add({ clientId: body.clientId, body: body.body,
-        scope: body.scope, memberIds: body.memberIds, groupId: body.groupId }, { ...author, createdAt: now(), media: assetRefs() }));
+        scope: body.scope, memberIds: audienceIds(), groupId: body.groupId }, { ...author, createdAt: now(), media: assetRefs() }));
     }
     if (area) {
       const moment = requireRow('moments');
@@ -196,16 +243,30 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       }
       if (id === 'comments') {
         if (get) {
-          const all = rows('momentComments').filter((entry) => entry.momentId === area && visible(moment, entry.authorId)).sort(newestFirst);
+          const all = rows('momentComments').filter((entry) => entry.momentId === area && commentVisible(moment, entry)).sort(newestFirst);
           const before = query.get('before');
           const start = before ? all.findIndex((entry) => entry.id === before) + 1 : 0;
           const page = all.slice(start, start + 30);
-          return { comments: page, next: all.length > start + 30 ? page.at(-1)?.id ?? null : null };
+          return { comments: page.map((row) => ({ ...row, replyTo: all.some((parent) => parent.id === row.replyTo) ? row.replyTo : undefined })), next: all.length > start + 30 ? page.at(-1)?.id ?? null : null };
         }
-        if (typeof body.body !== 'string' || !body.body.trim() || body.body.length > 500) throw new Error('请输入留言。');
+        if (remove) {
+          const comment = requireRow('momentComments', query.get('id') ?? '');
+          if (comment.momentId !== area || (moment.authorId !== self && comment.authorId !== self)) throw new Error('无法删除这条评论。');
+          drop('momentComments', comment);
+          store.momentComments = rows('momentComments').map((row) => row.replyTo === comment.id ? { ...row, replyTo: null } : row);
+          store.momentNotifications = rows('momentNotifications').filter((notice) => notice.commentId !== comment.id);
+          return {};
+        }
         const previous = rows('momentComments').find((entry) => entry.momentId === area && entry.clientId === body.clientId);
         if (previous) return previous;
-        const comment = save('momentComments', add({ body: body.body.trim(), clientId: body.clientId }, { ...author, momentId: area, createdAt: now() }));
+        const text = typeof body.body === 'string' ? body.body.trim() : '';
+        const photo = body.mediaId ? requireRow('media', String(body.mediaId)) : undefined;
+        if (text.length > 500 || (!text && !photo) || (photo && (photo.mime !== 'image/jpeg' || photo.commentId))) throw new Error('评论内容或图片无效。');
+        const parent = body.replyTo ? requireRow('momentComments', String(body.replyTo)) : undefined;
+        if (parent && (parent.momentId !== area || !commentVisible(moment, parent))) throw new Error('该评论当前不可见。');
+        const comment = save('momentComments', add({ body: text, clientId: body.clientId, photo, replyTo: parent?.id },
+          { ...author, authorUsername: demoUser.username, momentId: area, createdAt: now() }));
+        if (photo) save('media', { ...photo, commentId: comment.id });
         interactions.notify(moment, self, moment.authorId, 'comment', comment.id, comment.id);
         return comment;
       }
@@ -227,7 +288,8 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       if (moment.sourceMomentId || method !== 'PATCH') throw new Error('无法修改这个动态。');
       if (body.scope === 'private') interactions.revoke(moment.id);
       return save('moments', { ...moment, body: body.body ?? moment.body, scope: body.scope,
-        groupId: body.groupId, memberIds: body.memberIds, revision: Number(moment.revision) + 1 });
+        groupId: body.groupId, memberIds: body.scope === 'group' && moment.scope === 'group' && body.groupId === moment.groupId
+          ? moment.memberIds ?? audienceIds() : audienceIds(), revision: Number(moment.revision) + 1 });
     }
     const all = rows('moments').filter((item) => visible(item) && (!selected || item.authorId === selected)
       && (query.get('feed') !== 'friends' || item.authorId !== self))

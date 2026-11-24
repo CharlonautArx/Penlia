@@ -1,3 +1,4 @@
+import { ChatHistoryProvider } from '../features/chat/history';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { PenliaAppearance, useAppearance } from '../components/appearance';
@@ -25,6 +26,7 @@ function AppNavigation() {
     <FriendsProvider key={session?.user.id ?? 'signed-out'}>
       <ConversationPreferencesProvider account={session?.user.id}>
       <ChatBackgroundProvider account={session?.user.id}>
+        <ChatHistoryProvider account={session?.user.id}>
         <SpaceProvider>
           <PetProvider>
             <ImProvider>
@@ -64,6 +66,7 @@ function AppNavigation() {
             </ImProvider>
           </PetProvider>
         </SpaceProvider>
+        </ChatHistoryProvider>
       </ChatBackgroundProvider>
       </ConversationPreferencesProvider>
     </FriendsProvider>

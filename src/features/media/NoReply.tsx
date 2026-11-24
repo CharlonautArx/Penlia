@@ -26,11 +26,13 @@ const styles = StyleSheet.create({
   text: { ...type.tag, color: '#FFFFFF', fontSize: 11 },
 });
 
-export function MessageMarks({ sharing, silent }: { sharing?: boolean; silent?: boolean }) {
+export function MessageMarks({ sharing, silent, preview = false }: { sharing?: boolean; silent?: boolean; preview?: boolean }) {
   if (!sharing && !silent) return null;
-  return <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+  const moon = silent && <View accessible accessibilityLabel="安静发送"><Icon name="moon" size={13} color={colors.moon} /></View>;
+  return <View style={{ alignSelf: preview ? 'center' : 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+    {preview && moon}
     {sharing && <Feather accessible accessibilityLabel="只是分享" name="feather" size={13} color="#FFFFFF"
       style={{ textShadowColor: '#646773', textShadowOffset: { width: 0, height: 0.5 }, textShadowRadius: 1.5 }} />}
-    {silent && <View accessible accessibilityLabel="安静送达"><Icon name="moon" size={13} color={colors.moon} /></View>}
+    {!preview && moon}
   </View>;
 }

@@ -166,7 +166,7 @@ export default function PrivacyScreen() {
               ))}
               </View>
             </View>
-            <ListRow title="亲密圈与关系组" onPress={() => void run(() => open('groups'))} />
+            <ListRow title="亲密圈与预设关系组" onPress={() => void run(() => open('groups'))} />
             {toggle(
               '让好友看到个性签名',
               settings.profilePolicy === 'friends',
@@ -214,7 +214,7 @@ export default function PrivacyScreen() {
           title={
             {
               quiet: '我的生活节奏',
-              groups: '亲密圈与关系组',
+              groups: '亲密圈与预设关系组',
               priority: '重要联系人',
               blocks: '黑名单',
               restricted: '受限联系人',
@@ -255,7 +255,7 @@ export default function PrivacyScreen() {
                   { method: group.id ? 'PUT' : 'POST', body: group },
                 );
                 setGroups((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
-                setNotice('关系组已保存。');
+                setNotice('预设关系组已保存。');
               }}
               remove={async (id) => {
                 await request('/relationship-groups/' + id, { method: 'DELETE' });
@@ -581,7 +581,7 @@ function GroupsForm({
   const [edit, setEdit] = useState<RelationGroup>();
   return edit ? (
     <>
-      <Section title={edit.circle ? '编辑亲密圈' : '编辑关系组'} />
+      <Section title={edit.circle ? '编辑亲密圈' : '编辑预设关系组'} />
       {!edit.circle && (
         <TextInput
           accessibilityLabel="关系组名称"
@@ -594,7 +594,7 @@ function GroupsForm({
       )}
       <MemberChoices friends={friends} ids={edit.memberIds} update={(memberIds) => setEdit({ ...edit, memberIds })} />
       <Button
-        label="保存关系组"
+        label="保存预设关系组"
         variant="gradient"
         disabled={busy || !edit.label.trim()}
         onPress={() =>
@@ -607,7 +607,7 @@ function GroupsForm({
       <Button label="返回关系列表" variant="quiet" onPress={() => setEdit(undefined)} />
       {!!edit.id && !edit.circle && (
         <Button
-          label="删除关系组"
+          label="删除预设关系组"
           variant="danger"
           disabled={busy}
           onPress={() =>
@@ -639,7 +639,7 @@ function GroupsForm({
           />
         ))}
       <Button
-        label="新建关系组"
+        label="新建预设关系组"
         variant="soft"
         onPress={() => setEdit({ id: '', label: '', circle: false, memberIds: [] })}
       />

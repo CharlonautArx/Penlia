@@ -194,7 +194,11 @@ export async function listGroupMessages(user, group, before = null) {
   return inTransaction(pool, async (db) => {
     const value = await groupMember(db, group, user, true);
     const { rows } = await db.query(
-      `SELECT c.id,c.sender_id AS "senderId",u.name,c.content,c.silent,c.sent_at AS "sentAt",
+      `SELECT c.id,c.sender_id AS "senderId",u.name,c.content,c.silent,c.sent_at AS "sentAt",c.chat_record_id AS "recordId",
+      (SELECT jsonb_build_object('id',quoted.id,'author',qu.name,'body',
+        CASE WHEN quoted.chat_record_id IS NOT NULL THEN '[聊天记录]' WHEN quoted.content<>'' THEN left(quoted.content,180) ELSE '[附件]' END)
+        FROM chat_group_messages quoted JOIN users qu ON qu.id=quoted.sender_id
+        WHERE quoted.id=c.reply_to AND quoted.group_id=$1 AND quoted.sent_at >= $3 AND NOT ${blocked('$2::uuid','quoted.sender_id')}) AS quote,
       EXISTS(SELECT 1 FROM p1_group_shares s WHERE s.message_id=c.id) AS "noReply",
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime) ORDER BY b.position)
         FROM private_media b WHERE b.group_message_id=c.id),'[]'::jsonb) AS media
@@ -212,10 +216,12 @@ export async function sendGroupMessage(user, group, body) {
   const clientId = readId(body.clientId);
   const content = cleanText(body.content ?? '', 1000);
   const media = idsOf(body.mediaIds ?? [], 6);
-  if (!content && !media.length) throw new HttpError(400, '请填写消息或选择图片、视频。');
+  const record = body.recordId ? readId(body.recordId) : null;
+  const reply = body.replyTo ? readId(body.replyTo) : null;
+  if (!content && !media.length && !record) throw new HttpError(400, '请填写消息或选择图片、视频。');
   return inTransaction(pool, async (db) => {
     await lockUsers(db, user);
-    await groupMember(db, group, user, true);
+    const member = await groupMember(db, group, user, true);
     const {
       rows: [existing],
     } = await db.query(`SELECT id FROM chat_group_messages WHERE group_id=$1 AND sender_id=$2 AND client_id=$3`, [
@@ -225,6 +231,11 @@ export async function sendGroupMessage(user, group, body) {
     ]);
     if (existing) return existing;
     await assertAllowed(db, user, ['limit_sending','limit_account']);
+    if (record && !(await db.query('SELECT 1 FROM chat_records WHERE id=$1 AND owner_id=$2 AND group_id=$3', [record,user,group])).rowCount)
+      throw new HttpError(404, '无法访问这条聊天记录。');
+    if (reply && !(await db.query(`SELECT 1 FROM chat_group_messages m WHERE m.id=$1 AND m.group_id=$2 AND m.sent_at >= $3
+        AND NOT ${blocked('$4::uuid','m.sender_id')}`, [reply,group,member.joinedAt,user])).rowCount)
+      throw new HttpError(404, '无法引用这条消息。');
     const uploaded = await db.query(
       `SELECT id,mime FROM private_media b WHERE owner_id=$1 AND id=ANY($2::uuid[])
       AND ${unusedMedia('b')}
@@ -236,9 +247,9 @@ export async function sendGroupMessage(user, group, body) {
     const {
       rows: [saved],
     } = await db.query(
-      `INSERT INTO chat_group_messages(group_id,sender_id,client_id,content,silent)
-      VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [group, user, clientId, content, body.silent === true],
+      `INSERT INTO chat_group_messages(group_id,sender_id,client_id,content,silent,reply_to,chat_record_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [group, user, clientId, content, body.silent === true, reply, record],
     );
     await db.query(
       `UPDATE private_media b SET group_message_id=$1,position=media.position
