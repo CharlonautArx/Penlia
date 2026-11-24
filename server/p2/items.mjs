@@ -141,7 +141,7 @@ export async function saveItem(user, body, id) {
         state=$10,scope=$11,audience_group=$12,source_url=$13,
         latitude=CASE WHEN $21 THEN $14 ELSE latitude END,longitude=CASE WHEN $21 THEN $15 ELSE longitude END,
         wish_id=$16,trip_id=$17,memory_id=$18,city=coalesce($19,city),revision=revision+1
-        WHERE id=$1 AND owner_id=$2 AND kind=$3 AND revision=$20 AND (chat_record_id IS NULL OR ($11='private' AND $4 IS NULL)) RETURNING id`,
+        WHERE id=$1 AND owner_id=$2 AND kind=$3 AND revision=$20 AND (chat_record_id IS NULL OR ($11::text='private' AND $4::uuid IS NULL)) RETURNING id`,
         [id, user, ...values, revisionOf(body.revision), body.latitude !== undefined || body.longitude !== undefined],
       ));
       if (!saved) throw conflict();
