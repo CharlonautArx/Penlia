@@ -110,7 +110,11 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
       <Action icon={<PeaceIcon active={liked} />} label={liked ? '取消比耶' : '比耶'} badge={count}
         selected={liked} onPress={like} disabled={pending} />
       <Action icon="chatbubble-outline" label="评论" badge={item.commentCount} onPress={() => onReply ? onReply() : openDetail(undefined, true)} />
-      {shareState.canForward !== false && !item.forwarded && item.scope !== 'private' && <Action icon="arrow-redo-outline" label="转发" onPress={() => { setError(''); setSheet('share'); }} />}
+      <Action icon="arrow-redo-outline" label="转发" onPress={() => {
+        if (shareState.canForward === false || item.forwarded || item.scope === 'private') {
+          setError('这条动态当前无法转发。');
+        } else { setError(''); setSheet('share'); }
+      }} />
     </View>
     {!!error && !sheet && <Notice>{error}</Notice>}
     {!hideComments && !!comments?.length && <CommentList comments={comments} owner={item.authorId}

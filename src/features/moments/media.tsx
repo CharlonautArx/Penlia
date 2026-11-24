@@ -1,3 +1,4 @@
+import type { MessageLongPress } from '../chat/record-model';
 import { randomUUID } from 'expo-crypto';
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
@@ -132,8 +133,8 @@ function useProtectedSource(id: string, enabled = true, reviewId?:string) {
   };
 }
 
-export function MomentMediaTile({ item, context = 'moment', reviewId, ratio }: {
-  item: Media; context?: 'moment' | 'chat'; reviewId?: string; ratio?: number;
+export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onLongPress }: {
+  item: Media; context?: 'moment' | 'chat'; reviewId?: string; ratio?: number; onLongPress?: MessageLongPress;
 }) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -144,7 +145,7 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio }: {
   return <>
     <Pressable accessibilityRole="button"
       accessibilityLabel={reviewId ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
-      onPress={() => setOpen(true)}
+      onPress={() => setOpen(true)} onLongPress={onLongPress}
       style={({ pressed }) => [{ height: ratio ? undefined : 140, aspectRatio: ratio, width: ratio ? '100%' : undefined,
         flexGrow: ratio ? 0 : 1, minWidth: ratio ? 0 : 100, overflow: 'hidden', opacity: pressed ? 0.84 : 1,
         borderRadius: ratio ? radius.small : radius.control, backgroundColor: video ? colors.lavender : colors.search,

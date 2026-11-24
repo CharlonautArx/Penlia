@@ -1,4 +1,4 @@
-import { parseQuote, readRecordId, type MessageReferences } from '../chat/record-model';
+import { parseQuote, readRecordId, type MessageReferences } from '../chat/record-model.ts';
 import type { ChatMessage } from 'react-native-chat-sdk';
 import type { ImConnection, TextMessage } from '../../services/im';
 

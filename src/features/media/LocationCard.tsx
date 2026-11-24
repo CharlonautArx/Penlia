@@ -1,3 +1,4 @@
+import type { MessageLongPress } from '../chat/record-model';
 import * as Location from 'expo-location';
 import { GlassLayer } from '../../components/material';
 import { useState } from 'react';
@@ -65,7 +66,7 @@ function LocationFace({ value }: { value: LocationValue }) {
   </View>;
 }
 
-export function LocationBubble({ value }: { value: LocationValue }) {
+export function LocationBubble({ value, onLongPress }: { value: LocationValue; onLongPress?: MessageLongPress }) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const coordinate = value.latitude + ',' + value.longitude;
@@ -76,7 +77,7 @@ export function LocationBubble({ value }: { value: LocationValue }) {
     try { await Linking.openURL(url); } catch { setFailed(true); }
   }
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel={'查看位置：' + value.name} onPress={() => setOpen(true)}>
+    <Pressable accessibilityRole="button" accessibilityLabel={'查看位置：' + value.name} onLongPress={onLongPress} onPress={() => setOpen(true)}>
       <LocationFace value={value} />
     </Pressable>
     {open && <Sheet title="位置详情" onClose={() => setOpen(false)}>

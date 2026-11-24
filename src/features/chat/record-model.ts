@@ -1,3 +1,6 @@
+import type { GestureResponderEvent } from 'react-native';
+
+export type MessageLongPress = (event: GestureResponderEvent) => void;
 export type Quote = { id: string; author: string; body: string };
 export type RecordLine = {
   id: string;

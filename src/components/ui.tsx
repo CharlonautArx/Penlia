@@ -1,3 +1,4 @@
+import type { PressableProps } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
@@ -91,15 +92,15 @@ export function Avatar({ name, source, size = 46, userId, localPhotoId }: {
     </View>;
 }
 
-export function Button({ label, icon, onPress, disabled, variant = 'primary' }: {
-  label: string; icon?: IconName; onPress: () => void; disabled?: boolean;
+export function Button({ label, icon, onPress, onLongPress, disabled, variant = 'primary' }: {
+  label: string; icon?: IconName; onPress: () => void; onLongPress?: PressableProps['onLongPress']; disabled?: boolean;
   variant?: 'primary' | 'soft' | 'danger' | 'gradient' | 'quiet';
 }) {
   const primary = variant === 'primary' || variant === 'gradient';
   const foreground = variant === 'danger' ? colors.danger : colors.ink;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled} onPress={onPress}
+      disabled={disabled} onPress={onPress} onLongPress={onLongPress}
       style={({ pressed }) => [
         ui.button, variant === 'soft' && ui.soft,
         variant === 'danger' && ui.danger, pressed && ui.pressed, disabled && ui.disabled,

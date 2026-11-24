@@ -1,3 +1,4 @@
+import type { MessageLongPress } from '../../features/chat/record-model';
 import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -286,6 +287,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   }
 
   const renderMessage = useCallback<ListRenderItem<RichMessage>>(({ item: message, index }) => {
+    const openActions: MessageLongPress = ({ nativeEvent }) => manage.setMenu(managed(message), { x: nativeEvent.pageX, y: nativeEvent.pageY });
     const older = items[index + 1];
     const newer = items[index - 1];
     const block = startsMessageBlock(message.timestamp, older?.timestamp);
@@ -300,9 +302,9 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
         </Pressable>}>
         {message.quote && <QuotePreview quote={message.quote} />}
-        {message.recordId ? <RecordLink id={message.recordId} /> : 'text' in message ? <MessageBody text={message.text} />
-          : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
-          : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />}
+        {message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
+          : message.kind === 'image' ? <ImageBubble item={message} onLongPress={openActions} connection={connection} online={online} onDownloaded={changed} />
+          : message.kind === 'video' ? <PeerVideo item={message} onLongPress={openActions} connection={connection} /> : <LocationBubble value={message} onLongPress={openActions} />}
         <MessageMarks sharing={message.noReply} silent={message.silent} />
       </ChatBubble>
     </View></SelectionCheck>;
@@ -354,7 +356,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       <ManagementUI manage={manage} />
       {picker === 'location' && <LocationComposer online={!!demo || online} onClose={() => setPicker(undefined)} onConfirm={(value) => {
         setPicker(undefined);
-        void transmit({ kind: 'location', ...value, silent:quiet });
+        void transmit({ kind: 'location', ...value, silent:quiet, quote: manage.quote }).then((ok) => { if (ok) manage.setQuote(undefined); });
       }} />}
       {(picker === 'emoji' || picker === 'attachments') && <Sheet
         title={picker === 'emoji' ? '表情' : '添加'} tone="neutral" onClose={() => setPicker(undefined)}>
@@ -394,7 +396,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           onPress={()=>{
             const queued=pending.current;
             if(queued?.value.kind==='video'&&queued.value.uri===video.uri)void transmit(queued.value,queued.original);
-            else void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply});
+            else void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply,quote:manage.quote}).then((ok) => { if (ok) manage.setQuote(undefined); });
           }}/>
       </Sheet>}
       {photo && <Sheet title={demo ? '图片预览' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>

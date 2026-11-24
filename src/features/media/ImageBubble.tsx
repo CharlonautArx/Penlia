@@ -1,3 +1,4 @@
+import type { MessageLongPress } from '../chat/record-model';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
@@ -8,8 +9,8 @@ import { colors, radius } from '../../theme';
 import { useLocalPhotoUri } from '../space/media';
 import { cachedAttachment, fetchAttachment, type ImageItem } from './messages';
 
-export function ImageBubble({ item, connection, online, onDownloaded }: {
-  item: ImageItem; connection: ImConnection | null; online: boolean; onDownloaded: () => void;
+export function ImageBubble({ item, connection, online, onDownloaded, onLongPress }: {
+  item: ImageItem; connection: ImConnection | null; online: boolean; onDownloaded: () => void; onLongPress?: MessageLongPress;
 }) {
   const localFile = useLocalPhotoUri(item.photoId);
   const [show, setShow] = useState(false);
@@ -33,7 +34,7 @@ export function ImageBubble({ item, connection, online, onDownloaded }: {
   }
 
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="查看大图" onPress={() => {
+    <Pressable accessibilityRole="button" accessibilityLabel="查看大图" onLongPress={onLongPress} onPress={() => {
       setShow(true); setError('');
       if (!full && !item.photoId) void download();
     }} style={[local.preview, { aspectRatio: Math.max(0.7, Math.min(2, item.width / item.height)) }]}>

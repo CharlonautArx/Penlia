@@ -110,7 +110,8 @@ export async function momentInbox(user, query) {
     return row;
   }
   const { rows } = await pool.query(`SELECT n.id,n.moment_id AS "momentId", n.actor_id AS "actorId",actor.name AS actor,
-    n.kind,n.created_at AS "createdAt", (n.read_at IS NULL) AS unread,c.body AS comment,
+    n.kind,n.created_at AS "createdAt", (n.read_at IS NULL) AS unread,CASE WHEN c.body='' AND EXISTS(SELECT 1 FROM private_media b WHERE b.comment_id=c.id)
+      THEN '［图片］' ELSE c.body END AS comment,
     req.id AS "requestId",req.status,
     CASE WHEN n.kind='forward_result' THEN split_part(n.event_key,':',2) END AS decision
     ${visible} AND ($2::uuid IS NULL OR (n.created_at,n.id)<(

@@ -22,7 +22,7 @@ const categories = {
 };
 type Category = keyof typeof categories;
 const marks = { want: '想去', visited: '去过', done: '一起完成', recommended: '朋友推荐' };
-const scopes = { private: '仅自己', space: '共同成员', selected: '指定好友', group: '关系组' };
+const scopes = { private: '仅自己', space: '共同成员', selected: '指定好友', group: '预设关系组' };
 type Scope = keyof typeof scopes;
 type Kind = 'saved' | 'place';
 type Item = {
@@ -282,7 +282,7 @@ function ItemCard({
       <View style={styles.row}>
         <Icon name={item.kind === 'place' ? (item.latitude == null ? 'bookmark-outline' : 'location-outline') : 'bookmark-outline'}
           color={colors.accent} size={21} />
-        <Section title={item.title} detail={categories[item.category] + ' · ' + marks[item.state]} />
+        <Section title={item.title} detail={item.chatRecordId ? '聊天记录 · 仅自己' : categories[item.category] + ' · ' + marks[item.state]} />
       </View>
       {item.ownerId !== me && <Text style={styles.small}>{item.author} 分享</Text>}
       {!!address && <Text style={styles.muted}>{address}</Text>}
@@ -307,7 +307,7 @@ function ItemInformation({ item }: { item: Item }) {
   return (
     <>
       <Text style={styles.muted}>
-        {categories[item.category]} · {marks[item.state]} · {item.author}
+        {item.chatRecordId ? '聊天记录 · 仅自己' : [categories[item.category], marks[item.state], item.author].filter(Boolean).join(' · ')}
       </Text>
       {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
       {!!address && <Text style={styles.muted}>{address}</Text>}
@@ -497,7 +497,7 @@ function ItemEditor({
     );
   const scopesHere = project
     ? scopes
-    : { private: scopes.private, selected: scopes.selected, group: scopes.group };
+    : initial?.chatRecordId ? { private: scopes.private } : { private: scopes.private, selected: scopes.selected, group: scopes.group };
   const latitude = lat.trim() ? Number(lat) : null;
   const longitude = lon.trim() ? Number(lon) : null;
   const coordinatesInvalid = isPlace && (latitude !== null || longitude !== null) && (

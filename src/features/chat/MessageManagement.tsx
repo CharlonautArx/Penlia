@@ -1,3 +1,4 @@
+import type { MessageLongPress } from './record-model';
 import { setStringAsync } from 'expo-clipboard';
 import { randomUUID } from 'expo-crypto';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -165,8 +166,8 @@ export function QuotePreview({ quote, cancel }: { quote: Quote; cancel?: () => v
   </View>;
 }
 
-export function RecordLink({ id }: { id: string }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="查看聊天记录" style={local.record}
+export function RecordLink({ id, onLongPress }: { id: string; onLongPress?: MessageLongPress }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel="查看聊天记录" onLongPress={onLongPress} style={local.record}
     onPress={() => router.push({ pathname: '/life/chat-record/[id]', params: { id } })}>
     <Icon name="reader-outline" size={20} /><Text style={styles.strong}>聊天记录</Text><Icon name="chevron-forward" size={14} />
   </Pressable>;

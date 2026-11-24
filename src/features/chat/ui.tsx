@@ -1,3 +1,4 @@
+import type { MessageLongPress } from './record-model';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
@@ -89,7 +90,7 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
   </View>;
 }
 
-export function MessageBody({ text }: { text: string }) {
+export function MessageBody({ text, onLongPress }: { text: string; onLongPress?: MessageLongPress }) {
   const [caption, link, extra] = text.split('\n', 3);
   if (caption === momentShareCaption && link && extra === undefined) {
     const id = link.slice(-36);
@@ -100,7 +101,7 @@ export function MessageBody({ text }: { text: string }) {
     const ticket = matches(momentChatSharePath);
     if (/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) && (ticket || matches(momentSharePath))) {
       return <Pressable accessibilityRole="link" accessibilityLabel="查看分享的动态"
-        onPress={() => router.push({ pathname: ticket ? '/life/moment-share/[id]' : '/life/moment/[id]', params: { id } })}
+        onLongPress={onLongPress} onPress={() => router.push({ pathname: ticket ? '/life/moment-share/[id]' : '/life/moment/[id]', params: { id } })}
         style={({ pressed }) => [styles.row, ui.postLink, pressed && ui.pressedBubble]}>
         <Icon name="images-outline" size={18} color={colors.accent} />
         <Text style={[styles.strong, styles.grow, ui.linkText]}>查看分享的动态</Text>

@@ -451,6 +451,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
         if (query.get('space')) return row.spaceId === query.get('space');
         return query.get('tab') === 'friends' ? row.ownerId !== self : row.ownerId === self && !row.spaceId;
       }), next: null };
+      if (find('items')?.chatRecordId && !remove && body.scope !== 'private') throw new Error('聊天收藏仅自己可见。');
       if (action === 'copy') return save('items', add(requireRow('items'), { ...owner, scope: 'private', author: demoUser.name }));
       return upsert('items', { ownerId: self, author: demoUser.name, tags: strings(body.tags), media: assetRefs(find('items')?.media) });
     }

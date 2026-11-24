@@ -6,7 +6,7 @@ const baseMomentVisible = (post, viewer) => `(${post}.author_id=${viewer} OR
     (${post}.scope='selected' AND EXISTS(SELECT 1 FROM private_moment_viewers v WHERE v.moment_id=${post}.id AND v.user_id=${viewer})) OR
     (${post}.scope IN ('circle','group') AND EXISTS(SELECT 1 FROM relationship_groups g JOIN relationship_group_members gm ON gm.group_id=g.id
       WHERE g.id=${post}.audience_group AND g.owner_id=${post}.author_id AND gm.user_id=${viewer} AND g.circle=(${post}.scope='circle'))
-      AND (${post}.scope='circle' OR EXISTS(SELECT 1 FROM private_moment_viewers snapshot WHERE snapshot.moment_id=${post}.id AND snapshot.user_id=${viewer}))))
+      AND (${post}.scope='circle' OR EXISTS(SELECT 1 FROM private_moment_viewers snapshot WHERE snapshot.moment_id=${post}.id AND snapshot.user_id=${viewer})))
   )))`;
 
 export const forwardableMoment = (post) =>

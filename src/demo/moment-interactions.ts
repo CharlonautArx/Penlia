@@ -156,7 +156,7 @@ export function demoMomentInteractions(store: Rows, relationships: Relationship[
       id: item.id, momentId: item.momentId, actorId: item.actorId, actor: name(item.actorId),
       kind: item.kind, unread: item.unread, createdAt: item.createdAt, requestId: item.requestId,
       decision: item.kind === 'forward_result' ? String(item.key).split(':')[1] : undefined,
-      comment: find('momentComments', item.commentId)?.body, status: find('momentForwards', item.requestId)?.status,
+      comment: find('momentComments', item.commentId)?.body || (find('momentComments', item.commentId)?.photo ? '［图片］' : undefined), status: find('momentForwards', item.requestId)?.status,
     })), next: notifications.length > index + 30 ? page.at(-1)?.id ?? null : null };
   }
 

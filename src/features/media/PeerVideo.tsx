@@ -1,3 +1,4 @@
+import type { MessageLongPress } from '../chat/record-model';
 import { useState } from 'react';
 import { Text } from 'react-native';
 import { Button, Notice, Sheet } from '../../components/ui';
@@ -7,7 +8,7 @@ import { styles } from '../../theme';
 import { MomentVideo } from '../moments/media';
 import { fetchAttachment, type VideoItem } from './messages';
 
-export function PeerVideo({ item, connection }: { item: VideoItem; connection?: ImConnection | null }) {
+export function PeerVideo({ item, connection, onLongPress }: { item: VideoItem; connection?: ImConnection | null; onLongPress?: MessageLongPress }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uri, setUri] = useState('');
@@ -31,7 +32,7 @@ export function PeerVideo({ item, connection }: { item: VideoItem; connection?: 
   }
   return (
     <>
-      <Button label="观看视频" icon="videocam-outline" variant="soft" onPress={() => void view()} />
+      <Button label="观看视频" onLongPress={onLongPress} icon="videocam-outline" variant="soft" onPress={() => void view()} />
       {open && (
         <Sheet title="聊天视频" onClose={() => setOpen(false)}>
           {uri ? (

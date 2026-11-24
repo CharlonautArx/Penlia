@@ -1,3 +1,4 @@
+import type { MessageLongPress } from '../../features/chat/record-model';
 import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
 import { recordAsset } from '../../features/chat/record-media';
 import type { MessageReferences } from '../../features/chat/record-model';
@@ -246,6 +247,7 @@ export default function GroupConversation() {
           ) : undefined
         }
         renderItem={({ item, index }) => {
+          const openActions: MessageLongPress = ({ nativeEvent }) => manage.setMenu(managed(item), { x: nativeEvent.pageX, y: nativeEvent.pageY });
           const mine = item.senderId === own;
           const timestamp = Date.parse(item.sentAt);
           const older = items[index + 1];
@@ -257,11 +259,11 @@ export default function GroupConversation() {
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
               author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)} report={!mine ? () => reportMessage(item) : undefined}>
               {item.quote && <QuotePreview quote={item.quote} />}
-              {item.recordId && <RecordLink id={item.recordId} />}
-              {!!item.content && <MessageBody text={item.content} />}
+              {item.recordId && <RecordLink id={item.recordId} onLongPress={openActions} />}
+              {!!item.content && <MessageBody text={item.content} onLongPress={openActions} />}
               {!!item.media.length && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, minWidth: 160 }}>
-                  {item.media.map((media) => <MomentMediaTile key={media.id} item={media} context="chat" />)}
+                  {item.media.map((media) => <MomentMediaTile key={media.id} item={media} context="chat" onLongPress={openActions} />)}
                 </View>
               )}
               <MessageMarks sharing={item.noReply} silent={item.silent} />
