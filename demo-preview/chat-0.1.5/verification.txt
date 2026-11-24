@@ -1,0 +1,20 @@
+朋聊 0.1.5 / Android versionCode 16
+Source branch: codex/penlia-chat-accessibility
+Source commit: 61ac8c134a89dc21bedeb9af82fe7e5763a934e4
+GitHub Android workflow: https://github.com/CharlonautArx/Penlia/actions/runs/45465941695
+
+TypeScript: tsc --noEmit passed.
+Client unit tests: 42 passed.
+Isolated PostgreSQL: 28 passed, including 3 recall integration cases and 25 prior regressions.
+Expo Android Hermes bundle: emitted successfully.
+Chromium offline preview: four actual text sizes (14.4, 16, 18.4, 20.8 CSS px), drag, cold reload, chat name weight 400, chat settings, date navigation, media, stickers, files, recall and quote/search/preview redaction passed.
+
+The formal communication adapter was tested against isolated PostgreSQL and a simulated Easemob transport. Production callback, real participant devices, push permissions and sound were not exercised.
+
+Chromium 320 CSS px: chat input, settings, four search categories and five primary tabs verified at extra-large text.
+Android R8 Release: arm64-v8a and x86_64 both passed. APK package app.penlia.mobile.preview. ARM64 ZIP alignment at 16 KiB and original startup image verified.
+Android API 35 x86_64, offline: all five targeted groups passed across the original run and retries.
+- history/settings https://github.com/CharlonautArx/Penlia/actions/runs/45470128605/job/138715521579
+- fonts/recall https://github.com/CharlonautArx/Penlia/actions/runs/45471109813
+- media/conversation wallpaper https://github.com/CharlonautArx/Penlia/actions/runs/45471216800
+No physical ARM64 installation was tested.
