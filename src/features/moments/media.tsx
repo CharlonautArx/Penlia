@@ -1,3 +1,5 @@
+import { momentPhotoGrid } from './photo-grid';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { MessageLongPress } from '../chat/record-model';
 import { randomUUID } from 'expo-crypto';
 import { File } from 'expo-file-system';
@@ -13,25 +15,44 @@ import { useSession } from '../../services/session';
 import { colors, fixed, radius, space, styles } from '../../theme';
 import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/MediaViewer';
 import { pickPhotos, preparePhoto } from '../media/picker';
-import { nativePhotoUri, useLocalPhotoUri } from '../space/media';
+import { nativePhotoUri, readLocalPhoto, removeSpaceMedia, saveSpaceMedia, useLocalPhotoUri } from '../space/media';
 
-export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4'; demoAsset?: string; demoUri?: string };
+export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4'; demoAsset?: string; demoUri?: string; thumbnail?: boolean; demoThumbnail?: string };
 export type LocalMedia =
-  | { id: string; mime: 'image/jpeg'; photoId: string }
-  | { id: string; mime: 'video/mp4'; uri: string; bytes: number; duration?: number };
+  | { id: string; mime: 'image/jpeg'; photoId: string; thumbnailId?: string }
+  | { id: string; mime: 'video/mp4'; uri?: string; videoId?: string; bytes: number; duration?: number };
 const maxVideo = 4 * 1024 * 1024;
 
-export async function chooseMomentPhotos(owner: string, limit: number) {
+export async function chooseMomentPhotos(owner: string, limit: number, thumbnails = false) {
   const inputs = await pickPhotos(limit);
   const assets: LocalMedia[] = [];
-  for (const input of inputs) {
-    const photo = await preparePhoto(input, owner);
-    assets.push({ id: randomUUID(), mime: 'image/jpeg', photoId: photo.id });
+  try {
+    for (const input of inputs) {
+      const photo = await preparePhoto(input, owner);
+      const asset: Extract<LocalMedia, { mime: 'image/jpeg' }> = { id: randomUUID(), mime: 'image/jpeg', photoId: photo.id };
+      assets.push(asset);
+      if (thumbnails) {
+        const context = ImageManipulator.manipulate(input.uri);
+        try {
+          const longest = Math.max(input.width, input.height);
+          if (longest > 400) context.resize(input.width >= input.height ? { width: 400 } : { height: 400 });
+          const image = await context.renderAsync();
+          try {
+            const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.55 });
+            const bytes = Platform.OS === 'web' ? (await (await fetch(saved.uri)).blob()).size : new File(saved.uri).size;
+            if (bytes <= 98304) asset.thumbnailId = await saveSpaceMedia(saved.uri, owner, 'image/jpeg');
+          } finally { image.release(); }
+        } finally { context.release(); }
+      }
+    }
+  } catch (error) {
+    await Promise.allSettled(assets.map(removeMomentDraftMedia));
+    throw error;
   }
   return assets;
 }
 
-export async function chooseMomentVideo(): Promise<Extract<LocalMedia,{mime:'video/mp4'}> | undefined> {
+export async function chooseMomentVideo(): Promise<(Extract<LocalMedia,{mime:'video/mp4'}> & { uri: string }) | undefined> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['videos'],
     selectionLimit: 1,
@@ -56,21 +77,35 @@ export async function chooseMomentVideo(): Promise<Extract<LocalMedia,{mime:'vid
   return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri, bytes:size, duration:asset.duration?asset.duration/1000:undefined };
 }
 
-export async function encodeMomentMedia(media: LocalMedia) {
-  let uri = 'uri' in media ? media.uri : nativePhotoUri(media.photoId);
+export async function chooseMomentDraftVideo(owner: string) {
+  const video = await chooseMomentVideo();
+  if (!video?.uri) return undefined;
+  const videoId = await saveSpaceMedia(video.uri, owner, 'video/mp4');
+  return { ...video, videoId, uri: undefined };
+}
+
+export async function removeMomentDraftMedia(media: LocalMedia) {
+  await Promise.all(media.mime === 'image/jpeg'
+    ? [removeSpaceMedia(media.photoId), removeSpaceMedia(media.thumbnailId)]
+    : [removeSpaceMedia(media.videoId)]);
+}
+
+async function assetBase64(localId?: string, temporaryUri?: string) {
+  const uri = temporaryUri ?? (localId && nativePhotoUri(localId));
   if (Platform.OS !== 'web') {
     if (!uri) throw new Error('媒体文件已失效，请重新选择。');
-    return { clientId: media.id, mime: media.mime, base64: await new File(uri).base64() };
+    return new File(uri).base64();
   }
-  if (!uri && 'photoId' in media) {
-    const { readLocalPhoto } = await import('../space/media');
-    const original = await readLocalPhoto(media.photoId);
-    if (!original) throw new Error('图片文件已失效，请重新选择。');
-    return { clientId: media.id, mime: media.mime, base64: await base64Of(original) };
-  }
-  if (!uri) throw new Error('媒体文件已失效，请重新选择。');
-  const blob = await (await fetch(uri)).blob();
-  return { clientId: media.id, mime: media.mime, base64: await base64Of(blob) };
+  const blob = localId ? await readLocalPhoto(localId) : uri ? await (await fetch(uri)).blob() : undefined;
+  if (!blob) throw new Error('媒体文件已失效，请重新选择。');
+  return base64Of(blob);
+}
+
+export async function encodeMomentMedia(media: LocalMedia) {
+  const photo = media.mime === 'image/jpeg';
+  const base64 = await assetBase64(photo ? media.photoId : media.videoId, photo ? undefined : media.uri);
+  const thumbnail = photo && media.thumbnailId ? await assetBase64(media.thumbnailId) : undefined;
+  return { clientId: media.id, mime: media.mime, base64, thumbnail };
 }
 
 function base64Of(blob: Blob): Promise<string> {
@@ -82,7 +117,7 @@ function base64Of(blob: Blob): Promise<string> {
   });
 }
 
-function useProtectedSource(id: string, enabled = true, reviewId?:string) {
+function useProtectedSource(id: string, enabled = true, reviewId?:string, thumbnail = false) {
   const token = useSession().session?.token;
   const [cached, setCached] = useState<{ source: string; token: string; uri: string }>();
   const [problem, setProblem] = useState('');
@@ -90,11 +125,11 @@ function useProtectedSource(id: string, enabled = true, reviewId?:string) {
     if (isUiDemo || !enabled || !token) return undefined;
     try {
       return apiOrigin() + (reviewId ? '/v1/p1/review-media/' + encodeURIComponent(reviewId) + '/' : '/v1/moment-media/')
-        + encodeURIComponent(id);
+        + encodeURIComponent(id) + (thumbnail ? '?size=thumb' : '');
     } catch {
       return undefined;
     }
-  }, [id, token, enabled, reviewId]);
+  }, [id, token, enabled, reviewId, thumbnail]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !uri || !token) return;
     let active = true,
@@ -133,19 +168,26 @@ function useProtectedSource(id: string, enabled = true, reviewId?:string) {
   };
 }
 
-export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onLongPress }: {
-  item: Media; context?: 'moment' | 'chat'; reviewId?: string; ratio?: number; onLongPress?: MessageLongPress;
+export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onLongPress, more, index, onMore }: {
+  item: Media; context?: 'moment' | 'chat'; reviewId?: string; ratio?: number; onLongPress?: MessageLongPress; more?: number; index?: number; onMore?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [viewerFailed, setViewerFailed] = useState(false);
   const video = item.mime === 'video/mp4';
-  const { source, problem } = useProtectedSource(item.id, !video || open, reviewId);
+  const { source, problem } = useProtectedSource(item.id, !video, reviewId, !!item.thumbnail);
+  const full = useProtectedSource(item.id, open && (video || !!item.thumbnail), reviewId);
+  const openedSource = item.thumbnail || video ? full.source : source;
+  const viewProblem = item.thumbnail || video ? full.problem : problem;
+  const original = isUiDemo && item.demoUri ? { uri: item.demoUri } : openedSource;
   const displaySource = isUiDemo && item.demoUri ? { uri: item.demoUri } : source;
-  const photoSource = isUiDemo && item.demoAsset ? lifeDemoImages[item.demoAsset] : displaySource;
+  const sample = isUiDemo && item.demoAsset ? lifeDemoImages[item.demoAsset] : undefined;
+  const photoSource = sample ?? (isUiDemo && item.demoThumbnail ? { uri: item.demoThumbnail } : displaySource);
+  const viewSource = sample ?? original;
   return <>
     <Pressable accessibilityRole="button"
-      accessibilityLabel={reviewId ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
-      onPress={() => setOpen(true)} onLongPress={onLongPress}
+      accessibilityLabel={more ? '查看全部照片，另有 ' + (more - 1) + ' 张' : index ? '查看动态照片 ' + index : reviewId ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
+      onPress={more && onMore ? onMore : () => { setViewerFailed(false); setOpen(true); }} onLongPress={onLongPress}
       style={({ pressed }) => [{ height: ratio ? undefined : 140, aspectRatio: ratio, width: ratio ? '100%' : undefined,
         flexGrow: ratio ? 0 : 1, minWidth: ratio ? 0 : 100, overflow: 'hidden', opacity: pressed ? 0.84 : 1,
         borderRadius: ratio ? radius.small : radius.control, backgroundColor: video ? colors.lavender : colors.search,
@@ -157,18 +199,34 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onL
         <Image source={photoSource} style={{ width: '100%', height: '100%' }} resizeMode="cover" resizeMethod="resize"
           onError={() => setFailed(true)} />
       ) : <Text style={styles.small}>{problem || (failed ? '照片暂不可访问' : '正在载入照片…')}</Text>}
+      {!!more && <View pointerEvents="none" style={{ position:'absolute', inset: 0, backgroundColor:'#00000080',
+        alignItems:'center', justifyContent:'center' }}><Text style={[styles.strong,{ color:'#FFFFFF', fontSize:24 }]}>+{more}</Text></View>}
     </Pressable>
     {open && <MediaViewer title={reviewId ? '举报附件' : video ? '短视频' : '图片预览'} onClose={() => setOpen(false)}>
-      {failed || problem ? <MediaViewerMessage>{problem || '暂时无法显示该媒体。'}</MediaViewerMessage>
-        : !(video ? displaySource : photoSource) ? <MediaViewerMessage busy>正在加载媒体…</MediaViewerMessage>
-        : video ? displaySource && <MomentVideo source={displaySource} immersive />
-        : <Image source={photoSource} accessibilityLabel="原图预览" resizeMode="contain" style={viewerStyles.photo}
-          onError={() => setFailed(true)} />}
+      {viewerFailed || viewProblem ? <MediaViewerMessage>{viewProblem || '暂时无法显示该媒体。'}</MediaViewerMessage>
+        : !(video ? original : viewSource) ? <MediaViewerMessage busy>正在加载媒体…</MediaViewerMessage>
+        : video ? original && <MomentVideo source={original} immersive />
+        : <Image source={viewSource} accessibilityLabel="原图预览" resizeMode="contain" style={viewerStyles.photo}
+          onError={() => setViewerFailed(true)} />}
     </MediaViewer>}
   </>;
 }
 
-export function MomentMediaGrid({ media }: { media: Media[] }) {
+export function MomentMediaGrid({ media, mode, onMore }: { media: Media[]; mode?: 'feed' | 'detail'; onMore?: () => void }) {
+  if (mode && media.length > 1 && media.every(({ mime }) => mime !== 'video/mp4')) {
+    const { rows, more } = momentPhotoGrid(media, mode === 'detail');
+    return <View style={{ gap: space.xxs }}>{rows.map((row, rowIndex) => (
+      <View key={row[0].id} style={{ flexDirection: 'row', gap: space.xxs }}>
+        {row.map((item, colIndex) => {
+          const index = rowIndex * 3 + colIndex + 1;
+          return <View key={item.id} style={styles.grow}>
+            <MomentMediaTile item={item} ratio={1} index={index} more={index === 9 ? more : 0} onMore={onMore} />
+          </View>;
+        })}
+        {Array.from({ length: 3 - row.length }, (_, index) => <View key={index} style={styles.grow} />)}
+      </View>
+    ))}</View>;
+  }
   const full = media.length % 2 === 1;
   const remaining = full ? media.slice(1) : media;
   return <View style={{ gap: space.xxs }}>

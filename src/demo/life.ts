@@ -63,6 +63,16 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     ? (remove ? drop(key, requireRow(key)) : edit(key, requireRow(key), fields))
     : save(key, add(body, fields));
 
+  if (root === 'moment-space-preferences') {
+    const setting = find('momentSpacePreferences', self);
+    if (get) return { privacy: setting ?? { mode: 'friends', ids: [], history: 'all' }, configured: !!setting };
+    const { mode, history, date, zone } = body;
+    const ids = mode === 'allow' || mode === 'deny' ? strings(body.ids) : [];
+    if (!['friends','self','allow','deny'].includes(String(mode)) || !['all','3d','180d','custom'].includes(String(history)) ||
+      (mode === 'allow' || mode === 'deny') && !ids.length) throw new Error('请选择有效的空间权限和展示范围。');
+    return { privacy: save('momentSpacePreferences', { id: self, mode, ids, history,
+      date: history === 'custom' ? date : null, zone: history === 'custom' ? zone : null }), configured: true };
+  }
   if (root === 'chat-records') {
     if (get) {
       const record = requireRow('chatRecords');
@@ -91,6 +101,12 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
   }
   if (root === 'moment-media') {
     if (get) throw new Error(unavailable);
+    if (remove) {
+      const media = find('media', area);
+      if (media && !rows('moments').some((moment) => list(moment.media).some((entry) => entry.id === media.id))
+        && !media.commentId) drop('media', media);
+      return {};
+    }
     const mime = String(body.mime);
     if (!['image/jpeg', 'image/png', 'video/mp4'].includes(mime) || typeof body.base64 !== 'string'
         || body.base64.length > 6_000_000) throw new Error('无法保存该本机附件。');
@@ -106,7 +122,16 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       file.write(body.base64, { encoding: 'base64' });
       demoUri = file.uri;
     }
-    return { media: save('media', { id: asset, mime, demoUri }) };
+    let demoThumbnail: string | undefined;
+    if (mime === 'image/jpeg' && typeof body.thumbnail === 'string' && body.thumbnail.length <= 131072) {
+      demoThumbnail = 'data:image/jpeg;base64,' + body.thumbnail;
+      if (Platform.OS !== 'web') {
+        const file = new File(new Directory(Paths.document, 'demo-media'), asset + '-thumb.jpg');
+        file.write(body.thumbnail, { encoding: 'base64' });
+        demoThumbnail = file.uri;
+      }
+    }
+    return { media: save('media', { id: asset, mime, demoUri, demoThumbnail }) };
   }
 
   if (root === 'privacy') {
@@ -213,8 +238,11 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'count' && get) return { count: rows('moments').filter((item) => item.authorId === self).length };
     if (!area && method === 'POST') {
       const previous = rows('moments').find((item) => item.authorId === self && item.clientId === body.clientId);
-      return previous ?? save('moments', add({ clientId: body.clientId, body: body.body,
-        scope: body.scope, memberIds: audienceIds(), groupId: body.groupId }, { ...author, createdAt: now(), media: assetRefs() }));
+      const media = list(assetRefs());
+      if (strings(body.mediaIds).length !== media.length || media.length > 20 ||
+        (media.length > 1 && media.some((asset) => asset.mime === 'video/mp4'))) throw new Error('请选择最多 20 张照片或一段短视频。');
+      return previous ?? save('moments', add({ clientId: body.clientId, body: body.body, location: body.location,
+        scope: body.scope, memberIds: audienceIds(), groupId: body.groupId }, { ...author, createdAt: now(), media }));
     }
     if (area) {
       const moment = requireRow('moments');
@@ -287,7 +315,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       }
       if (moment.sourceMomentId || method !== 'PATCH') throw new Error('无法修改这个动态。');
       if (body.scope === 'private') interactions.revoke(moment.id);
-      return save('moments', { ...moment, body: body.body ?? moment.body, scope: body.scope,
+      return save('moments', { ...moment, body: body.body ?? moment.body, location: body.location ?? moment.location, scope: body.scope,
         groupId: body.groupId, memberIds: body.scope === 'group' && moment.scope === 'group' && body.groupId === moment.groupId
           ? moment.memberIds ?? audienceIds() : audienceIds(), revision: Number(moment.revision) + 1 });
     }
@@ -364,9 +392,30 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       return upsert('contributions', { media: assetRefs(contribution.media) });
     }
     if (area === 'events') return { events: rows('events') };
-    if (area === 'boundary') return { reports: rows('reports'), actions: rows('enforcement'), canReview: false };
-    if (area === 'reports' && !get) return save('reports', add({},
-      { status: 'pending', kind: body.kind, title: '本机举报记录', createdAt: now() }));
+    if (area === 'boundary') {
+      if (!get) {
+        if (method !== 'POST') throw new Error(unavailable);
+        const chosen = new Set(strings(body.ids));
+        store.reports = rows('reports').map((report) => body.all === true || chosen.has(report.id) ? { ...report, hidden: true } : report);
+        return {};
+      }
+      const reports = rows('reports').slice().sort(newestFirst);
+      const before = query.get('before');
+      const page = reports.slice(before ? reports.findIndex(({ id }) => id === before) + 1 : 0)
+        .filter((item) => !item.hidden).slice(0,51);
+      return { reports: page.slice(0,50), next: page[50] ? page[49].id : null, actions: rows('enforcement'), canReview: false };
+    }
+    if (area === 'reports' && method === 'POST') {
+      const existing = rows('reports').find((report) => report.clientId === body.clientId);
+      if (existing) return { id: existing.id };
+      const peer = relationships.some((friend) => friend.userId === body.peerId && friend.status === 'accepted');
+      const group = body.groupId && find('groups', String(body.groupId))?.active &&
+        rows('groupLines').some((line) => line.groupId === body.groupId && line.id === body.anchorId && line.senderId !== self);
+      if (!(group || (peer && list(body.messages).some((line) => line.id === body.anchorId && line.mine === false))))
+        throw new Error('请选择对方发送的消息。');
+      const at = now();
+      return save('reports', add({ clientId: body.clientId }, { status: 'pending', kind: body.kind, submittedAt: at, createdAt: at }));
+    }
     if (area === 'groups' && action === 'call') {
       if (get) return { call: null, available: false };
       throw new Error('多人通话需要正式的 RTC 服务。可在单聊中查看本机通话预览。');

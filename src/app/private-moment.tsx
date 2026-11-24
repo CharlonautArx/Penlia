@@ -1,17 +1,22 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, Empty, Icon, IconButton, ListRow, Notice, Screen, Sheet } from '../components/ui';
 import { scopes, type Audience, type Moment } from '../features/moments/Feed';
 import {
   chooseMomentPhotos,
-  chooseMomentVideo,
+  chooseMomentDraftVideo,
+  MomentVideo,
+  removeMomentDraftMedia,
   DraftMediaTile,
   encodeMomentMedia,
   type LocalMedia,
   type Media,
 } from '../features/moments/media';
+import { emptyMomentDraft, useMomentDraft, type MomentDraft } from '../features/moments/draft';
+import { momentPhotoLimit } from '../features/moments/photo-grid';
+import { useLocalPhotoUri } from '../features/space/media';
 import { AudienceFriends } from '../features/moments/AudienceFriends';
 import type { RelationGroup, Settings } from '../features/privacy/types';
 import { errorMessage } from '../services/api';
@@ -24,13 +29,20 @@ export default function PrivateMoment() {
   const { request, session } = useSession();
   const { relationships, refresh } = useFriends();
   const [previous, setPrevious] = useState<Moment>();
-  const [body, setBody] = useState('');
-  const [scope, setScope] = useState<Audience>('private');
-  const [groupId, setGroupId] = useState('');
-  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const draft = useMomentDraft();
+  const [editing, setEditing] = useState<MomentDraft>(emptyMomentDraft);
+  const [defaultScope, setDefaultScope] = useState<Audience>('private');
   const [groups, setGroups] = useState<RelationGroup[]>([]);
   const [showAudience, setShowAudience] = useState(false);
-  const [assets, setAssets] = useState<LocalMedia[]>([]);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [preview, setPreview] = useState<LocalMedia>();
+  const form = id ? editing : draft.value ?? emptyMomentDraft(defaultScope);
+  const { body, location, scope, groupId, memberIds, assets } = form;
+  function change(next: Partial<MomentDraft> | ((current: MomentDraft) => MomentDraft)) {
+    const apply = (current: MomentDraft) => typeof next === 'function' ? next(current) : { ...current, ...next };
+    if (id) setEditing(apply);
+    else draft.update((current) => apply(current ?? emptyMomentDraft(defaultScope)));
+  }
   const [confirmed, setConfirmed] = useState(false);
   const [deletePrompt, setDeletePrompt] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -38,7 +50,6 @@ export default function PrivateMoment() {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const uploaded = useRef(new Map<string, string>());
-  const clientId = useRef<string | undefined>(undefined);
   const guard = useRef(false);
   const me = session?.user.id;
 
@@ -55,17 +66,17 @@ export default function PrivateMoment() {
         if (!active) return;
         if (entry && entry.moment.authorId !== me) throw new Error('只有发布者能修改这条动态。');
         setGroups(result.groups);
-        setScope(entry?.moment.scope ?? prefs.settings.momentScope);
+        setDefaultScope(prefs.settings.momentScope);
         if (entry) {
-          setPrevious(entry.moment);
-          setBody(entry.moment.body);
-          setGroupId(entry.moment.groupId ?? '');
-          setMemberIds(entry.moment.memberIds ?? []);
+          const moment = entry.moment;
+          setPrevious(moment);
+          setEditing({ ...emptyMomentDraft(moment.scope ?? prefs.settings.momentScope),
+            body: moment.body, location: moment.location ?? '', groupId: moment.groupId ?? '', memberIds: moment.memberIds ?? [] });
         }
         setLoaded(true);
       })
       .catch((failure) => {
-        if (active) setError(errorMessage(failure));
+        if (active) { setError(errorMessage(failure)); if (!id) setLoaded(true); }
       });
     return () => {
       active = false;
@@ -98,27 +109,26 @@ export default function PrivateMoment() {
     if (previous) {
       await request('/moments/' + previous.id, {
         method: 'PATCH',
-        body: { ...audience, body, revision: previous.revision },
+        body: { ...audience, body, location, revision: previous.revision },
       });
     } else {
+      const signature = JSON.stringify([body, location, scope, groupId, memberIds, assets.map(({ id }) => id)]);
+      const attempt = form.attempt?.signature === signature ? form.attempt : { id: randomUUID(), signature };
+      await draft.save(() => ({ ...form, attempt }));
       const mediaIds: string[] = [];
       for (let index = 0; index < assets.length; index++) {
         const item = assets[index];
-        let found = uploaded.current.get(item.id);
-        if (!found) {
-          setProgress('正在上传 ' + (index + 1) + ' / ' + assets.length);
-          const result = await request<{ media: Media }>('/moment-media', {
-            method: 'POST',
-            body: await encodeMomentMedia(item),
-          });
-          found = result.media.id;
-          uploaded.current.set(item.id, found);
-        }
-        mediaIds.push(found);
+        setProgress('正在上传 ' + (index + 1) + ' / ' + assets.length);
+        const { media } = await request<{ media: Media }>('/moment-media', {
+          method: 'POST', body: await encodeMomentMedia(item),
+        });
+        uploaded.current.set(item.id, media.id);
+        mediaIds.push(media.id);
       }
       setProgress('正在发布…');
-      clientId.current ??= randomUUID();
-      await request('/moments', { method: 'POST', body: { ...audience, body, clientId: clientId.current, mediaIds } });
+      await request('/moments', { method: 'POST', body: { ...audience, body, location, clientId: attempt.id, mediaIds } });
+      await draft.save(() => null);
+      void Promise.allSettled(assets.map(removeMomentDraftMedia));
     }
     if (router.canGoBack()) router.back();
     else router.replace('/moments');
@@ -131,12 +141,23 @@ export default function PrivateMoment() {
         : scopes[scope];
   const hasVideo = assets.some((asset) => asset.mime === 'video/mp4');
 
+  function move(index: number, offset: -1 | 1) {
+    change((current) => {
+      const next = index + offset;
+      if (next < 0 || next >= current.assets.length) return current;
+      const media = [...current.assets];
+      [media[index], media[next]] = [media[next], media[index]];
+      return { ...current, assets: media };
+    });
+  }
+
   function removeAsset(item: LocalMedia) {
     void run(async () => {
+      await draft.save((current) => current && ({ ...current, assets: current.assets.filter((value) => value.id !== item.id) }));
       const saved = uploaded.current.get(item.id);
-      if (saved) await request('/moment-media/' + saved, { method: 'DELETE' });
       uploaded.current.delete(item.id);
-      setAssets((current) => current.filter((value) => value.id !== item.id));
+      await Promise.allSettled([removeMomentDraftMedia(item),
+        ...(saved ? [request('/moment-media/' + saved, { method: 'DELETE' })] : [])]);
     });
   }
 
@@ -150,9 +171,9 @@ export default function PrivateMoment() {
         }
       }}
     >
-      {!!error && <Notice>{error}</Notice>}
-      {!loaded && !error && <Empty busy>正在加载可见范围…</Empty>}
-      {loaded && (
+      {(error || draft.error) && <Notice action={draft.error ? '重试读取草稿' : undefined} onAction={draft.retry}>{error || draft.error}</Notice>}
+      {(!loaded || (!id && draft.loading)) && !error && <Empty busy>正在读取动态草稿…</Empty>}
+      {loaded && (id || draft.value !== undefined) && (
         <>
           <TextInput
             accessibilityLabel="动态正文"
@@ -162,7 +183,7 @@ export default function PrivateMoment() {
             textAlignVertical="top"
             value={body}
             editable={!busy}
-            onChangeText={setBody}
+            onChangeText={(body) => change({ body })}
             maxLength={2000}
             style={local.writing}
           />
@@ -171,11 +192,19 @@ export default function PrivateMoment() {
           ) : (
             <>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {assets.map((item) => (
+                {assets.map((item, index) => (
                   <View key={item.id} style={[styles.card, { padding: 7 }]}>
-                    <DraftMediaTile item={item} />
+                    <Pressable accessibilityRole="button" accessibilityLabel={'预览附件 ' + (index + 1)} onPress={() => setPreview(item)}>
+                      <DraftMediaTile item={item} />
+                    </Pressable>
+                    {assets.length > 1 && <View style={local.sort}>
+                      <IconButton label={'前移第 ' + (index + 1) + ' 张'} icon="arrow-back-outline"
+                        disabled={busy || index === 0} onPress={() => move(index, -1)} />
+                      <IconButton label={'后移第 ' + (index + 1) + ' 张'} icon="arrow-forward-outline"
+                        disabled={busy || index === assets.length - 1} onPress={() => move(index, 1)} />
+                    </View>}
                     <IconButton
-                      label="移除附件"
+                      label={'移除附件 ' + (index + 1)}
                       icon="close-outline"
                       disabled={busy}
                       onPress={() => removeAsset(item)}
@@ -188,11 +217,11 @@ export default function PrivateMoment() {
                   label="选择照片"
                   variant="soft"
                   icon="images-outline"
-                  disabled={busy || hasVideo || assets.length >= 6}
+                  disabled={busy || hasVideo || assets.length >= momentPhotoLimit}
                   onPress={() =>
                     void run(async () => {
-                      const chosen = await chooseMomentPhotos(me!, 6 - assets.length);
-                      setAssets((current) => [...current, ...chosen]);
+                      const chosen = await chooseMomentPhotos(me! + '-draft', momentPhotoLimit - assets.length, true);
+                      if (chosen.length) change((current) => ({ ...current, assets: [...current.assets, ...chosen] }));
                     })
                   }
                 />
@@ -203,15 +232,21 @@ export default function PrivateMoment() {
                   disabled={busy || assets.length > 0}
                   onPress={() =>
                     void run(async () => {
-                      const item = await chooseMomentVideo();
-                      if (item) setAssets([item]);
+                      const item = await chooseMomentDraftVideo(me! + '-draft');
+                      if (item) change({ assets: [item] });
                     })
                   }
                 />
               </View>
-              <Text style={styles.small}>最多六张照片，或一段 4 MB、30 秒以内的 MP4。</Text>
+              <Text style={styles.small}>最多 20 张照片，或一段 4 MB、30 秒以内的 MP4。</Text>
             </>
           )}
+          <View style={local.location}>
+            <Icon name="location-outline" color={colors.quiet} size={19} />
+            <TextInput accessibilityLabel="标注地点" placeholder="标注地点" placeholderTextColor={colors.quiet}
+              value={location} editable={!busy} maxLength={100} onChangeText={(location) => change({ location })}
+              style={[styles.input, styles.grow]} />
+          </View>
           <View style={local.audience}>
             <ListRow
               title={'可见范围 · ' + audienceName}
@@ -226,6 +261,7 @@ export default function PrivateMoment() {
             disabled={busy || (!body.trim() && !assets.length && !previous?.media.length)}
             onPress={() => void run(save)}
           />
+          {!id && !!draft.value && <Button label="清除草稿" variant="quiet" disabled={busy} onPress={() => setConfirmClear(true)} />}
           {previous && (
             <Button
               label={deletePrompt ? '确认删除动态' : '删除动态'}
@@ -246,6 +282,22 @@ export default function PrivateMoment() {
           )}
         </>
       )}
+      {preview && <Sheet title="预览附件" onClose={() => setPreview(undefined)}>
+        <DraftPreview item={preview} />
+      </Sheet>}
+      {confirmClear && <Sheet title="清除动态草稿" onClose={() => { if (!busy) setConfirmClear(false); }}>
+        <Text style={styles.muted}>清除已保存的文字、附件和可见范围。</Text>
+        <Button label="确认清除草稿" variant="danger" disabled={busy} onPress={() => void run(async () => {
+          await draft.save(() => null);
+          setShowAudience(false);
+          setConfirmed(false);
+          setConfirmClear(false);
+          const remote = [...uploaded.current.values()];
+          uploaded.current.clear();
+          await Promise.allSettled([...assets.map(removeMomentDraftMedia),
+            ...remote.map((id) => request('/moment-media/' + id, { method: 'DELETE' }))]);
+        })} />
+      </Sheet>}
       {showAudience && (
         <Sheet title="确认可见范围" onClose={() => setShowAudience(false)}>
           {(Object.entries(scopes) as [Audience, string][]).map(([value, label]) => (
@@ -259,7 +311,7 @@ export default function PrivateMoment() {
                 />
               }
               onPress={() => {
-                setScope(value);
+                change({ scope: value });
                 setConfirmed(false);
               }}
             />
@@ -285,7 +337,7 @@ export default function PrivateMoment() {
                     title={group.label}
                     trailing={<Icon name={groupId === group.id ? 'radio-button-on' : 'radio-button-off'} />}
                     onPress={() => {
-                      setGroupId(group.id);
+                      change({ groupId: group.id });
                       setConfirmed(false);
                     }}
                   />
@@ -297,7 +349,7 @@ export default function PrivateMoment() {
             <AudienceFriends
               ids={memberIds}
               update={(ids) => {
-                setMemberIds(ids);
+                change({ memberIds: ids });
                 setConfirmed(false);
               }}
               friends={relationships?.filter((friend) => friend.status === 'accepted') ?? []}
@@ -322,7 +374,17 @@ export default function PrivateMoment() {
   );
 }
 
+function DraftPreview({ item }: { item: LocalMedia }) {
+  const localUri = useLocalPhotoUri(item.mime === 'image/jpeg' ? item.photoId : item.videoId);
+  const uri = localUri ?? (item.mime === 'video/mp4' ? item.uri : undefined);
+  if (!uri) return <Text style={styles.muted}>附件正在读取或无法访问。</Text>;
+  return item.mime === 'video/mp4' ? <MomentVideo source={{ uri }} /> :
+    <Image accessibilityLabel="草稿照片" source={{ uri }} resizeMode="contain" style={{ width: '100%', height: 380 }} />;
+}
+
 const local = StyleSheet.create({
+  sort: { flexDirection: 'row', justifyContent: 'center' },
+  location: { ...styles.row, minHeight: 44 },
   writing: { ...styles.input, minHeight: 150, backgroundColor: colors.panel, borderColor: colors.border, textAlignVertical: 'top', padding: space.md },
   audience: { backgroundColor: colors.panel, borderRadius: radius.surface, overflow: 'hidden' },
 });

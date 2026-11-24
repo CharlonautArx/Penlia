@@ -102,7 +102,9 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
       {!!item.body ? <Text style={local.caption}>{item.body}</Text> : <Text style={styles.small}>查看动态详情</Text>}
     </Pressable>}
     {detail && !!item.body && <Text style={local.caption}>{item.body}</Text>}
-    {!!item.media.length && <MomentMediaGrid media={item.media} />}
+    {!!item.media.length && <MomentMediaGrid media={item.media} mode={detail ? 'detail' : 'feed'} onMore={() => openDetail()} />}
+    {!!item.location && <View style={styles.row}><Icon name="location-outline" size={15} color={colors.quiet} />
+      <Text style={styles.small}>{item.location}</Text></View>}
     {!!item.collaborationId && <ListRow title="查看共同创作" left={<Icon name="people-outline" color={colors.accent} />}
       onPress={() => router.push({ pathname: '/collection/[id]', params: { id: item.collaborationId! } })}
       separator={false} />}
@@ -117,7 +119,7 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
       }} />
     </View>
     {!!error && !sheet && <Notice>{error}</Notice>}
-    {!hideComments && !!comments?.length && <CommentList comments={comments} owner={item.authorId}
+    {!hideComments && !!comments?.length && <CommentList comments={comments} owner={item.authorId} compact
       reply={(comment) => openDetail(comment, true)} remove={async (comment) => {
         await request(path + '/comments?id=' + encodeURIComponent(comment.id), { method: 'DELETE' });
         setComments((old) => old?.filter((row) => row.id !== comment.id));

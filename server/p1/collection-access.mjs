@@ -1,7 +1,14 @@
 import { blocked, related, restricted } from '../p0/access.mjs';
 
+const withinSpace = (post, viewer) => `NOT EXISTS(SELECT 1 FROM moment_space_preferences s WHERE s.owner_id=${post}.author_id
+  AND (s.mode='self' OR (s.mode='allow' AND NOT (${viewer}=ANY(s.viewers)))
+    OR (s.mode='deny' AND ${viewer}=ANY(s.viewers))
+    OR (s.history='3d' AND ${post}.created_at<now()-interval '72 hours')
+    OR (s.history='180d' AND ${post}.created_at<now()-interval '4320 hours')
+    OR (s.history='custom' AND ${post}.created_at<s.cutoff)))`;
+
 const baseMomentVisible = (post, viewer) => `(${post}.author_id=${viewer} OR
-  (${related(viewer, post + '.author_id')} AND NOT ${restricted(post + '.author_id', viewer)} AND (
+  (${related(viewer, post + '.author_id')} AND NOT ${restricted(post + '.author_id', viewer)} AND ${withinSpace(post, viewer)} AND (
     ${post}.scope='friends' OR
     (${post}.scope='selected' AND EXISTS(SELECT 1 FROM private_moment_viewers v WHERE v.moment_id=${post}.id AND v.user_id=${viewer})) OR
     (${post}.scope IN ('circle','group') AND EXISTS(SELECT 1 FROM relationship_groups g JOIN relationship_group_members gm ON gm.group_id=g.id

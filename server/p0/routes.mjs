@@ -1,3 +1,4 @@
+import { readMomentSpace, writeMomentSpace } from './moment-space.mjs';
 import { getChatRecord, saveChatRecord, saveChatFavorite } from './chat-records.mjs';
 import { cleanText, hash, HttpError, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
@@ -121,6 +122,11 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       return result(await momentInbox(id, query));
     case 'POST /v1/moment-notifications/read':
       return result(await markMomentNotificationsRead(id, (await readBody()).ids));
+    case 'GET /v1/moment-space-preferences':
+      return result(await readMomentSpace(id));
+    case 'PUT /v1/moment-space-preferences':
+      await rateLimit('space-preferences:' + id, 40, 60);
+      return result(await writeMomentSpace(id, await readBody()));
     case 'POST /v1/moments/resolve-ids':
       return result(await resolveOwnMomentIds(id, (await readBody()).keys));
     case 'GET /v1/moments/count':
@@ -131,7 +137,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       await rateLimit('p0-moments:' + id, 25, 60);
       return result(await publishMoment(id, await readBody()), 201);
     case 'POST /v1/moment-media':
-      await rateLimit('p0-upload-user:' + id, 25, 60);
+      await rateLimit('p0-upload-user:' + id, 45, 60);
       await rateLimit('p0-upload-net:' + sourceIp, 100, 60);
       return result({ media: await postMedia(id, await readBody()) }, 201);
     case 'GET /v1/privacy/devices': {
@@ -296,7 +302,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       if (!action && method === 'GET') return result(await getChatRecord(id, item));
       break;
     case 'moment-media':
-      if (!action && ['GET', 'HEAD'].includes(method)) return getMedia(id, item, headers.range, method === 'HEAD');
+      if (!action && ['GET', 'HEAD'].includes(method)) return getMedia(id, item, headers.range, method === 'HEAD', query.get('size') === 'thumb');
       if (!action && method === 'DELETE') return result(await discardMedia(id, item));
       break;
   }

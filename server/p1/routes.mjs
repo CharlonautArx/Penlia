@@ -115,7 +115,8 @@ export async function p1Routes(
       case 'DELETE:one':
         return collections.removeContribution(me, id);
     }
-  if (resource === 'boundary' && route === 'GET:list') return review.boundaryOverview(me);
+  if (resource === 'boundary' && route === 'GET:list') return review.boundaryOverview(me, query.get('before'));
+  if (resource === 'boundary' && route === 'POST:list') return review.hideReportHistory(me, await body());
   if (resource === 'reports' && route === 'POST:list') return review.submitReport(me, await body());
   if (resource === 'enforcement' && route === 'POST:one:appeal')
     return review.submitAppeal(me, id, await body());

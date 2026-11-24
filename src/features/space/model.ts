@@ -1,3 +1,4 @@
+import { visibleSince, type MomentHistory } from './moment-history.ts';
 import type { Moment } from '../moments/model';
 import type { AlbumCategory } from './album-categories';
 export const audienceOptions = [
@@ -14,6 +15,7 @@ export type Cover = { tone: 'mist' | 'dawn' | 'blue'; photo?: Photo; focus?: { x
 export type Privacy = {
   access: Audience;
   history: 'all' | '3d' | '180d';
+  momentHistory?: MomentHistory;
   interact: 'friends' | 'closed';
   revealReplies: 'viewers' | 'author';
 };
@@ -88,9 +90,8 @@ export function canSeeEntry(entry: Entry, privacy: Privacy, viewerId: string, fr
   if (entry.ownerId === viewerId) return true;
   if (!audienceAllows(privacy.access, entry.ownerId, viewerId, friends)
     || !audienceAllows(entry.audience, entry.ownerId, viewerId, friends)) return false;
-  if (privacy.history === 'all') return true;
-  const days = privacy.history === '3d' ? 3 : 180;
-  return now - entry.at <= days * 86_400_000;
+  return visibleSince(entry.at, entry.kind === 'thought' && privacy.momentHistory
+    ? privacy.momentHistory : { history: privacy.history }, now);
 }
 
 export function selectableAudience(audience: Audience, friendIds: string[]) {

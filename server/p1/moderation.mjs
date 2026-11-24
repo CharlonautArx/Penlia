@@ -189,12 +189,25 @@ export async function submitReport(reporter, body) {
   });
 }
 
-export async function boundaryOverview(user) {
+export async function hideReportHistory(user, body) {
+  const all = body.all === true;
+  const ids = all ? [] : idsOf(body.ids, 100);
+  if (!all && !ids.length) throw invalid('请选择要删除的举报记录。');
+  await pool.query(`INSERT INTO p1_report_history_hidden(report_id)
+    SELECT r.id FROM p1_reports r WHERE r.reporter_id=$1 AND ($2::boolean OR r.id=ANY($3::uuid[]))
+    ON CONFLICT DO NOTHING`, [user, all, ids]);
+  return {};
+}
+
+export async function boundaryOverview(user, before = null) {
+  if (before) readId(before);
   const [reports, actions, reviewer] = await Promise.all([
     pool.query(
-      `SELECT id,kind,CASE WHEN status='pending' THEN 'pending' ELSE 'closed' END status
-      FROM p1_reports WHERE reporter_id=$1 ORDER BY submitted_at DESC LIMIT 50`,
-      [user],
+      `SELECT r.id,r.kind,r.submitted_at AS "submittedAt",CASE WHEN r.status='pending' THEN 'pending' ELSE 'closed' END status
+      FROM p1_reports r WHERE r.reporter_id=$1 AND NOT EXISTS(SELECT 1 FROM p1_report_history_hidden h WHERE h.report_id=r.id)
+      AND ($2::uuid IS NULL OR (r.submitted_at,r.id)<(SELECT submitted_at,id FROM p1_reports WHERE reporter_id=$1 AND id=$2))
+      ORDER BY r.submitted_at DESC,r.id DESC LIMIT 51`,
+      [user, before],
     ),
     pool.query(
       `SELECT e.id,e.kind,e.reason,e.expires_at AS "expiresAt",e.overturned_at IS NOT NULL AS overturned,
@@ -204,7 +217,7 @@ export async function boundaryOverview(user) {
     ),
     pool.query('SELECT 1 FROM p1_reviewers WHERE user_id=$1 AND enabled', [user]),
   ]);
-  return { reports: reports.rows, actions: actions.rows, canReview: !!reviewer.rowCount };
+  return { reports: reports.rows.slice(0,50), next: reports.rows[50] ? reports.rows[49].id : null, actions: actions.rows, canReview: !!reviewer.rowCount };
 }
 
 export async function reviewQueue(actor) {

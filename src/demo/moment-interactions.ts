@@ -1,3 +1,4 @@
+import { visibleSince, type MomentHistory } from '../features/space/moment-history';
 import { randomUUID } from 'expo-crypto';
 
 import type { Relationship } from '../services/api';
@@ -22,8 +23,16 @@ export function demoMomentInteractions(store: Rows, relationships: Relationship[
   const friends = (a: unknown, b: unknown) => a !== b && (a === self ? accepted(b) : b === self ? accepted(a) : accepted(a) && accepted(b));
   const blocked = (a: unknown, b: unknown) => (a === self && !!find('blocks', b)) || (b === self && !!find('blocks', a));
   const restricted = (owner: unknown, viewer: unknown) => owner === self && !!find('restrictions', viewer);
+  const spaceAllows = (post: Row, viewer: unknown) => {
+    const privacy = rows('momentSpacePreferences').find((item) => item.id === post.authorId);
+    if (!privacy) return true;
+    if (privacy.mode === 'self') return false;
+    const selected = array(privacy.ids).includes(String(viewer));
+    if ((privacy.mode === 'allow' && !selected) || (privacy.mode === 'deny' && selected)) return false;
+    return visibleSince(Date.parse(String(post.createdAt)), privacy as unknown as MomentHistory);
+  };
   const baseVisible = (post: Row, viewer: unknown) => post.authorId === viewer ||
-    (friends(post.authorId, viewer) && !blocked(post.authorId, viewer) && !restricted(post.authorId, viewer) && (
+    (friends(post.authorId, viewer) && !blocked(post.authorId, viewer) && !restricted(post.authorId, viewer) && spaceAllows(post, viewer) && (
       post.scope === 'friends' || post.scope == null ||
       (post.scope === 'selected' && array(post.memberIds).includes(String(viewer))) ||
       (post.authorId === self && (post.scope === 'group' || post.scope === 'circle') &&

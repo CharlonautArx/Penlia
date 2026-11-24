@@ -272,7 +272,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       photoId: message.kind === 'image' ? message.photoId : undefined,
       load: connection && message.source ? () => fetchAttachment(connection, message.source!) : undefined,
     } : undefined;
-    return { id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+    return { report: !message.mine ? () => reportMessage(message) : undefined, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
       body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : '',
       canCopy: (text && !message.recordId) || kind === 'location', recordId: message.recordId,
       quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
@@ -296,7 +296,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(message.id)} toggle={() => manage.toggle(message.id)}><View>
       {block && <ChatTimestamp value={message.timestamp} />}
       <ChatBubble mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
-        report={!demo && !message.mine ? () => reportMessage(message) : undefined}
+        report={!message.mine ? () => reportMessage(message) : undefined}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
@@ -396,7 +396,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           onPress={()=>{
             const queued=pending.current;
             if(queued?.value.kind==='video'&&queued.value.uri===video.uri)void transmit(queued.value,queued.original);
-            else void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply,quote:manage.quote}).then((ok) => { if (ok) manage.setQuote(undefined); });
+            else if (video.uri) void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply,quote:manage.quote}).then((ok) => { if (ok) manage.setQuote(undefined); });
           }}/>
       </Sheet>}
       {photo && <Sheet title={demo ? '图片预览' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>

@@ -9,7 +9,7 @@ import { styles } from '../../theme';
 import { CheckRow, Choices, Field } from './ui';
 
 export type EvidenceLine = { id: string; content: string; mine: boolean; author?: string };
-export const reportKinds = { boundary: '生活边界骚扰', harassment: '恶意骚扰', threat: '严重威胁' };
+export const reportKinds = { boundary: '生活边界保护计划', harassment: '恶意骚扰', threat: '严重威胁' };
 
 export function ReportSheet({
   groupId,

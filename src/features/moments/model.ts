@@ -20,6 +20,7 @@ export type Moment = {
   author: string;
   authorUsername?: string;
   body: string;
+  location?: string;
   createdAt: string;
   revision: number;
   forwardRequest?: ForwardRequest | null;

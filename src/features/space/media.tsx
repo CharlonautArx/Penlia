@@ -69,20 +69,36 @@ export function nativePhotoUri(id: string): string | undefined {
 }
 
 export async function savePreparedPhoto(uri: string, account: string): Promise<Photo> {
-  const id = account.replace(/[^a-z\d_-]/gi, '') + '-' + localId() + '.jpg';
+  return { type: 'local', id: await saveSpaceMedia(uri, account, 'image/jpeg') };
+}
+
+export async function saveSpaceMedia(uri: string, account: string, mime: 'image/jpeg' | 'video/mp4') {
+  const photo = mime === 'image/jpeg';
+  const id = account.replace(/[^a-z\d_-]/gi, '') + '-' + localId() + (photo ? '.jpg' : '.mp4');
+  const limit = photo ? maxBytes : 4 * 1024 * 1024;
   if (Platform.OS === 'web') {
-    if (!/^(blob:|data:image\/)/.test(uri)) throw new Error('无法读取选中的图片。');
+    if (!uri.startsWith('blob:') && !uri.startsWith('data:' + mime + ';'))
+      throw new Error('无法读取选中的附件。');
     const blob = await (await fetch(uri)).blob();
-    if (blob.size > maxBytes || blob.type !== 'image/jpeg') throw new Error('图片格式或大小不受支持。');
+    if (!blob.size || blob.size > limit || (blob.type && blob.type !== mime)) throw new Error('附件格式或大小不受支持。');
     await mediaStore('readwrite', (store) => store.put(blob, id));
   } else {
     const directory = imageDirectory();
     directory.create({ intermediates: true, idempotent: true });
     const source = new File(uri);
-    if (!source.exists || source.size > maxBytes) throw new Error('图片大小超限或文件已失效。');
+    if (!source.exists || !source.size || source.size > limit) throw new Error('附件过大或文件已失效。');
     source.copy(new File(directory, id));
   }
-  return { type: 'local', id };
+  return id;
+}
+
+export async function removeSpaceMedia(id?: string) {
+  if (!id || !/^[a-z\d_-]+\.(jpg|mp4)$/i.test(id)) return;
+  if (Platform.OS === 'web') await mediaStore('readwrite', (store) => store.delete(id));
+  else {
+    const file = new File(imageDirectory(), id);
+    if (file.exists) file.delete();
+  }
 }
 
 export function useLocalPhotoUri(localFile?: string) {

@@ -14,7 +14,7 @@ const notFound = () => new HttpError(404, '找不到可查看的内容。');
 const canRead = momentVisible('p', '$1::uuid');
 const participantVisible = (actor) => `${momentVisible('p', actor)}
   AND NOT ${blocked(actor, '$1::uuid')} AND NOT ${restricted(actor, '$1::uuid')}`;
-const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clientId",p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.revision,p.created_at AS "createdAt",
+const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clientId",p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.location,p.revision,p.created_at AS "createdAt",
   (p.source_moment_id IS NOT NULL) AS forwarded,
   ${forwardableMoment('p')} AS "canForward",
   CASE WHEN p.author_id=$1 THEN p.allow_forward END AS "allowForward",
@@ -28,7 +28,7 @@ const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clien
   (SELECT c.id FROM p1_collections c WHERE c.moment_id=p.id) AS "collaborationId",
   CASE WHEN p.author_id=$1 THEN p.audience_group END AS "groupId",
   CASE WHEN p.author_id=$1 THEN ARRAY(SELECT v.user_id FROM private_moment_viewers v WHERE v.moment_id=p.id) END AS "memberIds",
-  coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime) ORDER BY b.position)
+  coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime,'thumbnail',b.thumbnail IS NOT NULL) ORDER BY b.position)
     FROM private_media b WHERE b.moment_id=p.id),'[]'::jsonb) AS media`;
 
 export async function listMoments(userId, query) {
@@ -221,7 +221,8 @@ async function audience(db, userId, body) {
 export async function publishMoment(userId, body, transaction) {
   const clientId = transaction ? randomUUID() : readId(body.clientId);
   const text = cleanText(body.body, 2000);
-  const media = idsOf(body.mediaIds, 6);
+  const location = cleanText(body.location ?? '', 100);
+  const media = idsOf(body.mediaIds, 20);
   if (!text && !media.length) throw new HttpError(400, '写点文字，或选择照片和视频。');
   const save = async (db) => {
     await lockUsers(db, userId);
@@ -242,9 +243,9 @@ export async function publishMoment(userId, body, transaction) {
     const {
       rows: [saved],
     } = await db.query(
-      `INSERT INTO private_moments(author_id,client_id,body,scope,audience_group)
-      VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [userId, clientId, text, value.scope, value.group],
+      `INSERT INTO private_moments(author_id,client_id,body,scope,audience_group,location)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [userId, clientId, text, value.scope, value.group, location],
     );
     await db.query(
       `UPDATE private_media b SET moment_id=$1,position=media.position
@@ -265,7 +266,7 @@ export async function updateMoment(userId, id, body) {
     await lockUsers(db, userId);
     const {
       rows: [previous],
-    } = await db.query('SELECT body,revision,scope,audience_group FROM private_moments WHERE id=$1 AND author_id=$2 AND source_moment_id IS NULL FOR UPDATE', [id, userId]);
+    } = await db.query('SELECT body,revision,scope,audience_group,location FROM private_moments WHERE id=$1 AND author_id=$2 AND source_moment_id IS NULL FOR UPDATE', [id, userId]);
     if (!previous) throw notFound();
     if (body.revision !== previous.revision) throw new HttpError(409, '动态已经更新，请刷新后重试。');
     const value = await audience(db, userId, body);
@@ -277,8 +278,8 @@ export async function updateMoment(userId, id, body) {
       rows: [saved],
     } = await db.query(
       `UPDATE private_moments SET body=$2,scope=$3,audience_group=$4,
-      revision=revision+1,edited_at=now() WHERE id=$1 RETURNING revision`,
-      [id, text, value.scope, value.group],
+      revision=revision+1,edited_at=now(),location=$5 WHERE id=$1 RETURNING revision`,
+      [id, text, value.scope, value.group, body.location === undefined ? previous.location : cleanText(body.location, 100)],
     );
     if (!(value.scope === 'group' && previous.scope === 'group' && value.group === previous.audience_group)) {
       await db.query('DELETE FROM private_moment_viewers WHERE moment_id=$1', [id]);
@@ -353,6 +354,14 @@ export async function postMedia(userId, input) {
   if (data.length < 16 || data.length > mediaLimit) throw new HttpError(413, '文件大小不符合要求。');
   const mime = mediaType(data);
   if (!mime || mime !== input.mime) throw new HttpError(400, '请选择 JPEG、PNG 或 30 秒以内的标准 MP4。');
+  let thumbnail = null;
+  if (input.thumbnail !== undefined) {
+    if (mime !== 'image/jpeg' || typeof input.thumbnail !== 'string' || input.thumbnail.length > 131072
+      || !/^[A-Za-z0-9+/]+={0,2}$/.test(input.thumbnail))
+      throw new HttpError(400, '缩略图无效。');
+    thumbnail = Buffer.from(input.thumbnail, 'base64');
+    if (thumbnail.length > 98304 || mediaType(thumbnail) !== 'image/jpeg') throw new HttpError(400, '缩略图无效。');
+  }
   return inTransaction(pool, async (db) => {
     await lockUsers(db, userId);
     await db.query(
@@ -366,17 +375,17 @@ export async function postMedia(userId, input) {
     const {
       rows: [usage],
     } = await db.query(
-      `SELECT coalesce(sum(octet_length(data)),0)::integer AS bytes,
+      `SELECT coalesce(sum(octet_length(data)+coalesce(octet_length(thumbnail),0)),0)::integer AS bytes,
       count(*) FILTER(WHERE ${unusedMedia('b')})::integer AS drafts FROM private_media b WHERE owner_id=$1`,
       [userId],
     );
-    if (usage.bytes + data.length > 32 * 1024 * 1024 || usage.drafts >= 18)
+    if (usage.bytes + data.length + (thumbnail?.length ?? 0) > 64 * 1024 * 1024 || usage.drafts >= 30)
       throw new HttpError(413, '媒体空间已达上限，请清理旧内容。');
     const {
       rows: [value],
     } = await db.query(
-      'INSERT INTO private_media(owner_id,client_id,mime,data) VALUES ($1,$2,$3,$4) RETURNING id,mime',
-      [userId, clientId, mime, data],
+      'INSERT INTO private_media(owner_id,client_id,mime,data,thumbnail) VALUES ($1,$2,$3,$4,$5) RETURNING id,mime',
+      [userId, clientId, mime, data, thumbnail],
     );
     return value;
   });
@@ -393,7 +402,8 @@ export async function discardMedia(userId, id) {
   });
 }
 
-export async function getMedia(userId, id, range, head) {
+export async function getMedia(userId, id, range, head, thumbnail = false) {
+  const bytes = thumbnail ? 'coalesce(b.thumbnail,b.data)' : 'b.data';
   const acl = `FROM private_media b LEFT JOIN private_moments p ON p.id=b.moment_id
     LEFT JOIN chat_group_messages c ON c.id=b.group_message_id WHERE b.id=$2 AND
     ((p.id IS NOT NULL AND ${canRead}) OR
@@ -410,7 +420,7 @@ export async function getMedia(userId, id, range, head) {
       OR ${p2MediaVisible('b','$1::uuid')} OR ${p3MediaVisible('b','$1::uuid')})`;
   const {
     rows: [metadata],
-  } = await pool.query('SELECT b.mime,octet_length(b.data) AS bytes ' + acl, [userId, id]);
+  } = await pool.query('SELECT b.mime,octet_length(' + bytes + ') AS bytes ' + acl, [userId, id]);
   if (!metadata) throw notFound();
   const bounds = parseMediaRange(range, metadata.bytes);
   if (!bounds) return invalidMediaRange(metadata.bytes);
@@ -420,7 +430,7 @@ export async function getMedia(userId, id, range, head) {
   if (!head) {
     const {
       rows: [row],
-    } = await pool.query('SELECT substring(b.data from $3 for $4) AS data ' + acl, [userId, id, first + 1, length]);
+    } = await pool.query('SELECT substring(' + bytes + ' from $3 for $4) AS data ' + acl, [userId, id, first + 1, length]);
     if (!row) throw notFound();
     binary = row.data;
   }

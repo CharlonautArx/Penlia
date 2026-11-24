@@ -180,7 +180,7 @@ export default function GroupConversation() {
   const items = messages.filter((item) => !manage.history.hidden.has(item.id));
   function managed(item: Line): ManagedMessage {
     const asset = item.media[0];
-    return { id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
+    return { report: item.senderId !== own ? () => reportMessage(item) : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
       time: Date.parse(item.sentAt), author: item.name, body: item.content,
       canCopy: !!item.content && !item.recordId, recordId: item.recordId,
       assets: item.media.map(recordAsset), quote: item.quote && item.quote.author + ' · ' + item.quote.body };

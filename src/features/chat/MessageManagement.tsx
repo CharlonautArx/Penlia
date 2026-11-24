@@ -25,7 +25,7 @@ import type { Media } from '../moments/media';
 import { displayName, emptyDirectory } from '../friends/directory';
 import { useDirectory } from '../friends/store';
 
-export type ManagedMessage = RecordLine & { assets?: RecordAsset[]; recordId?: string; canCopy?: boolean; replyable?: boolean };
+export type ManagedMessage = RecordLine & { assets?: RecordAsset[]; recordId?: string; canCopy?: boolean; replyable?: boolean; report?: () => void };
 type Target = { id: string; kind: 'peer' | 'group'; label: string };
 type Payload = Omit<RecordLine, 'id'> & { mediaIds: string[] };
 type Anchor = { x: number; y: number };
@@ -94,6 +94,7 @@ export function ManagementUI({ manage }: { manage: Manager }) {
       ...(row.replyable !== false ? [{ label: '引用', icon: 'return-down-back-outline' as const, run: () => setQuote({
         id: row.id, author: row.author, body: shareSafeText(row.body).slice(0, 180) || (row.kind === 'video' ? '[视频]' : '[图片]'),
       }) }] : []),
+      ...(row.report ? [{ label: '举报', icon: 'flag-outline' as const, run: row.report }] : []),
     ];
   }
   return <>
@@ -118,7 +119,7 @@ function MessageMenu({ anchor, actions, onClose }: {
   const { reduced, scheme } = useAppearance();
   const progress = useRef(new Animated.Value(0)).current;
   const menuWidth = Math.min(width - 24, 310);
-  const menuHeight = actions.length > 3 ? 114 : 64;
+  const menuHeight = 8 + Math.ceil(actions.length / 3) * 53;
   const x = Math.max(12, Math.min(width - menuWidth - 12, (anchor?.x ?? width / 2) - menuWidth / 2));
   const y = anchor && anchor.y - menuHeight - 12 > inset.top ? anchor.y - menuHeight - 12 : (anchor?.y ?? height * 0.55) + 12;
   const top = Math.max(inset.top + 14, Math.min(height - inset.bottom - menuHeight - 12, y));

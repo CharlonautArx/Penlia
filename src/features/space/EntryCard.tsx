@@ -1,3 +1,4 @@
+import { momentPhotoGrid } from '../moments/photo-grid';
 import { router } from 'expo-router';
 import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -74,6 +75,23 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
     </View>;
   }
 
+  function thoughtPhotos(items: Photo[]) {
+    if (items.length <= 1) return photos(items);
+    const { rows, more } = momentPhotoGrid(items, full);
+    return <View style={{ gap: 6 }}>{rows.map((row, rowIndex) => <View key={rowIndex} style={{ flexDirection: 'row', gap: 6 }}>
+      {row.map((photo, col) => {
+        const index = rowIndex * 3 + col + 1;
+        const hidden = index === 9 && more;
+        return <Pressable key={index} accessibilityRole="button" accessibilityLabel={hidden ? '查看全部照片' : '查看照片 ' + index}
+          style={local.gridCell} onPress={() => { if (hidden) openEntry(entry.id, viewer); else setFocusPhoto(photo); }}>
+          <SpacePhoto photo={photo} style={local.image} />
+          {!!hidden && <View style={local.more}><Text style={local.moreText}>+{hidden}</Text></View>}
+        </Pressable>;
+      })}
+      {Array.from({ length: 3 - row.length }, (_, index) => <View style={styles.grow} key={index} />)}
+    </View>)}</View>;
+  }
+
   return <View style={[local.post, full && local.full]}>
     <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={author.name + '的空间'} onPress={() =>
@@ -103,7 +121,7 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
             <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openEntry(entry.id, viewer)}>
               <Text style={styles.body}>{entry.text || '查看动态详情'}</Text>
             </Pressable>}
-          {!entry.videoPreview && photos(entry.photos)}
+          {!entry.videoPreview && thoughtPhotos(entry.photos)}
         </>}
     {entry.videoPreview && <Pressable accessibilityRole="button" accessibilityLabel="视频动态样式预览"
       style={local.video} onPress={() => setSheet('video')}>
@@ -126,7 +144,7 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
       <Action label="转发" icon="arrow-redo-outline" onPress={() => setSheet('share')} />
     </View>}
     {forwarded && <Text accessibilityLiveRegion="polite" style={local.kind}>已转发到我的动态 · 仅自己可见</Text>}
-    {visibleReplies && <CommentList comments={shownComments} owner={entry.ownerId} showEmpty={full}
+    {visibleReplies && <CommentList comments={shownComments} owner={entry.ownerId} compact={!full} showEmpty={full}
       reply={canReply ? (comment) => onReply ? onReply(comment) : openEntry(entry.id, viewer, '1', comment.id) : undefined}
       remove={viewer ? undefined : async (comment) => {
         const own = state.me?.id;
@@ -191,6 +209,9 @@ const local = StyleSheet.create({
   largeFrame: { width: '100%', aspectRatio: 1.82, borderRadius: 11, overflow: 'hidden' },
   smallFrame: { width: '48%', aspectRatio: 1.14, borderRadius: 9, overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
+  gridCell: { flex: 1, aspectRatio: 1, borderRadius: 9, overflow: 'hidden' },
+  more: { ...StyleSheet.absoluteFill, backgroundColor: '#00000080', alignItems: 'center', justifyContent: 'center' },
+  moreText: { ...styles.strong, fontSize: 24, color: '#FFFFFF' },
   fullPhoto: { width: '100%', aspectRatio: 1.04, borderRadius: 12 },
   video: { height: 145, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.ink, justifyContent: 'center' },
   videoLabel: { ...styles.row, gap: 6, position: 'absolute', alignSelf: 'center', borderRadius: 12, backgroundColor: '#261D30CC', padding: 10 },

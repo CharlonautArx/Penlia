@@ -1,3 +1,4 @@
+import { MomentDraftProvider } from '../features/moments/draft';
 import { ChatHistoryProvider } from '../features/chat/history';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -28,6 +29,7 @@ function AppNavigation() {
       <ChatBackgroundProvider account={session?.user.id}>
         <ChatHistoryProvider account={session?.user.id}>
         <SpaceProvider>
+          <MomentDraftProvider account={session?.user.id}>
           <PetProvider>
             <ImProvider>
               <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default', animationDuration: motion.transition, contentStyle: { backgroundColor: colors.backdrop } }}>
@@ -65,6 +67,7 @@ function AppNavigation() {
               </Stack>
             </ImProvider>
           </PetProvider>
+          </MomentDraftProvider>
         </SpaceProvider>
         </ChatHistoryProvider>
       </ChatBackgroundProvider>

@@ -12,9 +12,9 @@ import type { MomentComment } from './model';
 
 export const commentEmoji = ['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'];
 
-export function CommentList({ comments, owner, reply, remove, showEmpty }: {
+export function CommentList({ comments, owner, reply, remove, showEmpty, compact = false }: {
   comments: MomentComment[]; owner: string; reply?: (comment: MomentComment) => void;
-  remove?: (comment: MomentComment) => Promise<void>; showEmpty?: boolean;
+  remove?: (comment: MomentComment) => Promise<void>; showEmpty?: boolean; compact?: boolean;
 }) {
   const own = useSession().session?.user.id;
   const [menu, setMenu] = useState<MomentComment>();
@@ -42,6 +42,17 @@ export function CommentList({ comments, owner, reply, remove, showEmpty }: {
   }
   function line(item: MomentComment, inset = false) {
     const parent = item.replyTo && byId.get(item.replyTo);
+    if (compact) {
+      const content = <>
+        <Text style={local.author}>{item.author}</Text>
+        {!!parent && <Text style={styles.small}> 回复 <Text style={local.author}>{parent.author}</Text></Text>}
+        <Text>{'：' + item.body + (item.photo ? (item.body ? ' [图片]' : '[图片]') : '')}</Text>
+      </>;
+      return reply ? <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.author + '：' + (item.body || '图片')}
+        onPress={() => reply(item)} style={({ pressed }) => [local.compact, pressed && local.pressed]}>
+        <Text style={styles.small}>{content}</Text>
+      </Pressable> : <Text key={item.id} style={[styles.small, local.compact]}>{content}</Text>;
+    }
     return <View key={item.id} style={[local.line, inset && local.inset]}>
       <Pressable accessibilityRole={reply ? 'button' : undefined} accessibilityLabel={item.author + '：' + (item.body || '图片')}
         onPress={reply && (() => reply(item))} onLongPress={item.body || (remove && (own === owner || own === item.authorId)) ? () => {
@@ -152,6 +163,8 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
 
 const local = StyleSheet.create({
   list: { ...styles.divider, borderBottomWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  compact: { paddingVertical: 4 },
+  author: { ...styles.small, fontWeight: '600', color: colors.text },
   line: { paddingVertical: space.xxs },
   inset: { marginLeft: 41, borderLeftWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingLeft: space.xs },
   row: { alignItems: 'flex-start', paddingVertical: space.xxs, minHeight: touch },
