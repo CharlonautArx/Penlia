@@ -159,7 +159,7 @@ export function SelectionCheck({ active, checked, toggle, children }: { active: 
 }
 
 export function QuotePreview({ quote, cancel }: { quote: Quote; cancel?: () => void }) {
-  return <View style={local.quote}>
+  return <View style={[local.quote, !cancel && local.bubbleQuote]}>
     <Icon name="return-down-back-outline" color={colors.quiet} size={15} />
     <Text style={[styles.small, styles.grow]} numberOfLines={1}>{quote.author} · {quote.body}</Text>
     {cancel && <IconButton label="取消引用" icon="close" onPress={cancel} />}
@@ -297,5 +297,6 @@ const local = StyleSheet.create({
   selectionRow: { ...styles.row, minHeight: touch, paddingLeft: space.xs },
   quote: { ...styles.row, borderLeftWidth: 2, borderLeftColor: colors.border, borderRadius: 5, backgroundColor: colors.backdrop,
     paddingHorizontal: space.xs, paddingVertical: space.xxs },
+  bubbleQuote: { minWidth: 148, maxWidth: 216 },
   record: { ...styles.row, minHeight: touch },
 });
