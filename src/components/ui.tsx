@@ -125,7 +125,7 @@ export function SearchField({ label, value, onChangeText, onFocus, onBlur, varia
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
       onFocus={capsule ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
       onBlur={capsule ? (event) => { setFocused(false); onBlur?.(event); } : onBlur}
-      placeholderTextColor={colors.quiet} style={[ui.searchInput, props.style]} />
+      placeholderTextColor={colors.quiet} style={[ui.searchInput, glazed && ui.glassSearchInput, props.style]} />
     {focused && <View pointerEvents="none" style={ui.searchFocus} />}
     {!!value && <IconButton label="清空搜索" icon="close-circle-outline" onPress={() => onChangeText?.('')} />}
   </View>;
@@ -276,6 +276,7 @@ const ui = StyleSheet.create({
   neutralSearch: { backgroundColor: colors.panel, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   searchFocus: { ...StyleSheet.absoluteFill, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.accent },
   searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },
+  glassSearchInput: { position: 'relative', zIndex: 1 },
   notice: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs, backgroundColor: colors.lavender, borderRadius: radius.control,
     minHeight: touch, paddingHorizontal: space.sm, paddingVertical: space.xxs },
   empty: { gap: space.xs, minHeight: 112, padding: space.lg, justifyContent: 'center', alignItems: 'center' },
