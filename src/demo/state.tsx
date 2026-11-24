@@ -2,13 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type ReactNode, useCallback, useContext, useRef } from 'react';
 
 import { useLocalDocument } from '../features/local/document';
-import type { ImageItem, LocationItem, PendingMessage } from '../features/media/messages';
+import type { FileItem, ImageItem, LocationItem, PendingMessage, VideoItem } from '../features/media/messages';
 import type { TextMessage } from '../services/im';
 import { offlineRequest } from './life';
 import { seed, type Rows } from './life-fixtures';
 import { demoMessages, demoPeople, demoRelationship, demoRelationships, demoUnread } from './data';
 
-type MessageOptions = Pick<TextMessage, 'silent' | 'noReply' | 'quote' | 'recordId'>;
+type MessageOptions = Pick<TextMessage, 'silent' | 'noReply' | 'sticker' | 'quote' | 'recordId'>;
 
 const DemoContext = createContext<{
   loading: boolean;
@@ -17,8 +17,8 @@ const DemoContext = createContext<{
   messages: Record<string, TextMessage[]>;
   mediaError: string;
   retryMedia: () => void;
-  media: Record<string, (ImageItem | LocationItem)[]>;
-  addMedia: (peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine?: boolean) => void;
+  media: Record<string, (FileItem | ImageItem | LocationItem | VideoItem)[]>;
+  addMedia: (peerId: string, item: Exclude<PendingMessage, { kind: 'text' }>, mine?: boolean) => void;
   unread: Record<string, number>;
   markRead: (peerId: string) => void;
   send: (peerId: string, text: string, options?: MessageOptions) => void;
@@ -28,9 +28,13 @@ const DemoContext = createContext<{
 
 export function DemoProvider({ children }: { children: ReactNode }) {
   const mediaKey = 'penlia.demo-media.v1';
-  const media = useLocalDocument<Record<string, (ImageItem | LocationItem)[]>>(mediaKey, async () => {
+  const media = useLocalDocument<Record<string, (FileItem | ImageItem | LocationItem | VideoItem)[]>>(mediaKey, async () => {
     const value = await AsyncStorage.getItem(mediaKey);
-    return value ? JSON.parse(value) : {};
+    const data = value ? JSON.parse(value) as Record<string, (FileItem | ImageItem | LocationItem | VideoItem)[]> : {};
+    const sampleText = '周末见。集合地点在街角书店门口。';
+    const sample: FileItem = { id: 'demo-xiaoman-note', kind: 'file', name: '周末行程.txt', bytes: 48,
+      timestamp: (demoMessages['demo-xiaoman']?.[0]?.timestamp ?? Date.now()) - 60000, mine: false, sampleText };
+    return { ...data, 'demo-xiaoman': [sample, ...(data['demo-xiaoman'] ?? []).filter((item) => item.id !== sample.id)] };
   });
   const key = 'penlia.demo.preview.v1';
   const stored = useLocalDocument(key, async () => {
@@ -58,7 +62,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const addMessage = useCallback((peerId: string, text: string, mine: boolean, options?: MessageOptions) => {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
     const message: TextMessage = { id: 'simulated-' + messageSession.current + '-' + ++messageSequence.current, mine, text, timestamp: Date.now(),
-      quote: options?.quote, recordId: options?.recordId,
+      sticker: options?.sticker, quote: options?.quote, recordId: options?.recordId,
       ...(options?.silent ? { silent: true } : {}), ...(options?.noReply ? { noReply: true } : {}) };
     store.current.update((current) => ({ ...current, messages: { ...current.messages,
       [peerId]: [...(current.messages[peerId] ?? []), message].slice(-150) } }));
@@ -67,7 +71,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const send = useCallback((peerId: string, text: string, options?: MessageOptions) => addMessage(peerId, text, true, options), [addMessage]);
   const receive = useCallback((peerId: string, text: string) => addMessage(peerId, text, false), [addMessage]);
 
-  function addMedia(peerId: string, item: Exclude<PendingMessage, { kind: 'text' | 'video' }>, mine = true) {
+  function addMedia(peerId: string, item: Exclude<PendingMessage, { kind: 'text' }>, mine = true) {
     if (!relationships.current.some((friend) => friend.userId === peerId && friend.status === 'accepted')) return;
     if (!media.value) throw new Error('正在读取本机附件，请稍后重试。');
     const message = { ...item, id: 'demo-media-' + messageSession.current + '-' + ++messageSequence.current, timestamp: Date.now(), mine };

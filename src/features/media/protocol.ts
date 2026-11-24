@@ -6,21 +6,22 @@ export type LocationValue = { latitude: number; longitude: number; name: string;
 export type ImageItem = { id: string; timestamp: number; mine: boolean; kind: 'image'; width: number; height: number;
   photoId?: string; source?: ChatMessage; silent?: boolean; noReply?: boolean };
 export type LocationItem = LocationValue & { id: string; timestamp: number; mine: boolean; kind: 'location'; silent?: boolean; noReply?: boolean };
-export type VideoItem = { id: string; timestamp: number; mine: boolean; kind:'video'; source:ChatMessage; silent?:boolean; noReply?:boolean };
-export type RichMessage = (TextMessage | ImageItem | LocationItem | VideoItem) & MessageReferences;
+export type VideoItem = { id: string; timestamp: number; mine: boolean; kind:'video'; source?:ChatMessage; videoId?:string; silent?:boolean; noReply?:boolean };
+export type FileItem = { id: string; timestamp: number; mine: boolean; kind: 'file'; name: string; bytes: number; source?: ChatMessage; sampleText?: string; silent?: boolean; noReply?: boolean };
+export type RichMessage = (TextMessage | ImageItem | LocationItem | VideoItem | FileItem) & MessageReferences & { confirmedAt?: number };
 export type PendingMessage = (
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; sticker?: boolean }
   | { kind: 'image'; photoId: string; width: number; height: number; bytes: number }
-  | { kind:'video'; uri:string; bytes:number; duration?:number }
+  | { kind:'video'; uri?:string; videoId?:string; bytes:number; duration?:number }
   | ({ kind: 'location' } & LocationValue)
 ) & { silent?: boolean; noReply?: boolean } & MessageReferences;
 
 export function summaryOf(message: RichMessage) {
   if (message.recordId) return '[聊天记录]';
-  if ('text' in message) return message.text;
+  if ('text' in message) return message.sticker ? '[表情] ' + message.text : message.text;
   if (message.kind === 'image') return '[图片]';
   if (message.kind === 'video') return '[视频]';
-  return '[位置] ' + message.name;
+  return message.kind === 'file' ? '[文件] ' + message.name : '[位置] ' + message.name;
 }
 
 function decimal(value: unknown, max: number) {
@@ -47,10 +48,19 @@ export function readPeerMessage(connection: ImConnection, message: ChatMessage |
   const fromPeer = message.from === peer && message.to === own;
   if ((!mine && !fromPeer) || (mine && message.status !== sdk.ChatMessageStatus.SUCCESS)) return null;
   const metadata = { id: message.msgId, timestamp: message.serverTime || message.localTime, mine,
+    confirmedAt: message.serverTime > 0 ? message.serverTime : undefined,
     quote: parseQuote(message.attributes?.penlia_quote), recordId: readRecordId(message.attributes?.penlia_record),
     ...(message.attributes?.penlia_quiet === true ? { silent:true } : {}),
     ...(message.attributes?.penlia_no_reply === true ? { noReply:true } : {}) };
-  if (message.body instanceof sdk.ChatTextMessageBody) return { ...metadata, text: message.body.content };
+  if (message.body instanceof sdk.ChatTextMessageBody) return { ...metadata, text: message.body.content,
+    sticker: message.attributes?.penlia_sticker === true };
+  if (typeof sdk.ChatCustomMessageBody === 'function' && message.body instanceof sdk.ChatCustomMessageBody
+    && message.body.event === 'penlia_sticker' && typeof message.body.params?.label === 'string')
+    return { ...metadata, text: message.body.params.label.slice(0, 32), sticker: true };
+  if (typeof sdk.ChatFileMessageBody === 'function' && message.body instanceof sdk.ChatFileMessageBody) {
+    return { ...metadata, kind: 'file', source: message, name: message.body.displayName?.slice(0, 180) || '文件',
+      bytes: Math.max(0, message.body.fileSize || 0) };
+  }
   if (message.body instanceof sdk.ChatImageMessageBody) {
     const body = message.body;
     return { ...metadata, kind: 'image', width: body.width || 1, height: body.height || 1, source: message };
@@ -74,6 +84,7 @@ export function buildPeerMessage(connection: ImConnection, peer: string, value: 
     message.attributes.em_ignore_notification=true;
   }
   if (value.noReply && value.kind !== 'location') message.attributes.penlia_no_reply=true;
+  if (value.kind === 'text' && value.sticker) message.attributes.penlia_sticker = true;
   if (value.quote) message.attributes.penlia_quote = JSON.stringify(value.quote);
   if (value.recordId) message.attributes.penlia_record = value.recordId;
   return message;

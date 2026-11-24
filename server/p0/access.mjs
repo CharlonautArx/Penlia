@@ -407,16 +407,16 @@ export async function profile(userId, other) {
   };
 }
 
-function vendorId(text) {
+export function vendorId(text) {
   if (typeof text !== 'string' || !/^penlia_[0-9a-f]{32}$/.test(text)) return undefined;
   return text.slice(7).replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
 }
 
-export async function beforeImSend(body, pathKey) {
+export function verifiedImCallback(body, pathKey) {
   const secret = process.env.PENLIA_IM_CALLBACK_SECRET;
   const key = process.env.PENLIA_IM_CALLBACK_PATH_KEY;
   const app = process.env.EASEMOB_APP_KEY;
-  const { callId, timestamp, security, chat_type: type } = body;
+  const { callId, timestamp, security } = body;
   if (
     !secret ||
     !key ||
@@ -429,13 +429,15 @@ export async function beforeImSend(body, pathKey) {
     !Number.isSafeInteger(timestamp) ||
     Math.abs(Date.now() - timestamp) > 300_000 ||
     !/^[0-9a-f]{32}$/.test(security ?? '')
-  ) {
-    return { valid: false };
-  }
+  ) return false;
   const expected = createHash('md5')
     .update(callId + secret + timestamp)
     .digest('hex');
-  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(security)) || type !== 'chat') return { valid: false };
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(security));
+}
+
+export async function beforeImSend(body, pathKey) {
+  if (body.chat_type !== 'chat' || !verifiedImCallback(body, pathKey)) return { valid: false };
   const from = vendorId(body.from);
   const to = vendorId(body.to);
   if (!from || !to || !(await areFriends(pool, from, to))) return { valid: false };

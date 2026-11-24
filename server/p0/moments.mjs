@@ -407,7 +407,7 @@ export async function getMedia(userId, id, range, head, thumbnail = false) {
   const acl = `FROM private_media b LEFT JOIN private_moments p ON p.id=b.moment_id
     LEFT JOIN chat_group_messages c ON c.id=b.group_message_id WHERE b.id=$2 AND
     ((p.id IS NOT NULL AND ${canRead}) OR
-      (c.id IS NOT NULL AND NOT ${blocked('$1::uuid', 'c.sender_id')} AND EXISTS
+      (c.id IS NOT NULL AND c.recalled_at IS NULL AND NOT ${blocked('$1::uuid', 'c.sender_id')} AND EXISTS
         (SELECT 1 FROM chat_group_members gm WHERE gm.group_id=c.group_id AND gm.user_id=$1 AND gm.joined_at<=c.sent_at)) OR
       EXISTS(SELECT 1 FROM p1_contribution_media link JOIN p1_contributions pc ON pc.id=link.contribution_id
         JOIN p1_entries pe ON pe.id=pc.entry_id JOIN p1_collections coll ON coll.id=pe.collection_id

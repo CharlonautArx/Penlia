@@ -11,7 +11,7 @@ import { useFriends } from '../services/friends';
 import { colors, contentWidth, radius, space, styles } from '../theme';
 
 export default function ChatBackgroundScreen() {
-  const { peer: requestedPeer, mode } = useLocalSearchParams<{ peer?: string; mode?: string }>();
+  const { peer: requestedPeer, mode, currentOnly } = useLocalSearchParams<{ peer?: string; mode?: string; currentOnly?: string }>();
   const voice = mode === 'voice';
   const { relationships } = useFriends();
   const friend = relationships?.find((entry) => entry.userId === requestedPeer && entry.status === 'accepted');
@@ -115,8 +115,8 @@ export default function ChatBackgroundScreen() {
               {draft ? <>
                 <Text style={styles.muted}>拖动照片调整取景</Text>
                 {peer && <Button label="应用到当前聊天" disabled={!!operation} onPress={() => void apply(peer, draft, '已应用到当前聊天。')} />}
-                <Button label={voice ? '应用到语音通话' : '应用到所有聊天'} variant={peer ? 'soft' : 'primary'} disabled={!!operation}
-                  onPress={() => void apply(undefined, draft, voice ? '已应用到语音通话。' : '已更新全局聊天背景，单独设置优先。')} />
+                {!currentOnly && <Button label={voice ? '应用到语音通话' : '应用到所有聊天'} variant={peer ? 'soft' : 'primary'} disabled={!!operation}
+                  onPress={() => void apply(undefined, draft, voice ? '已应用到语音通话。' : '已更新全局聊天背景，单独设置优先。')} />}
                 <Button label="取消预览" variant="quiet" disabled={!!operation} onPress={discard} />
               </> : <SettingGroup>
                 <ListRow title={operation === 'pick' ? '正在读取照片…' : '从手机相册选择'}
@@ -127,7 +127,7 @@ export default function ChatBackgroundScreen() {
                 {!!peer && !inherited && <ListRow title="跟随全局背景" left={<Icon name="layers-outline" />}
                   onPress={operation ? undefined : () => void apply(peer, undefined, '当前聊天已跟随全局背景。')} separator={false} />}
               </SettingGroup>}
-              {!draft && !voice && <ListRow title="语音通话背景" left={<Icon name="call-outline" />} onPress={() => router.push({ pathname: '/chat-background', params: { mode: 'voice' } })} />}
+              {!draft && !voice && !currentOnly && <ListRow title="语音通话背景" left={<Icon name="call-outline" />} onPress={() => router.push({ pathname: '/chat-background', params: { mode: 'voice' } })} />}
               {!draft && <Text style={styles.small}>{inherited ? '当前聊天跟随全局背景。' : '背景只保存在这台设备上。'}</Text>}
             </>}
     </ScrollView>

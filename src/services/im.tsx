@@ -1,5 +1,6 @@
+import { useRecalls } from '../features/chat/recalls';
 import type { MessageReferences } from '../features/chat/record-model';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { ChatConnectEventListener, ChatMessage, ChatMessageEventListener } from 'react-native-chat-sdk';
 
@@ -10,7 +11,7 @@ import { useSession } from './session';
 type Sdk = typeof import('react-native-chat-sdk');
 type Client = ReturnType<Sdk['ChatClient']['getInstance']>;
 export type ImConnection = { sdk: Sdk; client: Client };
-export type TextMessage = { id: string; mine: boolean; text: string; timestamp: number; silent?: boolean; noReply?: boolean } & MessageReferences;
+export type TextMessage = { id: string; mine: boolean; text: string; timestamp: number; confirmedAt?: number; sticker?: boolean; silent?: boolean; noReply?: boolean } & MessageReferences;
 
 export function imUserId(id: string) {
   return 'penlia_' + id.replaceAll('-', '');
@@ -81,6 +82,9 @@ function NativeImProvider({ children }: { children: ReactNode }) {
   const changed = useCallback(() => setRevision((value) => value + 1), []);
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
   const ownId = session?.user.id;
+  const { add: addRecall, sync: syncRecalls } = useRecalls();
+  const updateRecalls = useRef(syncRecalls);
+  updateRecalls.current = syncRecalls;
 
   useEffect(() => {
     if (!ownId) return;
@@ -175,6 +179,20 @@ function NativeImProvider({ children }: { children: ReactNode }) {
     };
     const messages: ChatMessageEventListener = {
       onMessagesReceived: () => { if (active) changed(); },
+      onMessagesRecalledInfo(info) {
+        if (!active) return;
+        for (const item of info) {
+          const row = item.recalledMessage;
+          if (!row || row.chatType !== current?.sdk.ChatMessageChatType.PeerChat || (!row.serverTime && !row.localTime)) continue;
+          const mine = row.from === ownUsername;
+          if (!mine && row.to !== ownUsername) continue;
+          const match = /^penlia_([a-f0-9]{8})([a-f0-9]{4})([a-f0-9]{4})([a-f0-9]{4})([a-f0-9]{12})$/i.exec(mine ? row.to : row.from);
+          if (match) void addRecall(match.slice(1).join('-'), { id: item.recalledMessageId, mine, timestamp: row.serverTime || row.localTime })
+            .then(changed).catch(() => {});
+        }
+        updateRecalls.current();
+        changed();
+      },
       onConversationsUpdate: () => { if (active) changed(); },
     };
 
@@ -205,7 +223,7 @@ function NativeImProvider({ children }: { children: ReactNode }) {
         if (await current.client.getCurrentUsername() === ownUsername) await current.client.logout(false);
       }).catch(() => {});
     };
-  }, [attempt, changed, ownId, request]);
+  }, [addRecall, attempt, changed, ownId, request]);
 
   return <ImContext.Provider value={{ connection, online, status, revision, retry, changed }}>
     {children}

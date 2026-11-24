@@ -1,3 +1,4 @@
+import { canRecall, recalledQuote } from '../features/chat/recall-model';
 import { randomUUID } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
@@ -199,17 +200,28 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       return save('groups', { ...group, avatar: body.avatar });
     }
     if (id === 'leave') return save('groups', { ...group, active: false });
+    if (id === 'recall' && method === 'POST') {
+      const line = related('groupLines', 'groupId', area).find((entry) => entry.id === body.id);
+      if (!line || line.senderId !== self) throw new Error('找不到可以撤回的已发送消息。');
+      if (line.recalled) return {};
+      if (!canRecall(true, Date.parse(String(line.sentAt)))) throw new Error('这条消息已超过两分钟，无法撤回。');
+      return save('groupLines', { ...line, recalled: true, content: '', media: [], recordId: null, quote: null });
+    }
     if (id === 'messages') {
       const lines = related('groupLines', 'groupId', area);
       if (get) {
         const before = query.get('before');
         const offset = before ? lines.findIndex((line) => line.id === before) + 1 : 0;
-        const page = lines.slice(offset, offset + 40);
+        const recalled = new Set(lines.filter((line) => line.recalled).map((line) => line.id));
+        const page = lines.slice(offset, offset + 40).map((line) => {
+          const quote = line.quote as { id?: string; body?: string } | undefined;
+          return quote?.id && recalled.has(quote.id) ? { ...line, quote: { ...quote, body: recalledQuote } } : line;
+        });
         return { messages: page, next: lines.length > offset + 40 ? page.at(-1)?.id : null };
       }
       const duplicate = related('groupLines', 'groupId', area).find((line) => line.clientId === body.clientId);
       if (duplicate) return duplicate;
-      const reply = body.replyTo ? lines.find((line) => line.id === body.replyTo) : undefined;
+      const reply = body.replyTo ? lines.find((line) => line.id === body.replyTo && !line.recalled) : undefined;
       const record = body.recordId ? find('chatRecords', String(body.recordId)) : undefined;
       if (body.replyTo && !reply || body.recordId && record?.groupId !== area) throw new Error('无法使用这条聊天记录。');
       return save('groupLines', add(body, { groupId: area, senderId: self, name: demoUser.name, sentAt: now(), media: assetRefs(),

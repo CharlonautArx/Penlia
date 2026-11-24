@@ -1,3 +1,5 @@
+import { useFontSize } from '../../components/Typography';
+import { fontSizes } from '../../font-scale';
 import { formatHandle } from '../../services/handle';
 import { isUiDemo } from '../../demo/mode';
 import Constants from 'expo-constants';
@@ -18,6 +20,7 @@ import { useAppearance } from '../../components/appearance';
 export default function MeScreen() {
   const { session, logout, demoAvatarKey, avatarNotice } = useSession();
   const { preference, scheme, setPreference } = useAppearance();
+  const { size } = useFontSize();
   const [sheet, setSheet] = useState<'资料' | '主题与外观' | '通用设置'>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -73,6 +76,8 @@ export default function MeScreen() {
       {nativeChatBackgrounds && <ListRow title="聊天背景" left={<Tile icon="image-outline" />}
         onPress={() => router.push('/chat-background')} />}
       <ListRow title="本机空间隐私" left={<Tile icon="eye-outline" />} onPress={() => router.push('/space/privacy')} />
+      <ListRow title="字体大小" detail={fontSizes[size].label} left={<Tile icon="text-outline" />}
+        onPress={() => router.push('/font-size')} />
       <ListRow title="主题与外观" left={<Tile icon="color-palette-outline" />} onPress={() => setSheet('主题与外观')} />
       <ListRow title="通用设置" left={<Tile icon="settings-outline" />} onPress={() => setSheet('通用设置')} />
     </SettingGroup>

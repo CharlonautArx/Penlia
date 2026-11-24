@@ -1,7 +1,8 @@
+import { useFontScale } from '../../components/Typography';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
 import { useCallback, useState } from 'react';
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glint } from '../../components/Glint';
@@ -25,7 +26,7 @@ export default function TabLayout() {
   const reportUnread = useCallback((count: number, marked: boolean) => {
     setUnread((current) => current.count === count && current.marked === marked ? current : { count, marked });
   }, []);
-  const { fontScale } = useWindowDimensions();
+  const fontScale = useFontScale();
   const { bottom } = useSafeAreaInsets();
   // Give the scaled label its own space above the system navigation inset.
   const scaledAndroidBar = Platform.OS === 'android' && fontScale > 1
@@ -40,7 +41,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.muted,
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel],
+        tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel, fontScale !== 1 && {
+          fontSize: type.tag.fontSize * fontScale, lineHeight: Math.ceil(type.tag.lineHeight * fontScale),
+        }],
         tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar, scaledAndroidBar],
         tabBarBackground: () => <GlassLayer tone="chrome" roundness={0} />,
         tabBarButton: Platform.OS === 'android' ? ({
@@ -56,7 +59,7 @@ export default function TabLayout() {
           name={name}
           options={{
             title,
-            tabBarAllowFontScaling: true,
+            tabBarAllowFontScaling: false,
             tabBarAccessibilityLabel: name === 'index'
               ? title + (unread.count ? '，' + unread.count + ' 条未读消息' : '') + (unread.marked ? '，有手动标记未读的会话' : '')
               : title,

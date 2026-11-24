@@ -67,7 +67,7 @@ async function groupEvidence(db, reporter, body) {
   const membership = await groupMember(db, group, reporter, true);
   const { rows } = await db.query(
     `SELECT m.id,m.sender_id AS "senderId",m.content,m.sent_at AS "sentAt"
-    FROM chat_group_messages m WHERE m.group_id=$1 AND m.id=ANY($2::uuid[]) AND m.sent_at>=$3
+    FROM chat_group_messages m WHERE m.group_id=$1 AND m.id=ANY($2::uuid[]) AND m.sent_at>=$3 AND m.recalled_at IS NULL
     AND NOT ${blocked('$4::uuid', 'm.sender_id')} ORDER BY m.sent_at,m.id`,
     [group, ids, membership.joinedAt, reporter],
   );

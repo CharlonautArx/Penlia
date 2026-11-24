@@ -6,17 +6,19 @@ import type { ImConnection } from '../../services/im';
 import { errorMessage } from '../../services/api';
 import { styles } from '../../theme';
 import { MomentVideo } from '../moments/media';
+import { useLocalPhotoUri } from '../space/media';
 import { fetchAttachment, type VideoItem } from './messages';
 
 export function PeerVideo({ item, connection, onLongPress }: { item: VideoItem; connection?: ImConnection | null; onLongPress?: MessageLongPress }) {
+  const localUri = useLocalPhotoUri(item.videoId);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uri, setUri] = useState('');
   const [error, setError] = useState('');
   async function view() {
     setOpen(true);
-    if (uri || loading) return;
-    if (!connection) {
+    if (uri || localUri || loading) return;
+    if (!connection || !item.source) {
       setError('聊天未连接，请稍后重试。');
       return;
     }
@@ -35,8 +37,8 @@ export function PeerVideo({ item, connection, onLongPress }: { item: VideoItem; 
       <Button label="观看视频" onLongPress={onLongPress} icon="videocam-outline" variant="soft" onPress={() => void view()} />
       {open && (
         <Sheet title="聊天视频" onClose={() => setOpen(false)}>
-          {uri ? (
-            <MomentVideo source={{ uri }} />
+          {uri || localUri ? (
+            <MomentVideo source={{ uri: localUri ?? uri }} />
           ) : loading ? (
             <Text style={styles.muted}>正在下载视频…</Text>
           ) : (

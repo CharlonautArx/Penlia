@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFontScale } from '../../components/Typography';
 import { useAppearance } from '../../components/appearance';
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Sheet, type IconName } from '../../components/ui';
 import { useDemo } from '../../demo/state';
@@ -25,7 +26,7 @@ import type { Media } from '../moments/media';
 import { displayName, emptyDirectory } from '../friends/directory';
 import { useDirectory } from '../friends/store';
 
-export type ManagedMessage = RecordLine & { assets?: RecordAsset[]; recordId?: string; canCopy?: boolean; replyable?: boolean; report?: () => void };
+export type ManagedMessage = RecordLine & { recall?: () => Promise<void>; recallUntil?: number; portable?: boolean; assets?: RecordAsset[]; recordId?: string; canCopy?: boolean; replyable?: boolean; report?: () => void };
 type Target = { id: string; kind: 'peer' | 'group'; label: string };
 type Payload = Omit<RecordLine, 'id'> & { mediaIds: string[] };
 type Anchor = { x: number; y: number };
@@ -66,6 +67,14 @@ export function useMessageManagement(scope: string) {
 type Manager = ReturnType<typeof useMessageManagement>;
 export function ManagementUI({ manage }: { manage: Manager }) {
   const { menu, closeMenu, setSelected, setShare, setQuote, remove } = manage;
+  const [currentTime, setCurrentTime] = useState(Date.now);
+  const deadline = menu?.message.recallUntil;
+  useEffect(() => {
+    setCurrentTime(Date.now());
+    if (!deadline) return;
+    const timer = setTimeout(() => setCurrentTime(Date.now()), Math.max(0, deadline - Date.now()) + 25);
+    return () => clearTimeout(timer);
+  }, [deadline, menu?.message.id]);
   const [favorite, setFavorite] = useState<ManagedMessage>();
   const { send } = useRecordDelivery();
   const saveFavorite = async (item: ManagedMessage) => {
@@ -87,8 +96,15 @@ export function ManagementUI({ manage }: { manage: Manager }) {
         void setStringAsync(row.body).then((ok) => { if (!ok) throw new Error('无法写入系统剪贴板。'); })
           .catch((failure) => Alert.alert('复制失败', errorMessage(failure)));
       } }] : []),
-      { label: '转发', icon: 'arrow-redo-outline', run: () => setShare([row]) },
-      { label: '收藏', icon: 'bookmark-outline', run: () => { if (!favorite) void saveFavorite(row); } },
+      ...(row.portable === false ? [] : [
+        { label: '转发', icon: 'arrow-redo-outline' as const, run: () => setShare([row]) },
+        { label: '收藏', icon: 'bookmark-outline' as const, run: () => { if (!favorite) void saveFavorite(row); } },
+      ]),
+      ...(row.recall && deadline && deadline > currentTime ? [{
+        label: '撤回', icon: 'arrow-undo-outline' as const, run: () => {
+          void row.recall!().catch((failure) => Alert.alert('撤回失败', errorMessage(failure)));
+        },
+      }] : []),
       { label: '多选', icon: 'checkbox-outline', run: () => setSelected(new Set([row.id])) },
       ...(manage.history.ready ? [{ label: '删除', icon: 'trash-outline' as const, run: () => remove([row]) }] : []),
       ...(row.replyable !== false ? [{ label: '引用', icon: 'return-down-back-outline' as const, run: () => setQuote({
@@ -119,7 +135,9 @@ function MessageMenu({ anchor, actions, onClose }: {
   const { reduced, scheme } = useAppearance();
   const progress = useRef(new Animated.Value(0)).current;
   const menuWidth = Math.min(width - 24, 310);
-  const menuHeight = 8 + Math.ceil(actions.length / 3) * 53;
+  const scale = useFontScale();
+  const rowHeight = Math.max(53, 29 + Math.ceil(20 * scale));
+  const menuHeight = 8 + Math.ceil(actions.length / 3) * rowHeight;
   const x = Math.max(12, Math.min(width - menuWidth - 12, (anchor?.x ?? width / 2) - menuWidth / 2));
   const y = anchor && anchor.y - menuHeight - 12 > inset.top ? anchor.y - menuHeight - 12 : (anchor?.y ?? height * 0.55) + 12;
   const top = Math.max(inset.top + 14, Math.min(height - inset.bottom - menuHeight - 12, y));
@@ -135,8 +153,8 @@ function MessageMenu({ anchor, actions, onClose }: {
         { width: menuWidth, left: x, top, opacity: progress, transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}>
         <LinearGradient pointerEvents="none" colors={['#FFFFFF20', '#FFFFFF00', '#AEFFF81C']} style={StyleSheet.absoluteFill} />
         {actions.map((action) => <Pressable accessibilityRole="button" accessibilityLabel={action.label} key={action.label} onPress={action.run}
-          style={({ pressed }) => [local.action, pressed && local.pressed]}>
-          <Icon name={action.icon} size={21} color={action.label === '删除' ? colors.danger : colors.ink} /><Text style={styles.small}>{action.label}</Text>
+          style={({ pressed }) => [local.action, { minHeight: rowHeight }, pressed && local.pressed]}>
+          <Icon name={action.icon} size={21} color={(action.label === '删除' || action.label === '撤回') ? colors.danger : colors.ink} /><Text style={styles.small}>{action.label}</Text>
         </Pressable>)}
       </Animated.View>
     </View>
@@ -147,7 +165,7 @@ export function SelectionBar({ manage, selected }: { manage: Manager; selected: 
   return <View style={local.selection}>
     <IconButton label="退出多选" icon="close" onPress={() => manage.setSelected(undefined)} />
     <Text style={[styles.small, styles.grow]}>已选 {selected.length} 条</Text>
-    <Button label="转发" icon="arrow-redo-outline" variant="soft" disabled={!selected.length} onPress={() => manage.setShare(selected)} />
+    <Button label="转发" icon="arrow-redo-outline" variant="soft" disabled={!selected.length || selected.some((item) => item.portable === false)} onPress={() => manage.setShare(selected)} />
     <Button label="删除" icon="trash-outline" variant="quiet" disabled={!selected.length || !manage.history.ready} onPress={() => manage.remove(selected)} />
   </View>;
 }

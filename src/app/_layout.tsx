@@ -1,3 +1,5 @@
+import { ChatRecallsProvider } from '../features/chat/recalls';
+import { TypographyProvider } from '../components/Typography';
 import { MomentDraftProvider } from '../features/moments/draft';
 import { ChatHistoryProvider } from '../features/chat/history';
 import { Stack } from 'expo-router';
@@ -31,7 +33,7 @@ function AppNavigation() {
         <SpaceProvider>
           <MomentDraftProvider account={session?.user.id}>
           <PetProvider>
-            <ImProvider>
+            <ChatRecallsProvider><ImProvider>
               <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default', animationDuration: motion.transition, contentStyle: { backgroundColor: colors.backdrop } }}>
                 <Stack.Protected guard={!session}>
                   <Stack.Screen name="auth" />
@@ -39,6 +41,9 @@ function AppNavigation() {
                 <Stack.Protected guard={!!session}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="chat/[id]" />
+                  <Stack.Screen name="chat-settings/[id]" />
+                  <Stack.Screen name="chat-search/[id]" />
+                  <Stack.Screen name="font-size" />
                   <Stack.Screen name="peer-call" options={{ gestureEnabled: false }} />
                   <Stack.Screen name="chat-background" />
                   <Stack.Screen name="privacy" />
@@ -65,7 +70,7 @@ function AppNavigation() {
                   <Stack.Screen name="pet/[id]" />
                 </Stack.Protected>
               </Stack>
-            </ImProvider>
+            </ImProvider></ChatRecallsProvider>
           </PetProvider>
           </MomentDraftProvider>
         </SpaceProvider>
@@ -79,7 +84,7 @@ function AppNavigation() {
 export default function RootLayout() {
   return (
     <SessionProvider>
-      <PenliaAppearance><ThemedApp /></PenliaAppearance>
+      <TypographyProvider><PenliaAppearance><ThemedApp /></PenliaAppearance></TypographyProvider>
     </SessionProvider>
   );
 }

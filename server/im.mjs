@@ -94,3 +94,13 @@ export async function syncFriends(first, second) {
     if (!Array.isArray(contacts.data) || !contacts.data.includes(imUserId(second))) throw error;
   }
 }
+
+export async function recallDirectMessage(sender, peer, messageId) {
+  const from = imUserId(sender);
+  const to = imUserId(peer);
+  const response = await authorized(['messages', 'msg_recall'], { body: {
+    msg_id: messageId, from, to, chat_type: 'chat', force: false, sync_device: true,
+  } });
+  return response.data?.recalled === 'yes' && response.data.msg_id === messageId
+    && response.data.from === from && response.data.to === to;
+}

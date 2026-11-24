@@ -194,14 +194,16 @@ export async function listGroupMessages(user, group, before = null) {
   return inTransaction(pool, async (db) => {
     const value = await groupMember(db, group, user, true);
     const { rows } = await db.query(
-      `SELECT c.id,c.sender_id AS "senderId",u.name,c.content,c.silent,c.sent_at AS "sentAt",c.chat_record_id AS "recordId",
+      `SELECT c.id,c.sender_id AS "senderId",u.name, CASE WHEN c.recalled_at IS NULL THEN c.content ELSE '' END AS content,
+      c.silent,c.sent_at AS "sentAt",(c.recalled_at IS NOT NULL) AS recalled,
+      CASE WHEN c.recalled_at IS NULL THEN c.chat_record_id END AS "recordId",
       (SELECT jsonb_build_object('id',quoted.id,'author',qu.name,'body',
-        CASE WHEN quoted.chat_record_id IS NOT NULL THEN '[聊天记录]' WHEN quoted.content<>'' THEN left(quoted.content,180) ELSE '[附件]' END)
+        CASE WHEN quoted.recalled_at IS NOT NULL THEN '消息已撤回' WHEN quoted.chat_record_id IS NOT NULL THEN '[聊天记录]' WHEN quoted.content<>'' THEN left(quoted.content,180) ELSE '[附件]' END)
         FROM chat_group_messages quoted JOIN users qu ON qu.id=quoted.sender_id
-        WHERE quoted.id=c.reply_to AND quoted.group_id=$1 AND quoted.sent_at >= $3 AND NOT ${blocked('$2::uuid','quoted.sender_id')}) AS quote,
+        WHERE c.recalled_at IS NULL AND quoted.id=c.reply_to AND quoted.group_id=$1 AND quoted.sent_at >= $3 AND NOT ${blocked('$2::uuid','quoted.sender_id')}) AS quote,
       EXISTS(SELECT 1 FROM p1_group_shares s WHERE s.message_id=c.id) AS "noReply",
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime) ORDER BY b.position)
-        FROM private_media b WHERE b.group_message_id=c.id),'[]'::jsonb) AS media
+        FROM private_media b WHERE c.recalled_at IS NULL AND b.group_message_id=c.id),'[]'::jsonb) AS media
       FROM chat_group_messages c JOIN users u ON u.id=c.sender_id WHERE c.group_id=$1 AND c.sent_at >= $3
       AND ($4::uuid IS NULL OR (c.sent_at,c.id)<(SELECT other.sent_at,other.id FROM chat_group_messages other
       WHERE other.id=$4 AND other.group_id=$1)) AND NOT ${blocked('$2::uuid', 'c.sender_id')}
@@ -233,7 +235,7 @@ export async function sendGroupMessage(user, group, body) {
     await assertAllowed(db, user, ['limit_sending','limit_account']);
     if (record && !(await db.query('SELECT 1 FROM chat_records WHERE id=$1 AND owner_id=$2 AND group_id=$3', [record,user,group])).rowCount)
       throw new HttpError(404, '无法访问这条聊天记录。');
-    if (reply && !(await db.query(`SELECT 1 FROM chat_group_messages m WHERE m.id=$1 AND m.group_id=$2 AND m.sent_at >= $3
+    if (reply && !(await db.query(`SELECT 1 FROM chat_group_messages m WHERE m.id=$1 AND m.group_id=$2 AND m.recalled_at IS NULL AND m.sent_at >= $3
         AND NOT ${blocked('$4::uuid','m.sender_id')}`, [reply,group,member.joinedAt,user])).rowCount)
       throw new HttpError(404, '无法引用这条消息。');
     const uploaded = await db.query(
@@ -258,5 +260,20 @@ export async function sendGroupMessage(user, group, body) {
     );
     if (body.noReply === true) await db.query('INSERT INTO p1_group_shares(message_id) VALUES ($1)', [saved.id]);
     return saved;
+  });
+}
+
+export async function recallGroupMessage(user, group, message) {
+  return inTransaction(pool, async (db) => {
+    const member = await groupMember(db, group, user, true);
+    const { rows: [line] } = await db.query(`SELECT recalled_at,clock_timestamp()<sent_at+interval '120 seconds' AND
+      clock_timestamp()>=sent_at AS eligible FROM chat_group_messages WHERE id=$1 AND group_id=$2
+      AND sender_id=$3 AND sent_at>=$4 FOR UPDATE`, [readId(message),group,user,member.joinedAt]);
+    if (!line) throw new HttpError(404,'找不到可以撤回的已发送消息。');
+    if (!line.recalled_at) {
+      if (!line.eligible) throw new HttpError(409, '这条消息已超过两分钟，无法撤回。');
+      await db.query('UPDATE chat_group_messages SET recalled_at=clock_timestamp() WHERE id=$1', [message]);
+    }
+    return {};
   });
 }

@@ -23,7 +23,7 @@ function safeFile(candidate?: string) {
 }
 
 export function cachedAttachment(connection: ImConnection, message: ChatMessage | undefined, thumbnail = false) {
-  if (message?.body instanceof connection.sdk.ChatVideoMessageBody) return safeFile(message.body.localPath);
+  if (message?.body instanceof connection.sdk.ChatVideoMessageBody || message?.body instanceof connection.sdk.ChatFileMessageBody) return safeFile(message.body.localPath);
   if (!(message?.body instanceof connection.sdk.ChatImageMessageBody)) return undefined;
   const { localPath, thumbnailLocalPath } = message.body;
   return safeFile(localPath) ?? (thumbnail ? safeFile(thumbnailLocalPath) : undefined);
@@ -37,7 +37,7 @@ export class SendRejected extends Error {
 export async function deliverPeerMessage(connection: ImConnection, peer: string, value: PendingMessage,
   previous?: ChatMessage, onProgress?: (value: number) => void) {
   const { client } = connection;
-  const local = value.kind==='image'?nativePhotoUri(value.photoId):value.kind==='video'?safeFile(value.uri):undefined;
+  const local = value.kind==='image'?nativePhotoUri(value.photoId):value.kind==='video'?safeFile(value.uri) ?? (value.videoId && nativePhotoUri(value.videoId)):undefined;
   const message = previous ?? buildPeerMessage(connection, peer, value, local);
   const submitted = message;
   return new Promise<ChatMessage>((resolve, reject) => {
@@ -57,7 +57,7 @@ export async function fetchAttachment(connection: ImConnection, message: ChatMes
   if (have) return have;
   const {sdk}=connection;
   if (!(message.body instanceof sdk.ChatImageMessageBody || message.body instanceof sdk.ChatVideoMessageBody)
-    || !easemobAttachmentUrl(message.body.remotePath)) {
+    && !(message.body instanceof sdk.ChatFileMessageBody) || !easemobAttachmentUrl(message.body.remotePath)) {
     throw new Error('媒体附件地址无法校验。');
   }
   return new Promise<string>((resolve, reject) => {

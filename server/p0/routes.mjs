@@ -27,7 +27,7 @@ import {
   leaveGroup,
   listChatGroups,
   listGroupMessages,
-  sendGroupMessage,
+  sendGroupMessage, recallGroupMessage,
 } from './groups.mjs';
 import {
   addMomentComment,
@@ -179,7 +179,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
         pool.query(
           `SELECT g.name,m.content,m.silent,m.sent_at AS "sentAt" FROM chat_group_messages m
           JOIN chat_group_members c ON c.group_id=m.group_id AND c.user_id=$1 JOIN chat_groups g ON g.id=m.group_id
-          WHERE m.sender_id=$1 AND m.sent_at>=c.joined_at ORDER BY m.sent_at DESC,m.id LIMIT 100`,
+          WHERE m.sender_id=$1 AND m.recalled_at IS NULL AND m.sent_at>=c.joined_at ORDER BY m.sent_at DESC,m.id LIMIT 100`,
           [id],
         ),
         pool.query('SELECT label,circle FROM relationship_groups WHERE owner_id=$1 ORDER BY label LIMIT 30', [id]),
@@ -216,7 +216,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   }
 
   const match =
-    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|group-invites|groups|moments|moment-media|moment-chat-shares|moment-forward-requests|chat-records)\/([0-9a-f-]{36})(?:\/(invites|members|avatar|messages|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
+    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|group-invites|groups|moments|moment-media|moment-chat-shares|moment-forward-requests|chat-records)\/([0-9a-f-]{36})(?:\/(invites|members|avatar|messages|recall|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
       route,
     );
   if (!match) return undefined;
@@ -255,6 +255,10 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
         const target = readId((await readBody()).userId);
         await rateLimit('p0-group-invite-target:' + target, 25, 60);
         return result(await inviteToGroup(id, item, target), 201);
+      }
+      if (action === 'recall' && method === 'POST') {
+        await rateLimit('p0-group-recall:' + id, 30, 1);
+        return result(await recallGroupMessage(id, item, (await readBody()).id));
       }
       if (action === 'messages' && method === 'GET')
         return result(

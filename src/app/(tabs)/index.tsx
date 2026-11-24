@@ -1,3 +1,5 @@
+import { useRecalls } from '../../features/chat/recalls';
+import { applyRecalls, recalledCaption } from '../../features/chat/recall-model';
 import { useChatHistory } from '../../features/chat/history';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,8 +28,13 @@ import { formatHandle } from '../../services/handle';
 import { ConversationRow } from '../../features/chat/ui';
 import { useReportConversationUnread } from '../../features/chat/unread';
 
-type Thread = { person: Relationship; last: RichMessage; unread: number; pinned?: boolean };
+type ThreadMessage = ReturnType<typeof applyRecalls<RichMessage>>[number];
+type Thread = { person: Relationship; last: ThreadMessage; unread: number; pinned?: boolean };
 
+function threadSummary(value: ThreadMessage) {
+  return 'kind' in value && value.kind === 'recalled' ? recalledCaption(value.mine) :
+    (value.mine ? '我：' : '') + summaryOf(value);
+}
 export default function ChatsScreen() {
   const { session } = useSession();
   const { relationships, refresh, error: friendsError } = useFriends();
@@ -45,6 +52,7 @@ export default function ChatsScreen() {
   const ownId = session?.user.id;
   const demo = useDemo();
   const preferences = useConversationPreferences();
+  const { peers: recalls, ready: recallsReady } = useRecalls();
   const { all: deleted } = useChatHistory();
   const { value: directory } = useDirectory();
 
@@ -71,12 +79,21 @@ export default function ChatsScreen() {
             message = history.filter((entry) => !hidden.has(entry.msgId)).sort((a, b) =>
               (b.serverTime || b.localTime) - (a.serverTime || a.localTime))[0];
           }
-          const last = readPeerMessage(connection!, message, imUserId(ownId!), item.convId);
+          const candidate = readPeerMessage(connection!, message, imUserId(ownId!), item.convId);
+          const last = applyRecalls(candidate ? [candidate] : [], recalls[accepted.get(item.convId)!.userId] ?? {}, hidden)[0];
           if (!last) return [];
           return [{ person: accepted.get(item.convId)!, last, unread, pinned: item.isPinned }];
         }));
         if (active) {
-          setThreads(rows.flat());
+          const threads = rows.flat();
+          const existing = new Set(threads.map((row) => row.person.userId));
+          const markers = [...accepted.values()].flatMap((person) => {
+            if (existing.has(person.userId)) return [];
+            const hidden = new Set(deleted?.['peer:' + person.userId]);
+            const last = applyRecalls<RichMessage>([], recalls[person.userId] ?? {}, hidden)[0];
+            return last ? [{ person, last, unread: 0 }] : [];
+          });
+          setThreads([...threads, ...markers]);
           setListError('');
           setLoaded(true);
         }
@@ -86,14 +103,13 @@ export default function ChatsScreen() {
     }
     void load();
     return () => { active = false; };
-  }, [connection, ownId, relationships, revision, deleted]);
+  }, [connection, ownId, relationships, revision, deleted, recalls]);
 
-  const visibleThreads: Thread[] = demo
+  const visibleThreads: Thread[] = !recallsReady || !deleted ? [] : demo
     ? (relationships ?? []).flatMap((person) => {
       const hidden = new Set(deleted?.['peer:' + person.userId]);
-      const lastText = demo.messages[person.userId]?.findLast((message) => !hidden.has(message.id));
-      const lastMedia = demo.media[person.userId]?.findLast((message) => !hidden.has(message.id));
-      const last = lastMedia && (!lastText || lastMedia.timestamp >= lastText.timestamp) ? lastMedia : lastText;
+      const last = applyRecalls([...(demo.messages[person.userId] ?? []), ...(demo.media[person.userId] ?? [])],
+        recalls[person.userId] ?? {}, hidden)[0];
       return person.status === 'accepted' && last ? [{ person, last, unread: demo.unread[person.userId] ?? 0 }] : [];
     })
     : threads.filter(({ person }) => relationships?.some((contact) => contact.userId === person.userId && contact.status === 'accepted'));
@@ -108,7 +124,7 @@ export default function ChatsScreen() {
 
   const term = formatHandle(query).toLowerCase();
   const filtered = rows.filter(({ person, last, hidden }) => conversationMatches(
-    [person.name, formatHandle(person.username), directory?.remarks[person.userId] ?? '', summaryOf(last)], term, hidden,
+    [person.name, formatHandle(person.username), directory?.remarks[person.userId] ?? '', threadSummary(last)], term, hidden,
   ));
 
   function openPeer(id: string) {
@@ -177,8 +193,8 @@ export default function ChatsScreen() {
             const { person, last, unread, pinned, manualUnread, hidden } = thread;
             const row = <ConversationRow name={person.name}
               avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
-              preview={(last.mine ? '我：' : '') + summaryOf(last).replace(/\s+/g, ' ')}
-              time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={last.silent} noReply={last.noReply}
+              preview={threadSummary(last).replace(/\s+/g, ' ')}
+              time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={'silent' in last && last.silent} noReply={'noReply' in last && last.noReply}
               manualUnread={manualUnread} signal={<PetSignal peer={person.userId} />}
               onPress={() => openPeer(person.userId)} />;
             return hidden

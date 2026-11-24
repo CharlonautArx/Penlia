@@ -52,7 +52,7 @@ export function ImageBubble({ item, connection, online, onDownloaded, onLongPres
 }
 
 const local = StyleSheet.create({
-  preview: { width: 190, maxWidth: '100%', overflow: 'hidden', borderRadius: radius.control, backgroundColor: colors.lavender },
-  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  preview: { width: 190, maxWidth: '100%', overflow: 'hidden', borderRadius: radius.control },
+  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.search },
   fill: { width: '100%', height: '100%' },
 });

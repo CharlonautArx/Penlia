@@ -1,3 +1,4 @@
+import { afterImSend, listRecalls, recallPeerMessage } from './p0/peer-recall.mjs';
 import { randomBytes, scrypt as derive, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { checkDatabase, pool } from './db.mjs';
@@ -243,12 +244,16 @@ async function runPhone({ purpose, action }, request, phoneAuth) {
   return phoneAuth[action](body, { sourceIp, purpose, userId: user?.id });
 }
 
-export async function handle({ method, path, headers, query, sourceIp, readBody }, { phoneAuth, rtc, moderationEvidence, reviewAdvisor } = {}) {
+export async function handle({ method, path, headers, query, sourceIp, readBody }, { phoneAuth, rtc, moderationEvidence, reviewAdvisor, recallTransport } = {}) {
   const route = method + ' ' + path;
   const { authorization } = headers;
   try {
     if (method==='POST' && /^\/callbacks\/easemob\/[A-Za-z0-9_-]{32,96}$/.test(path)) {
       return json(200,await beforeImSend(await readBody(),path.split('/').at(-1)));
+    }
+    if (method === 'POST' && /^\/callbacks\/easemob\/after\/[A-Za-z0-9_-]{32,96}$/.test(path)) {
+      await afterImSend(await readBody(), path.split('/').at(-1));
+      return json(200, {});
     }
     if (route === 'GET /health') return json(200, { ok: true });
     if (route === 'GET /ops/readiness') return await readiness(authorization);
@@ -315,6 +320,12 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
         return json(200, await respondToFriend(user.id, (await readBody()).id, 'accept'));
       case 'POST /v1/friends/decline':
         return json(200, await respondToFriend(user.id, (await readBody()).id, 'decline'));
+      case 'GET /v1/im/recalls':
+        await rateLimit('im-recall-read:' + user.id, 120, 1);
+        return json(200, await listRecalls(user.id, query.get('after')));
+      case 'POST /v1/im/recall':
+        await rateLimit('im-recall:' + user.id, 30, 1);
+        return json(200, await recallPeerMessage(user.id, await readBody(), recallTransport));
       case 'POST /v1/im/contact':
         return json(200, await prepareChat(user.id, (await readBody()).userId));
       case 'POST /v1/im/token':

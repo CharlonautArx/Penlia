@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
 import { colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
+import { useFontScale } from './Typography';
 import { useAppearance } from './appearance';
 import { KeyboardInsets } from './keyboard-insets';
 import { GlassLayer } from './material';
@@ -54,10 +55,11 @@ export function Screen({ title, actions, children, inset = true, refreshing, onR
 }
 
 export function TopBar({ title, actions, back }: { title: string; actions?: ReactNode; back?: () => void }) {
+  const large = useFontScale() > 1;
   return <View style={ui.barWrap}>
     <View style={[ui.bar, ui.width, back && ui.backBar]}>
       {back && <IconButton label="返回" icon="chevron-back" onPress={back} />}
-      <Text accessibilityRole="header" numberOfLines={1} style={[ui.title, back && ui.pageTitle]}>{title}</Text>
+      <Text accessibilityRole="header" numberOfLines={large ? undefined : 1} style={[ui.title, back && ui.pageTitle]}>{title}</Text>
       <View style={styles.grow} />
       <View style={ui.actions}>{actions}</View>
     </View>
@@ -225,7 +227,7 @@ export function LoadingSkeleton({ label, rows = 3 }: { label: string; rows?: num
 }
 
 export function Segments<T extends string>({ options, value, onChange, label }: {
-  options: readonly { id: T; label: string }[]; value: T; onChange: (value: T) => void; label: string;
+  options: readonly { id: T; label: string }[]; value?: T; onChange: (value: T) => void; label: string;
 }) {
   return <View accessibilityLabel={label} style={ui.segments}>
     {options.map((option) => <Pressable key={option.id} accessibilityRole="button"

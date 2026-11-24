@@ -1,3 +1,4 @@
+import { canRecall, recalledCaption, recalledQuote, recallWindow } from '../../features/chat/recall-model';
 import type { MessageLongPress } from '../../features/chat/record-model';
 import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
 import { recordAsset } from '../../features/chat/record-media';
@@ -38,6 +39,7 @@ type Line = {
   silent: boolean;
   noReply: boolean;
   sentAt: string;
+  recalled?: boolean;
   media: Media[];
 } & MessageReferences;
 
@@ -180,15 +182,23 @@ export default function GroupConversation() {
   const items = messages.filter((item) => !manage.history.hidden.has(item.id));
   function managed(item: Line): ManagedMessage {
     const asset = item.media[0];
-    return { report: item.senderId !== own ? () => reportMessage(item) : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
+    const timestamp = Date.parse(item.sentAt);
+    const recall = !item.recalled && canRecall(item.senderId === own, timestamp) ? async () => {
+      await request(groupPath + '/recall', { method: 'POST', body: { id: item.id } });
+      setMessages((current) => current.map((line) => line.id === item.id
+        ? { ...line, recalled: true, content: '', media: [], quote: undefined, recordId: undefined }
+        : line.quote?.id === item.id ? { ...line, quote: { ...line.quote, body: recalledQuote } } : line));
+      if (manage.quote?.id === item.id) manage.setQuote(undefined);
+    } : undefined;
+    return { recall, recallUntil: recall ? timestamp + recallWindow : undefined, report: item.senderId !== own ? () => reportMessage(item) : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
       time: Date.parse(item.sentAt), author: item.name, body: item.content,
       canCopy: !!item.content && !item.recordId, recordId: item.recordId,
       assets: item.media.map(recordAsset), quote: item.quote && item.quote.author + ' · ' + item.quote.body };
   }
-  const selected = manage.selected && items.filter((item) => manage.selected?.has(item.id)).map(managed);
+  const selected = manage.selected && items.filter((item) => !item.recalled && manage.selected?.has(item.id)).map(managed);
   function reportMessage(item: Line) {
     const index = items.findIndex((line) => line.id === item.id);
-    const lines = items.slice(Math.max(0, index - 3), index + 4).map((line) => ({
+    const lines = items.slice(Math.max(0, index - 3), index + 4).filter((line) => !line.recalled).map((line) => ({
       id: line.id, author: line.name, mine: line.senderId === own,
       content: line.content + (line.media.length ? ' [附件 ' + line.media.length + ']' : ''),
     }));
@@ -253,9 +263,13 @@ export default function GroupConversation() {
           const older = items[index + 1];
           const newer = items[index - 1];
           const block = startsMessageBlock(timestamp, older ? Date.parse(older.sentAt) : undefined);
+          if (item.recalled) return <>
+            {block && <ChatTimestamp value={timestamp} />}
+            <Text style={[styles.small, { textAlign: 'center', paddingVertical: space.sm }]}>{recalledCaption(mine)}</Text>
+          </>;
           return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(item.id)} toggle={() => manage.toggle(item.id)}><View>
             {block && <ChatTimestamp value={timestamp} />}
-            <ChatBubble mine={mine} first={block || item.senderId !== older?.senderId}
+            <ChatBubble bare={!item.recordId && !item.content && item.media.length > 0 && item.media.every(({ mime }) => mime.startsWith('image/'))} mine={mine} first={block || item.senderId !== older?.senderId}
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
               author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)} report={!mine ? () => reportMessage(item) : undefined}>
               {item.quote && <QuotePreview quote={item.quote} />}

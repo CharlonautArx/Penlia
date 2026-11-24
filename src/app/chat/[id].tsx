@@ -1,3 +1,8 @@
+import { useHistoryJump } from '../../features/chat/history';
+import { useRecalls } from '../../features/chat/recalls';
+import { applyRecalls, canRecall, recalledCaption, recalledQuote, recallWindow } from '../../features/chat/recall-model';
+import { fetchPeerPage, mergePeerRows } from '../../features/chat/peer-data';
+import { PeerFile } from '../../features/media/PeerFile';
 import type { MessageLongPress } from '../../features/chat/record-model';
 import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -14,12 +19,12 @@ import { useFriends } from '../../services/friends';
 import { commentEmoji } from '../../features/moments/Comments';
 import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { PeerVideo } from '../../features/media/PeerVideo';
-import { chooseMomentVideo,MomentVideo } from '../../features/moments/media';
+import { chooseMomentVideo,chooseMomentDraftVideo,MomentVideo } from '../../features/moments/media';
 import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { ImageBubble } from '../../features/media/ImageBubble';
 import { LocationBubble, LocationComposer } from '../../features/media/LocationCard';
-import { deliverPeerMessage, fetchAttachment, readPeerMessage, SendRejected, UnknownDelivery, type PendingMessage, type RichMessage } from '../../features/media/messages';
+import { deliverPeerMessage, fetchAttachment, readPeerMessage, summaryOf, SendRejected, UnknownDelivery, type PendingMessage, type RichMessage } from '../../features/media/messages';
 import { pickPhotos, preparePhoto, type PreparedPhoto } from '../../features/media/picker';
 import { useLocalPhotoUri } from '../../features/space/media';
 import { imUserId, useIm } from '../../services/im';
@@ -33,7 +38,11 @@ import { PeerSendMenu, type PeerSendOptions } from '../../features/chat/PeerSend
 
 const headerHeight = 54;
 const slowPhotoThreshold = 450;
-const messageKey = (message: RichMessage) => message.id;
+const noMarkers = {};
+type ShownMessage = ReturnType<typeof applyRecalls<RichMessage>>[number];
+const isRecalled = (message: ShownMessage): message is Extract<ShownMessage, {kind:'recalled'}> =>
+  'kind' in message && message.kind === 'recalled';
+const messageKey = (message: ShownMessage) => message.id;
 
 function EmptyConversation() {
   return <View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>;
@@ -55,6 +64,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     .sort((a, b) => b.timestamp - a.timestamp) : undefined, [demoMedia, demoText, isDemo]);
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState(initialDraft);
+  const [sticker, setSticker] = useState<string>();
   const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location'>();
   const [sendError, setSendError] = useState(false);
   const [messages, setMessages] = useState<RichMessage[]>([]);
@@ -71,9 +81,28 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   const [sendMenuOpen, setSendMenuOpen] = useState(false);
   const [sendOptions, setSendOptions] = useState<PeerSendOptions>({ silent: false, noReply: false });
   const closeSendMenu = useCallback(() => setSendMenuOpen(false), []);
-  const [video,setVideo]=useState<Awaited<ReturnType<typeof chooseMomentVideo>>>();
+  const [video,setVideo]=useState<{ uri?: string; videoId?: string; bytes: number; duration?: number }>();
+  const savedVideoUri = useLocalPhotoUri(video?.videoId);
+  const videoUri = video?.uri ?? savedVideoUri;
   const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const manage = useMessageManagement('peer:' + person.userId);
+  const recalls = useRecalls();
+  const markers = recalls.peers[person.userId] ?? noMarkers;
+  const jumps = useHistoryJump();
+  const [position, setPosition] = useState<string>();
+  const [window, setWindow] = useState<RichMessage[]>();
+  const list = useRef<FlatList<ShownMessage>>(null);
+  const searchJump = useRef<string | undefined>(undefined);
+  const retries = useRef(0);
+  useFocusEffect(useCallback(() => {
+    const target = jumps?.current[person.userId];
+    if (!target || !jumps) return;
+    delete jumps.current[person.userId];
+    searchJump.current = target.id;
+    retries.current = 0;
+    setWindow(target.window);
+    setPosition(target.id);
+  }, [jumps, person.userId]));
   const batch=useRef(false);
   const preparingPhoto = useRef(false);
   const [photoLocked, setPhotoLocked] = useState(false);
@@ -88,14 +117,10 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
 
   const merge = useCallback((incoming: ChatMessage[]) => {
     if (!connection) return;
-    setMessages((current) => {
-      const known = new Map(current.map((message) => [message.id, message]));
-      for (const item of incoming) {
-        const message = readPeerMessage(connection, item, ownUsername, peer);
-        if (message) known.set(message.id, message);
-      }
-      return [...known.values()].sort((a, b) => b.timestamp - a.timestamp);
-    });
+    setMessages((current) => mergePeerRows(current, incoming.flatMap((item) => {
+      const row = readPeerMessage(connection, item, ownUsername, peer);
+      return row ? [row] : [];
+    })));
   }, [connection, ownUsername, peer]);
 
   useFocusEffect(useCallback(() => {
@@ -129,15 +154,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
 
   const fetchHistory = useCallback(async (after?: string) => {
     if (!connection || !online) return;
-    const { client, sdk } = connection;
-    return client.chatManager.fetchHistoryMessagesByOptions(peer, sdk.ChatConversationType.PeerChat, {
-      cursor: after,
-      pageSize: 40,
-      options: new sdk.ChatFetchMessageOptions({
-        startTs: -1, endTs: -1, direction: sdk.ChatSearchDirection.UP, needSave: true,
-        msgTypes: [sdk.ChatMessageType.TXT, sdk.ChatMessageType.IMAGE, sdk.ChatMessageType.LOCATION, sdk.ChatMessageType.VIDEO],
-      }),
-    });
+    return fetchPeerPage(connection, peer, after);
   }, [connection, online, peer]);
 
   useEffect(() => {
@@ -202,7 +219,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     try {
       if (demo) {
         if (value.kind === 'text') demo.send(person.userId, value.text, value);
-        else if(value.kind!=='video') demo.addMedia(person.userId, value);
+        else demo.addMedia(person.userId, value);
       } else if (connection) {
         await request('/im/contact', { method: 'POST', body: { userId: person.userId } });
         if (await connection.client.getCurrentUsername() !== ownUsername) throw new Error('聊天已断开，请重新连接。');
@@ -211,7 +228,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         changed();
       }
       pending.current = undefined;
-      if (value.kind === 'text') setDraft((current) => current.trim() === value.text ? '' : current);
+      if (value.kind === 'text') { setDraft((current) => current.trim() === value.text ? '' : current); setSticker(undefined); }
       if (value.kind === 'image') setPhotos((current)=>current.filter((item)=>item.id!==value.photoId));
       else {
         setQuiet(false);setNoReply(false);
@@ -239,7 +256,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     if (retry && retry.value.quote?.id === manage.quote?.id && !!retry.value.silent === options.silent && !!retry.value.noReply === options.noReply) {
       if (await transmit(retry.value, retry.original)) manage.setQuote(undefined);
     } else {
-      if (await transmit({ kind: 'text', text, quote: manage.quote, ...options })) manage.setQuote(undefined);
+      if (await transmit({ kind: 'text', text, sticker: sticker === text, quote: manage.quote, ...options })) manage.setQuote(undefined);
     }
   }
 
@@ -262,53 +279,82 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     router.push({ pathname: '/peer-call', params: { peer: person.userId, kind } });
   }
 
-  const items = useMemo(() => (shownMessages ?? messages).filter((message) => !manage.history.hidden.has(message.id)),
-    [shownMessages, messages, manage.history.hidden]);
+  const base = window ?? shownMessages ?? messages;
+  const items = useMemo(() => {
+    if (!manage.history.ready || !recalls.ready) return [];
+    if (!window) return applyRecalls(base, markers, manage.history.hidden);
+    const lower = base.at(-1)?.timestamp ?? 0, upper = base[0]?.timestamp ?? Infinity;
+    return applyRecalls(base, Object.fromEntries(Object.entries(markers).filter(([, row]) => row.timestamp >= lower && row.timestamp <= upper)), manage.history.hidden);
+  }, [base, manage.history.hidden, manage.history.ready, markers, recalls.ready, window]);
+  useEffect(() => {
+    if (manage.quote && Object.hasOwn(markers, manage.quote.id)) manage.setQuote(undefined);
+  }, [manage.quote, manage.setQuote, markers]);
+  useEffect(() => {
+    if (!position) return;
+    const index = items.findIndex((item) => item.id === position && !isRecalled(item));
+    if (index < 0) return;
+    const timer = setTimeout(() => list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }), 120);
+    const fade = setTimeout(() => {
+      setPosition(undefined);
+      searchJump.current = undefined;
+    }, 2700);
+    return () => { clearTimeout(timer); clearTimeout(fade); };
+  }, [items, position]);
   function managed(message: RichMessage): ManagedMessage {
     const text = 'text' in message;
-    const kind = text ? 'text' : message.kind;
+    const file = !text && message.kind === 'file';
+    const kind = text || file ? 'text' : message.kind as 'image' | 'video' | 'location';
+    const sentAt = demo ? message.timestamp : message.confirmedAt;
+    const revoke = recalls.available && !!sentAt && canRecall(message.mine, sentAt) ? async () => {
+      await recalls.recall(person.userId, message);
+      if (manage.quote?.id === message.id) manage.setQuote(undefined);
+      changed();
+    } : undefined;
     const asset = !text && (message.kind === 'image' || message.kind === 'video') ? {
       mime: message.kind === 'video' ? 'video/mp4' as const : 'image/jpeg' as const,
       photoId: message.kind === 'image' ? message.photoId : undefined,
       load: connection && message.source ? () => fetchAttachment(connection, message.source!) : undefined,
     } : undefined;
-    return { report: !message.mine ? () => reportMessage(message) : undefined, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
-      body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : '',
+    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file, report: !message.mine ? () => reportMessage(message) : undefined, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+      body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : message.kind === 'file' ? '[文件] ' + message.name : '',
       canCopy: (text && !message.recordId) || kind === 'location', recordId: message.recordId,
       quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
   }
-  const selected = manage.selected && items.filter((message) => manage.selected?.has(message.id)).map(managed);
+  const selected = manage.selected && items.filter((message): message is RichMessage => !isRecalled(message) && !!manage.selected?.has(message.id)).map(managed);
   function reportMessage(message: RichMessage) {
     const index = items.findIndex((line) => line.id === message.id);
-    const lines = items.slice(Math.max(0, index - 3), index + 4).map((line) => ({ id: line.id, mine: line.mine,
-      content: 'text' in line ? line.text : line.kind === 'image' ? '[图片]' : line.kind === 'video' ? '[视频]' : '[位置]' }));
+    const lines = items.slice(Math.max(0, index - 3), index + 4).filter((line): line is RichMessage => !isRecalled(line)).map((line) => ({ id: line.id, mine: line.mine, content: summaryOf(line) }));
     const anchor = lines.find((line) => line.id === message.id);
     if (anchor) setReport({ anchor, lines });
   }
 
-  const renderMessage = useCallback<ListRenderItem<RichMessage>>(({ item: message, index }) => {
+  const renderMessage = useCallback<ListRenderItem<ShownMessage>>(({ item: message, index }) => {
+    if (isRecalled(message)) return <View>
+      {startsMessageBlock(message.timestamp, items[index + 1]?.timestamp) && <ChatTimestamp value={message.timestamp} />}
+      <Text style={local.recalled}>{recalledCaption(message.mine)}</Text>
+    </View>;
     const openActions: MessageLongPress = ({ nativeEvent }) => manage.setMenu(managed(message), { x: nativeEvent.pageX, y: nativeEvent.pageY });
     const older = items[index + 1];
     const newer = items[index - 1];
     const block = startsMessageBlock(message.timestamp, older?.timestamp);
     const first = block || message.mine !== older?.mine;
     const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
-    return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(message.id)} toggle={() => manage.toggle(message.id)}><View>
+    return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(message.id)} toggle={() => manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
       {block && <ChatTimestamp value={message.timestamp} />}
-      <ChatBubble mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
+      <ChatBubble bare={'kind' in message && message.kind === 'image'} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
         report={!message.mine ? () => reportMessage(message) : undefined}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
         </Pressable>}>
-        {message.quote && <QuotePreview quote={message.quote} />}
+        {message.quote && <QuotePreview quote={Object.hasOwn(markers, message.quote.id) ? { ...message.quote, body: recalledQuote } : message.quote} />}
         {message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
           : message.kind === 'image' ? <ImageBubble item={message} onLongPress={openActions} connection={connection} online={online} onDownloaded={changed} />
-          : message.kind === 'video' ? <PeerVideo item={message} onLongPress={openActions} connection={connection} /> : <LocationBubble value={message} onLongPress={openActions} />}
+          : message.kind === 'video' ? <PeerVideo item={message} onLongPress={openActions} connection={connection} /> : message.kind === 'file' ? <PeerFile item={message} connection={connection} onLongPress={openActions} /> : <LocationBubble value={message} onLongPress={openActions} />}
         <MessageMarks sharing={message.noReply} silent={message.silent} />
       </ChatBubble>
     </View></SelectionCheck>;
-  }, [changed, connection, items, online, person, manage.selected, session?.user.name, demo]);
+  }, [changed, connection, items, online, person, manage.selected, manage.quote, markers, position, recalls.available, session?.user.name, demo]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
   const sendDisabled = (!demo && !online) || !draft.trim() || sending
@@ -320,12 +366,20 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
           {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
         </View>}
+        {window && <View style={local.headerClearance}><Button label="返回最新消息" variant="quiet" onPress={() => {
+          setWindow(undefined); setPosition(undefined); list.current?.scrollToOffset({ offset: 0, animated: false });
+        }} /></View>}
         <FlatList
+          ref={list} onScrollToIndexFailed={({ index, averageItemLength }) => {
+            if (!searchJump.current || retries.current++ >= 4) return;
+            list.current?.scrollToOffset({ offset: Math.max(0, index - 1) * averageItemLength, animated: false });
+            setTimeout(() => { if (searchJump.current) list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
+          }}
           inverted data={items} style={styles.grow}
-          contentContainerStyle={[chatLayout.messages, !hasTopNotice && local.messageClearance]}
+          contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && local.messageClearance]}
           keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
           ListEmptyComponent={EmptyConversation}
-          ListFooterComponent={cursor && online ? (
+          ListFooterComponent={!window && cursor && online ? (
             <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
               onPress={() => void loadOlder()} />
           ) : undefined}
@@ -340,7 +394,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
       </View>}
       {selected ? <SelectionBar manage={manage} selected={selected} /> : <>
       <MessageComposer label="消息" floating focusKey={manage.quote?.id}
-        value={draft} onChange={setDraft} maxLength={500}
+        value={draft} onChange={(text) => { setDraft(text); setSticker(undefined); }} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
         photoDisabled={photoLocked} photoBusy={photoBusy} toolsDisabled={sending}
@@ -363,6 +417,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
         {picker === 'emoji' ? <View style={local.emoji}>
           {commentEmoji.map((emoji) =>
             <Button key={emoji} label={emoji} variant="soft" onPress={() => {
+              if (!draft.trim()) setSticker(emoji);
               setDraft((text) => text.length + emoji.length <= 500 ? text + emoji : text);
               setPicker(undefined);
             }} />)}
@@ -378,25 +433,27 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
             <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'}
               disabled={sending} onPress={()=>{setNoReply(!noReply);setPicker(undefined);}}/>
             <Text style={styles.muted}>可与安静送达同时使用。</Text>
-            <Button label="短视频" icon="videocam-outline" variant="soft" disabled={!online||sending} onPress={()=>{
-              setPicker(undefined);
-              void chooseMomentVideo().then(setVideo).catch((failure)=>setActionError(errorMessage(failure)));
-            }}/>
+
           </>}
+          <Button label="短视频" icon="videocam-outline" variant="soft" disabled={(!demo && !online) || sending} onPress={() => {
+            setPicker(undefined);
+            const select = demo && session ? chooseMomentDraftVideo(session.user.id + '-chat') : chooseMomentVideo();
+            void select.then(setVideo).catch((failure) => setActionError(errorMessage(failure)));
+          }} />
           {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
       </Sheet>}
       {report&&<ReportSheet peerId={person.userId} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
       {video&&<Sheet title="发送短视频" onClose={()=>{if(!sending)setVideo(undefined);}}>
-        <MomentVideo source={{uri:video.uri}}/>
+        {videoUri ? <MomentVideo source={{ uri: videoUri }} /> : <Empty busy>正在读取视频…</Empty>}
         {noReply&&<NoReply/>}
         {quiet&&<Moon words/>}
         {!!actionError&&<Notice>{actionError}</Notice>}
-        <Button label={sending?'发送中…':'发送视频'} variant="gradient" disabled={sending||!online||pending.current?.uncertain}
+        <Button label={sending?'发送中…':'发送视频'} variant="gradient" disabled={sending || (!demo && !online) || !videoUri || pending.current?.uncertain}
           onPress={()=>{
             const queued=pending.current;
             if(queued?.value.kind==='video'&&queued.value.uri===video.uri)void transmit(queued.value,queued.original);
-            else if (video.uri) void transmit({kind:'video',uri:video.uri,bytes:video.bytes,duration:video.duration,silent:quiet,noReply,quote:manage.quote}).then((ok) => { if (ok) manage.setQuote(undefined); });
+            else if (videoUri) void transmit({kind:'video',uri:video.uri,videoId:video.videoId,bytes:video.bytes,duration:video.duration,silent:quiet,noReply,quote:manage.quote}).then((ok) => { if (ok) manage.setQuote(undefined); });
           }}/>
       </Sheet>}
       {photo && <Sheet title={demo ? '图片预览' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>
@@ -459,7 +516,10 @@ export default function ConversationScreen() {
               onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
               <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
             </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
-            {person && <PetShortcut peer={person.userId} />}
+            {person && <>
+              <PetShortcut peer={person.userId} />
+              <IconButton label="聊天设置" icon="menu" onPress={() => router.push({ pathname: '/chat-settings/[id]', params: { id: person.userId } })} />
+            </>}
           </View>
         </View>
       </View>
@@ -468,6 +528,8 @@ export default function ConversationScreen() {
 }
 
 const local = StyleSheet.create({
+  recalled: { ...styles.small, textAlign: 'center', paddingVertical: space.sm },
+  highlight: { backgroundColor: colors.lavender, borderRadius: radius.control },
   headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight + space.xxl },
   header: { ...styles.row, height: headerHeight, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },
   profileLink: { ...styles.row, ...styles.grow, minHeight: touch },

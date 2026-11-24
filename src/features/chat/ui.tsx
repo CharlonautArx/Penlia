@@ -68,9 +68,9 @@ function messageDate(value: number) {
   return day + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-export function ChatBubble({ mine, first, last, author, avatar, children, onActions, report }: {
+export function ChatBubble({ mine, first, last, author, avatar, children, onActions, report, bare }: {
   mine: boolean; first: boolean; last: boolean; author?: string; avatar?: ReactNode;
-  children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void; report?: () => void;
+  bare?: boolean; children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void; report?: () => void;
 }) {
   const wall = useWallpaperLabel();
   return <View style={[ui.messageRow, mine && ui.sentRow, first && ui.firstMessage]}>
@@ -82,8 +82,8 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
         accessibilityActions={[{ name: 'longpress', label: '消息操作' }, ...(report ? [{ name: 'report', label: '举报这条消息' }] : [])]}
         onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); else if (nativeEvent.actionName === 'report') report?.(); }}
         delayLongPress={380}
-        style={({ pressed }) => [ui.bubble, mine ? ui.sent : ui.received,
-          !last && (mine ? ui.sentJoined : ui.receivedJoined), pressed && ui.pressedBubble]}>
+        style={({ pressed }) => [bare ? ui.bareBubble : [ui.bubble, mine ? ui.sent : ui.received,
+          !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>
         {children}
       </Pressable>
     </View>
@@ -177,7 +177,7 @@ const ui = StyleSheet.create({
   thread: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: space.sm, paddingLeft: space.md },
   threadBody: { ...styles.grow, ...styles.divider, alignSelf: 'stretch', justifyContent: 'center', gap: space.xxs, paddingRight: space.md, paddingVertical: space.xs },
   threadName: { ...styles.row, gap: space.xxs },
-  name: { flexShrink: 1, fontSize: 17, fontWeight: '500' },
+  name: { flexShrink: 1, fontSize: 17, fontWeight: '400' },
   previewGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 0 },
   preview: { ...type.support, color: colors.quiet, flexShrink: 1 },
   line: { ...styles.row, gap: space.xs },
@@ -194,6 +194,7 @@ const ui = StyleSheet.create({
   sentContent: { alignItems: 'flex-end' },
   sender: { ...type.caption, color: colors.muted, marginLeft: space.xxs, marginBottom: space.xxs },
   bubble: { maxWidth: '100%', borderRadius: radius.surface, gap: space.xxs, paddingVertical: space.xs, paddingHorizontal: space.sm },
+  bareBubble: { maxWidth: '100%', gap: space.xxs },
   sent: { backgroundColor: colors.lavender, borderBottomRightRadius: radius.small },
   received: { backgroundColor: colors.chatReceived, borderBottomLeftRadius: radius.small },
   sentJoined: { borderBottomRightRadius: 5 },

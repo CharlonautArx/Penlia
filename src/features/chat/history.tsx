@@ -1,6 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 import { useLocalDocument } from '../local/document';
+
+import type { RichMessage } from '../media/protocol';
+export type Bridge = { id: string; window: RichMessage[] };
+const Jump = createContext<{ current: Record<string, Bridge> } | undefined>(undefined);
+export const useHistoryJump = () => useContext(Jump);
 
 type Deleted = Record<string, string[]>;
 const emptyIds: string[] = [];
@@ -9,9 +14,10 @@ const History = createContext<{ value?: Deleted; remove?: (key: string, ids: str
 export function ChatHistoryProvider({ account, children }: { account?: string; children: ReactNode }) {
   const key = account && 'penlia:deleted-chat:v1:' + account;
   const stored = useLocalDocument<Deleted>(key, async () => (key && JSON.parse(await AsyncStorage.getItem(key) ?? '{}')) || {});
-  return <History.Provider value={{ value: stored.value, remove: (scope, ids) => stored.save((old) => ({
+  const jumps = useRef<Record<string, Bridge>>({});
+  return <Jump.Provider value={jumps}><History.Provider value={{ value: stored.value, remove: (scope, ids) => stored.save((old) => ({
     ...old, [scope]: [...new Set([...(old[scope] ?? []), ...ids])],
-  })) }}>{children}</History.Provider>;
+  })) }}>{children}</History.Provider></Jump.Provider>;
 }
 
 export function useChatHistory(scope?: string) {
