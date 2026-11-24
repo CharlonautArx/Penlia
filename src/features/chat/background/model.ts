@@ -1,7 +1,7 @@
 export type Picture = { width: number; height: number; x: number; y: number };
 export type Wallpaper = Picture & { file: string };
 export type LocalPicture = Picture & { uri: string };
-export type Backgrounds = { global?: Wallpaper; peers: Record<string, Wallpaper | null> };
+export type Backgrounds = { global?: Wallpaper; voice?: Wallpaper; peers: Record<string, Wallpaper | null> };
 
 export const blankBackgrounds = (): Backgrounds => ({ peers: {} });
 export const unit = (value: number) => Math.max(0, Math.min(1, value));
@@ -19,7 +19,7 @@ export function assignBackground(value: Backgrounds, peer: string | undefined, w
 }
 
 export function usedFiles(value: Backgrounds) {
-  return new Set([value.global, ...Object.values(value.peers)].flatMap((item) => item ? [item.file] : []));
+  return new Set([value.global, value.voice, ...Object.values(value.peers)].flatMap((item) => item ? [item.file] : []));
 }
 
 export const wallpaperFile = /^[0-9a-f-]{36}\.jpg$/;
@@ -31,6 +31,7 @@ export function readBackgrounds(raw: string | null): Backgrounds {
     && Number.isFinite(item.width) && item.width > 0 && Number.isFinite(item.height) && item.height > 0
     && Number.isFinite(item.x) && item.x >= 0 && item.x <= 1 && Number.isFinite(item.y) && item.y >= 0 && item.y <= 1;
   if (!value?.peers || typeof value.peers !== 'object' || Array.isArray(value.peers)
+    || (value.voice !== undefined && !valid(value.voice))
     || (value.global !== undefined && !valid(value.global))
     || Object.values(value.peers).some((item) => item !== null && !valid(item))) throw new Error('Invalid background settings');
   return value;

@@ -13,10 +13,11 @@ import {
   type Media,
 } from '../../features/moments/media';
 import { GroupCallScreen } from '../../features/calls/GroupCallScreen';
-import { NoReply } from '../../features/media/NoReply';
+import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { QRImage } from '../../features/privacy/CodeSheet';
+import { GroupPortrait, pickGroupPortrait } from '../../features/groups/GroupPortrait';
 import type { ChatGroup } from '../../features/privacy/types';
 import { ApiError, errorMessage } from '../../services/api';
 import { useFriends } from '../../services/friends';
@@ -239,8 +240,7 @@ export default function GroupConversation() {
                   {item.media.map((media) => <MomentMediaTile key={media.id} item={media} context="chat" />)}
                 </View>
               )}
-              {item.noReply && <NoReply />}
-              {item.silent && <Moon words />}
+              <MessageMarks sharing={item.noReply} silent={item.silent} />
             </ChatBubble>
           </View>;
         }}
@@ -322,6 +322,14 @@ export default function GroupConversation() {
           }}
         >
           {!!error && <Notice>{error}</Notice>}
+          <ListRow title={group.name} detail={group.ownerId === own ? '更换群头像' : undefined}
+            left={<GroupPortrait name={group.name} avatar={group.avatar} />}
+            onPress={group.ownerId === own ? () => void run(async () => {
+              const avatar = await pickGroupPortrait();
+              if (!avatar) return;
+              await request(groupPath + '/avatar', { method: 'PUT', body: { avatar } });
+              setGroup({ ...group, avatar });
+            }) : undefined} />
           <Button label="群视频通话" icon="videocam-outline" variant="soft" onPress={()=>{setDetails(false);setCall(true);}}/>
           <Section title="群成员" detail={members.length + ' 位'} />
           {members.map((member) => (

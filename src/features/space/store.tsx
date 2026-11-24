@@ -94,7 +94,7 @@ function useAccountSpace() {
       && audienceAllows(card(id).privacy.access, id, viewer, connected(id, viewer));
   }
   function entryVisible(entry: Entry, viewer = me?.id ?? '') {
-    return spaceVisible(entry.ownerId, viewer)
+    return !entry.cloudId && spaceVisible(entry.ownerId, viewer)
       && canSeeEntry(entry, card(entry.ownerId).privacy, viewer, connected(entry.ownerId, viewer));
   }
   function albumVisible(album: Album, viewer = me?.id ?? '') {

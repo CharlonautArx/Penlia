@@ -24,8 +24,9 @@ export type Settings = {
   version: number;
 };
 export type RelationGroup = { id: string; label: string; circle: boolean; memberIds: string[] };
-export type ChatGroup = { id: string; name: string; ownerId: string; membersCanInvite: boolean; memberCount: number };
+export type ChatGroup = { avatar?: string | null; id: string; name: string; ownerId: string; membersCanInvite: boolean; memberCount: number };
 export type Invite = {
+  avatar?: string | null;
   id: string;
   groupId: string;
   name: string;

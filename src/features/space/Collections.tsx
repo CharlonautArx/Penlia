@@ -5,20 +5,21 @@ import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } fro
 import { Button, Empty, Notice, Section, Sheet } from '../../components/ui';
 import { colors, radius, space, styles } from '../../theme';
 import { localId } from '../local/document';
+import { CategoryManager } from './CategoryManager';
 import { Chips } from '../play/Cards';
 import { FrostedAction } from "./FrostedAction";
 import { JournalLink } from './EntryCard';
 import { SpacePhoto } from './media';
 import { useSpace } from './store';
 
-const albumThemes = ['全部', '日常', '旅行', '聚会', '其他'] as const;
-export type AlbumTheme = typeof albumThemes[number];
+export type AlbumTheme = string;
 
 export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
   owner: string; viewer?: string; pane: 'journal' | 'albums';
   theme: AlbumTheme; onTheme: (value: AlbumTheme) => void;
 }) {
   const state = useSpace();
+  const [managing, setManaging] = useState(false);
   const [creating, setCreating] = useState(false);
   const { width, fontScale } = useWindowDimensions();
   const singleColumn = fontScale > 1.6 && width < 420;
@@ -38,13 +39,21 @@ export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
       {!entries.length && <Empty icon="book-outline">还没有可见的日志。</Empty>}
     </>;
   }
-  const albums = state.value.albums.filter((album) => album.ownerId === owner && state.albumVisible(album, viewer)
-    && (theme === '全部' || album.theme === theme));
+  const visible = state.value.albums.filter(album => album.ownerId === owner && state.albumVisible(album, viewer));
+  const categories = (state.value.categories ?? []).filter(c => c.ownerId === owner && (mine || visible.some(a => a.categoryId === c.id)));
+  const selected = categories.find(c => c.id === theme);
+  const albums = selected ? visible.filter(a => a.categoryId === selected.id) : visible;
   return <>
     <Section title="主题相册" detail={albums.length + ' 本'}>
       {mine && <FrostedAction label="新建相册" icon="add-outline" onPress={() => setCreating(true)} />}
     </Section>
-    <Chips items={albumThemes} value={theme} onChange={onTheme} />
+    <View style={[styles.row, local.filters]}>
+      <View style={styles.grow}><Chips horizontal items={['全部', ...categories.map(c => c.name)]} value={selected?.name ?? '全部'}
+        onChange={name => onTheme(categories.find(c => c.name === name)?.id ?? '全部')} /></View>
+      {mine && <Button label="管理分类" variant="quiet" onPress={() => setManaging(true)} />}
+    </View>
+    {!!selected?.description && <Text style={styles.muted}>{selected.description}</Text>}
+    {managing && mine && <CategoryManager owner={owner} close={() => setManaging(false)} />}
     {albums.length ? <View style={local.grid}>
       {albums.map((album) => <Pressable key={album.id} accessibilityRole="button" accessibilityLabel={album.title}
         style={({ pressed }) => [local.album, singleColumn && local.singleColumn, pressed && local.pressed]}
@@ -53,29 +62,28 @@ export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
           label={album.title + '封面'} /></View>
         <View style={local.albumText}>
           <Text style={styles.strong} numberOfLines={2}>{album.title}</Text>
-          <Text style={styles.small}>{album.theme} · {album.photos.length} 张</Text>
+          <Text style={styles.small}>{album.photos.length} 张</Text>
         </View>
       </Pressable>)}
     </View> : <Empty icon="images-outline">还没有可见的相册。</Empty>}
-    {creating && mine && <NewAlbum onClose={() => setCreating(false)} />}
+    {creating && mine && <NewAlbum initialCategory={selected?.id} onClose={() => setCreating(false)} />}
   </>;
 }
 
-function NewAlbum({ onClose }: { onClose: () => void }) {
+function NewAlbum({ initialCategory, onClose }: { initialCategory?: string; onClose: () => void }) {
   const state = useSpace();
   const [name, setName] = useState('');
-  const [theme, setTheme] = useState('日常');
+  const [category, setCategory] = useState(initialCategory);
+  const groups = state.value?.categories?.filter(c => c.ownerId === state.me?.id) ?? [];
   return <Sheet avoidKeyboard title="新建相册" onClose={onClose}>
     <TextInput accessibilityLabel="相册名称" value={name} onChangeText={setName} style={styles.input}
       placeholder="给这些照片起个名字" placeholderTextColor={colors.quiet} maxLength={26} />
-    <View style={[styles.row, local.wrap]}>
-      {albumThemes.slice(1).map((item) => <Button key={item} label={item}
-        variant={item === theme ? 'primary' : 'soft'} onPress={() => setTheme(item)} />)}
-    </View>
+    {!!groups.length && <Chips items={['全部', ...groups.map(c => c.name)]} value={groups.find(c => c.id === category)?.name ?? '全部'}
+      onChange={name => setCategory(groups.find(c => c.name === name)?.id)} />}
     <Button label="创建" disabled={!name.trim()} variant="gradient" onPress={() => {
       if (!state.me) return;
       const id = localId();
-      const album = { id, ownerId: state.me.id, title: name.trim(), theme, cover: 0, photos: [], at: Date.now() };
+      const album = { id, ownerId: state.me.id, title: name.trim(), categoryId: category, cover: 0, photos: [], at: Date.now() };
       state.update((previous) => ({ ...previous, albums: [album, ...previous.albums] }));
       onClose();
       router.push({ pathname: '/space/album/[id]', params: { id } });
@@ -91,5 +99,5 @@ const local = StyleSheet.create({
   albumCover: { aspectRatio: 1.4 },
   albumPhoto: { width: '100%', height: '100%' },
   albumText: { padding: space.sm, gap: 2 },
-  wrap: { flexWrap: 'wrap', gap: 7 },
+  filters: { justifyContent: 'space-between' },
 });

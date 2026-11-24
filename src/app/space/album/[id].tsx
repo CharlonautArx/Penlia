@@ -1,3 +1,4 @@
+import { assignCategory } from '../../../features/space/album-categories';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -20,7 +21,7 @@ export default function AlbumScreen() {
   const album = state.value?.albums.find((item) => item.id === id && state.albumVisible(item, viewer));
   const own = !!album && !viewer && state.owns(album.ownerId);
   const [photoIndex, setPhotoIndex] = useState<number>();
-  const [panel, setPanel] = useState<'menu' | 'rename' | 'deleteAlbum' | 'deletePhotos'>();
+  const [panel, setPanel] = useState<'menu' | 'category' | 'rename' | 'deleteAlbum' | 'deletePhotos'>();
   const [managing, setManaging] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [name, setName] = useState('');
@@ -79,7 +80,7 @@ export default function AlbumScreen() {
     </>)}>
       {!!(error || state.error) && <Notice>{error || state.error}</Notice>}
       {album ? <>
-        <Section title={album.theme} detail={album.photos.length + ' 张 · 本机相册'} />
+        <Section title={state.value?.categories?.find(c => c.id === album.categoryId && c.ownerId === album.ownerId)?.name ?? '照片'} detail={album.photos.length + ' 张 · 本机相册'} />
         {own && managing && <View style={styles.row}>
           <Text style={[styles.muted, styles.grow]}>已选 {selected.size} 张 · 按住拖动排序</Text>
           <Button label="删除选中照片" variant="danger" disabled={!selected.size || busy} onPress={() => setPanel('deletePhotos')} />
@@ -102,7 +103,14 @@ export default function AlbumScreen() {
         </Sheet>}
         {own && panel === 'menu' && <Sheet title="相册菜单" onClose={() => setPanel(undefined)}>
           <ListRow title="修改相册名" onPress={() => { setName(album.title); setPanel('rename'); }} />
+          <ListRow title="相册分类" onPress={() => setPanel('category')} />
           <ListRow title="删除相册" onPress={() => setPanel('deleteAlbum')} separator={false} />
+        </Sheet>}
+        {own && panel === 'category' && <Sheet title="相册分类" onClose={() => setPanel(undefined)}>
+          {!!error && <Notice>{error}</Notice>}
+          {[{id: '',name:'未分类'}, ...(state.value?.categories ?? []).filter(c => c.ownerId === album.ownerId)].map(c =>
+            <ListRow key={c.id} title={c.name} detail={(album.categoryId ?? '') === c.id ? '当前分类' : undefined}
+              onPress={() => void run(async () => { await state.save(data => assignCategory(data,album.ownerId,album.id,c.id || undefined)); setPanel(undefined); })} />)}
         </Sheet>}
         {own && panel === 'rename' && <Sheet title="修改相册名" avoidKeyboard onClose={() => { if (!busy) setPanel(undefined); }}>
           <TextInput accessibilityLabel="相册名称" value={name} onChangeText={setName}

@@ -14,6 +14,7 @@ export const momentSharePath = '/life/moment/';
 
 export type Moment = {
   id: string;
+  clientId?: string | null;
   collaborationId?: string | null;
   authorId: string;
   author: string;

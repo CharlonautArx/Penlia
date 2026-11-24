@@ -13,7 +13,7 @@ const notFound = () => new HttpError(404, '找不到可查看的内容。');
 const canRead = momentVisible('p', '$1::uuid');
 const participantVisible = (actor) => `${momentVisible('p', actor)}
   AND NOT ${blocked(actor, '$1::uuid')} AND NOT ${restricted(actor, '$1::uuid')}`;
-const projection = `p.id,p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.revision,p.created_at AS "createdAt",
+const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clientId",p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.revision,p.created_at AS "createdAt",
   (p.source_moment_id IS NOT NULL) AS forwarded,
   ${forwardableMoment('p')} AS "canForward",
   CASE WHEN p.author_id=$1 THEN p.allow_forward END AS "allowForward",
@@ -65,6 +65,16 @@ export async function listMoments(userId, query) {
     moments: rows.slice(0, 20).map(({ cursor_time, ...row }) => row),
     next: rows.length > 20 ? (ownTimeline ? Number(last.pinned) + '|' : '') + last.cursor_time + '|' + last.id : null,
   };
+}
+
+// Reconcile existing client IDs without granting access to another account's records or media.
+export async function resolveOwnMomentIds(userId, keys) {
+  const ids = idsOf(keys, 100);
+  if (!ids.length) return { identities: [] };
+  const { rows } = await pool.query(
+    `SELECT p.id,p.client_id AS "clientId" FROM private_moments p WHERE p.author_id=$1 AND ${canRead}
+      AND (p.id=ANY($2::uuid[]) OR p.client_id=ANY($2::uuid[]))`, [userId, ids]);
+  return { identities: rows };
 }
 
 export async function ownMomentCount(userId) {

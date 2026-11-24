@@ -15,8 +15,7 @@ export default function MomentsScreen() {
     if (!id || handled.current === key) return;
     handled.current = key;
     router.setParams({ mine: '0', author: '', local: '0' });
-    if (local === '1') router.push({ pathname: '/space/[id]', params: { id, archive: '1' } });
-    else router.push({ pathname: '/life/timeline/[id]', params: { id } });
+    router.push({ pathname: '/life/timeline/[id]', params: { id } });
   }, [mine, author, local, me]));
   return <PrivateFeed linkedPane={pane === 'journal' || pane === 'albums' ? pane : undefined} />;
 }

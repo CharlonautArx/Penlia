@@ -11,10 +11,11 @@ import { useFriends } from '../services/friends';
 import { colors, contentWidth, radius, space, styles } from '../theme';
 
 export default function ChatBackgroundScreen() {
-  const { peer: requestedPeer } = useLocalSearchParams<{ peer?: string }>();
+  const { peer: requestedPeer, mode } = useLocalSearchParams<{ peer?: string; mode?: string }>();
+  const voice = mode === 'voice';
   const { relationships } = useFriends();
   const friend = relationships?.find((entry) => entry.userId === requestedPeer && entry.status === 'accepted');
-  const peer = friend?.userId;
+  const peer = voice ? undefined : friend?.userId;
   const store = useChatBackgrounds();
   const [draft, setDraft] = useState<LocalPicture>();
   const [dragging, setDragging] = useState(false);
@@ -70,7 +71,7 @@ export default function ChatBackgroundScreen() {
     setOperation('save');
     setNotice('');
     try {
-      await store.save(scope, picture);
+      await store.save(scope, picture, voice);
       if (active.current) {
         discard();
         setNotice(success);
@@ -84,11 +85,11 @@ export default function ChatBackgroundScreen() {
     }
   }
 
-  const picture = draft ?? store.resolve(peer);
+  const picture = draft ?? store.resolve(peer, voice);
   const inherited = !!peer && !Object.hasOwn(store.value.peers, peer);
-  const ready = nativeChatBackgrounds && (!requestedPeer || !!friend) && !store.loading && !store.error;
+  const ready = nativeChatBackgrounds && (voice || !requestedPeer || !!friend) && !store.loading && !store.error;
   return <SafeAreaView style={local.screen}>
-    <TopBar title="聊天背景" back={() => {
+    <TopBar title={voice ? '语音通话背景' : '聊天背景'} back={() => {
       if (busy.current) return;
       if (router.canGoBack()) router.back();
       else router.replace('/me');
@@ -98,34 +99,35 @@ export default function ChatBackgroundScreen() {
         : store.loading ? <Text style={styles.muted}>正在读取聊天背景…</Text>
           : !ready ? <Notice>当前无法设置聊天背景。</Notice>
             : <>
-              <Text style={styles.section}>{draft ? '预览' : friend ? friend.name + '的聊天背景' : '所有聊天'}</Text>
+              <Text style={styles.section}>{draft ? '预览' : voice ? '所有语音通话' : friend ? friend.name + '的聊天背景' : '所有聊天'}</Text>
               {!!notice && <Notice>{notice}</Notice>}
               <View style={local.previewStage}>
-                <View style={[local.preview, { width: previewWidth, aspectRatio: aspect }]}>
+                <View style={[local.preview, voice && { backgroundColor: '#000000' }, { width: previewWidth, aspectRatio: aspect }]}>
                   {picture && <WallpaperImage picture={picture} style={StyleSheet.absoluteFill}
                     onDrag={setDragging} onPosition={draft && ((position) => setDraft((current) => current && { ...current, ...position }))} />}
-                  <View style={local.previewMessages} pointerEvents="none" accessible={false}
+                  {voice ? <View pointerEvents="none" style={local.voiceSample}><Icon name="person-circle-outline" size={36} color="#FFFFFF" /></View> : <View style={local.previewMessages} pointerEvents="none" accessible={false}
                     importantForAccessibility="no-hide-descendants" aria-hidden>
                     <Text style={[local.sample, local.received]}>在这里预览聊天效果</Text>
                     <Text style={[local.sample, local.sent]}>选一张喜欢的照片</Text>
-                  </View>
+                  </View>}
                 </View>
               </View>
               {draft ? <>
                 <Text style={styles.muted}>拖动照片调整取景</Text>
                 {peer && <Button label="应用到当前聊天" disabled={!!operation} onPress={() => void apply(peer, draft, '已应用到当前聊天。')} />}
-                <Button label="应用到所有聊天" variant={peer ? 'soft' : 'primary'} disabled={!!operation}
-                  onPress={() => void apply(undefined, draft, '已更新全局聊天背景，单独设置优先。')} />
+                <Button label={voice ? '应用到语音通话' : '应用到所有聊天'} variant={peer ? 'soft' : 'primary'} disabled={!!operation}
+                  onPress={() => void apply(undefined, draft, voice ? '已应用到语音通话。' : '已更新全局聊天背景，单独设置优先。')} />
                 <Button label="取消预览" variant="quiet" disabled={!!operation} onPress={discard} />
               </> : <SettingGroup>
                 <ListRow title={operation === 'pick' ? '正在读取照片…' : '从手机相册选择'}
                   left={<Icon name="image-outline" />} onPress={operation ? undefined : () => void choose()} />
-                <ListRow title="恢复默认背景" left={<Icon name="refresh-outline" />}
+                <ListRow title={voice ? '恢复纯黑背景' : '恢复默认背景'} left={<Icon name="refresh-outline" />}
                   onPress={operation ? undefined : () => void apply(peer, peer ? null : undefined, '已恢复默认背景。')}
                   separator={!!peer && !inherited} />
                 {!!peer && !inherited && <ListRow title="跟随全局背景" left={<Icon name="layers-outline" />}
                   onPress={operation ? undefined : () => void apply(peer, undefined, '当前聊天已跟随全局背景。')} separator={false} />}
               </SettingGroup>}
+              {!draft && !voice && <ListRow title="语音通话背景" left={<Icon name="call-outline" />} onPress={() => router.push({ pathname: '/chat-background', params: { mode: 'voice' } })} />}
               {!draft && <Text style={styles.small}>{inherited ? '当前聊天跟随全局背景。' : '背景只保存在这台设备上。'}</Text>}
             </>}
     </ScrollView>
@@ -137,6 +139,7 @@ const local = StyleSheet.create({
   content: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', padding: space.md, gap: space.sm, paddingBottom: space.xl },
   previewStage: { alignItems: 'center', paddingVertical: space.sm, backgroundColor: colors.backdrop, borderRadius: radius.surface },
   preview: { maxWidth: '100%', overflow: 'hidden', borderRadius: radius.control, backgroundColor: colors.panel },
+  voiceSample: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', paddingBottom: 30 },
   previewMessages: { ...StyleSheet.absoluteFill, padding: space.sm, justifyContent: 'center', gap: space.xs },
   sample: { ...styles.small, color: colors.text, paddingHorizontal: space.xs, paddingVertical: space.xxs, borderRadius: radius.control },
   received: { backgroundColor: colors.chatReceived, alignSelf: 'flex-start' },

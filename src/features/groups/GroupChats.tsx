@@ -1,12 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
-import { Switch, Text, TextInput, View } from 'react-native';
-import { Button, Empty, Icon, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Switch, Text, TextInput, View, type ImageSourcePropType } from 'react-native';
+import { Avatar, Button, Empty, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { GroupPortrait, pickGroupPortrait } from './GroupPortrait';
 import { ScanCode } from '../privacy/CodeSheet';
 import type { ChatGroup, Invite } from '../privacy/types';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { styles } from '../../theme';
 
 export function GroupChats({ render }: { render?: (props: {
   actions: ReactNode; children: ReactNode; reload: () => void; refreshing: boolean;
@@ -17,6 +18,8 @@ export function GroupChats({ render }: { render?: (props: {
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [scan, setScan] = useState(false);
+  const [preview, setPreview] = useState<{ invite: Invite; members: { name: string; portrait?: ImageSourcePropType }[] }>();
+  const [avatar, setAvatar] = useState<string>();
   const [name, setName] = useState('');
   const [inviteMembers, setInviteMembers] = useState(false);
   const [error, setError] = useState('');
@@ -70,7 +73,7 @@ export function GroupChats({ render }: { render?: (props: {
 
   const actions = <>
     <IconButton label="扫描群邀请" icon="scan-outline" onPress={() => setScan(true)} />
-    <IconButton label="创建群聊" icon="add-outline" tinted onPress={() => setCreating(true)} />
+    <IconButton label="创建群聊" icon="add-outline" onPress={() => { setAvatar(undefined); setCreating(true); }} />
   </>;
   const children = <>
       {!!error && !creating && <Notice>{error}</Notice>}
@@ -78,13 +81,15 @@ export function GroupChats({ render }: { render?: (props: {
       {!invites.length && <Text style={styles.muted}>有人邀请你时，会在这里等你确认。</Text>}
       {invites.map((invite) => (
         <View key={invite.id} style={styles.card}>
-          <Text style={styles.strong}>{invite.name}</Text>
-          <Text style={styles.muted}>
-            {invite.inviter} 发出的邀请 · 群内 {invite.memberCount} 位成员
-          </Text>
-          <View style={styles.row}>
-            <Button label="拒绝邀请" variant="quiet" disabled={busy} onPress={() => decide(invite, false)} />
-            <Button label="接受并加入" variant="gradient" disabled={busy} onPress={() => decide(invite, true)} />
+          <ListRow title={invite.name} detail={invite.inviter + ' 邀请你加入 · ' + invite.memberCount + ' 位成员'}
+            left={<GroupPortrait name={invite.name} avatar={invite.avatar} />} onPress={() => void run(async () => {
+              const result = await request<{ members: { name: string; portrait?: ImageSourcePropType }[] }>(
+                '/group-invites/' + invite.id + '/members');
+              setPreview({ invite, members: result.members });
+            })} />
+          <View style={[styles.row, { justifyContent: 'flex-end' }]}>
+            <Button label="拒绝" variant="quiet" disabled={busy} onPress={() => decide(invite, false)} />
+            <Button label="接受" variant="gradient" disabled={busy} onPress={() => decide(invite, true)} />
           </View>
         </View>
       ))}
@@ -96,11 +101,16 @@ export function GroupChats({ render }: { render?: (props: {
           <ListRow
             title={group.name}
             detail={group.memberCount + ' 位成员'}
-            left={<Icon name="people-outline" color={colors.accent} />}
+            left={<GroupPortrait name={group.name} avatar={group.avatar} />}
             onPress={() => open(group.id)}
           />
         </View>
       ))}
+      {preview && <Sheet title={preview.invite.name} onClose={() => setPreview(undefined)}>
+        <Section title="群成员" />
+        {preview.members.map((member, i) => <ListRow key={i} title={member.name}
+          left={<Avatar name={member.name} source={member.portrait} size={36} />} />)}
+      </Sheet>}
       {creating && (
         <Sheet
           avoidKeyboard
@@ -110,6 +120,8 @@ export function GroupChats({ render }: { render?: (props: {
           }}
         >
           <Text style={styles.muted}>群聊建立后，你可以邀请好友。每位好友都需要确认加入。</Text>
+          <ListRow title="选择群头像" left={<GroupPortrait name={name || '群'} avatar={avatar} />}
+            onPress={() => void run(async () => { const photo = await pickGroupPortrait(); if (photo) setAvatar(photo); })} />
           <TextInput
             accessibilityLabel="群聊名称"
             placeholder="给小群取个名字"
@@ -133,7 +145,7 @@ export function GroupChats({ render }: { render?: (props: {
               void run(async () => {
                 const { id } = await request<{ id: string }>('/groups', {
                   method: 'POST',
-                  body: { name: name.trim(), membersCanInvite: inviteMembers },
+                  body: { name: name.trim(), membersCanInvite: inviteMembers, avatar },
                 });
                 setCreating(false);
                 setName('');

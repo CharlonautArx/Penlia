@@ -35,6 +35,7 @@ function AppNavigation() {
                 <Stack.Protected guard={!!session}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="chat/[id]" />
+                  <Stack.Screen name="peer-call" options={{ gestureEnabled: false }} />
                   <Stack.Screen name="chat-background" />
                   <Stack.Screen name="privacy" />
                   <Stack.Screen name="profile" />

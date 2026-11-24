@@ -43,8 +43,8 @@ export function seed() {
       statusPolicy: 'private', momentScope: 'private', zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai',
       quietHours: {}, showResting: false, muteIndefinitely: false, muteUntil: null, allowSilent: true, version: 1, priorityIds: [] }],
     relationGroups: [{ id: 'preview-circle', label: '亲密圈', circle: true, memberIds: [friend.id] }],
-    groups: [group, { ...group, id: 'preview-invited', name: '周日看展', ownerId: friend.id, active: false }],
-    invites: [{ id: 'preview-invite', groupId: 'preview-invited', name: '周日看展', inviter: friend.name,
+    groups: [group, { ...group, id: 'preview-invited', name: '周日看展', ownerId: friend.id, members: members([friend.id, 'demo-azhu', 'demo-linlu']), active: false }],
+    invites: [{ id: 'preview-invite', groupId: 'preview-invited', name: '周日看展', inviter: friend.name, inviterId: friend.id, inviteeId: self, code: 'penlia:group:penliaDemoGroupInvitation0000001',
       memberCount: 3, expiresAt: at(2) }],
     groupLines: [
       { id: 'preview-group-2', groupId: group.id, senderId: 'demo-azhu', name: '阿竹', content: '昨天拍到的那束光。', sentAt: at(0, 10), silent: false, noReply: true, media: [coffee] },

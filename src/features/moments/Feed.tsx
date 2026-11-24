@@ -1,19 +1,22 @@
-import { BlurTargetView } from 'expo-blur';
+import NativeMaskedView from '@react-native-masked-view/masked-view';
+import { BlurTargetView, BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type FlatListProps } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ComponentType, type ReactElement, type RefObject } from 'react';
+import { FlatList, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type FlatListProps, type ViewProps } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppearance } from '../../components/appearance';
-import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar } from '../../components/ui';
+import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Sheet, TopBar } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
-import { errorMessage, type User } from '../../services/api';
+import { ApiError, errorMessage, type User } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, contentWidth, radius, space, styles, touch } from '../../theme';
 import { SpaceCollections, type AlbumTheme } from '../space/Collections';
-import { FrostedAction } from '../space/FrostedAction';
+import { EntryCard } from '../space/EntryCard';
+import { lookupKeys, reconcileEntries, timelineRows, type MomentIdentity, type TimelineRow } from './timeline';
 import { CoverEditor } from '../space/CoverEditor';
 import { coverMetrics } from '../space/ImmersiveCover';
 import { HomeFeedList } from './HomeFeedList';
@@ -23,6 +26,9 @@ import { useRecord } from '../social/ui';
 import { useSpace } from '../space/store';
 import type { Moment } from './model';
 import { PostCard } from './PostCard';
+
+// The installed mask's legacy NativeMethods declaration predates the current RN View type.
+const MaskedView = NativeMaskedView as unknown as ComponentType<ViewProps & { maskElement: ReactElement }>;
 
 export { scopes, type Audience, type Moment } from './model';
 
@@ -37,7 +43,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const width = Math.max(1, window.width - insets.left - insets.right);
   const metrics = coverMetrics(width, window.height, insets.top);
   const reveal = useSharedValue(0);
-  const homeBlurTarget = useRef<ComponentRef<typeof View>>(null);
+  const bellTarget = useRef<ComponentRef<typeof View>>(null);
   const coverHeaderHeight = useRef(0);
   const [statusSurface, setStatusSurface] = useState<'cover' | 'profile' | 'feed'>('cover');
   const mine = !!author && author === me?.id;
@@ -45,7 +51,30 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const [albumTheme, setAlbumTheme] = useState<AlbumTheme>('全部');
   const [items, setItems] = useState<Moment[]>();
   const [profile, setProfile] = useState<User>();
-  const [count, setCount] = useState<number>();
+  const immersive = home || mine;
+  const history = useRef(state);
+  history.current = state;
+  const keys = useMemo(() => mine && author ? lookupKeys(state.value?.entries ?? [], author).sort().join(',') : '',
+    [mine, author, state.value?.entries]);
+  const [canUseCache, setCanUseCache] = useState(false);
+  useEffect(() => {
+    if (!focused || !author || !keys) return;
+    let active = true;
+    async function resolve() {
+      const candidates = keys.split(',');
+      for (let start = 0; active && start < candidates.length; start += 100) {
+        const { identities } = await request<{ identities: MomentIdentity[] }>('/moments/resolve-ids',
+          { method: 'POST', body: { keys: candidates.slice(start, start + 100) } });
+        if (active && identities.length) history.current.update((data) => {
+          const entries = reconcileEntries(data.entries, author!, identities);
+          return entries === data.entries ? data : { ...data, entries };
+        });
+      }
+    }
+    // Old servers can still reconcile identities from ordinary timeline pages.
+    void resolve().catch(() => {});
+    return () => { active = false; };
+  }, [keys, author, focused, request]);
   const [panel, setPanel] = useState<'publish' | 'timelineActions' | 'cover'>();
   const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -72,10 +101,9 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
       else params.set('feed', 'friends');
       if (mine) params.set('order', 'pinned');
       if (cursor) params.set('before', cursor);
-      const [result, owner, totals] = await Promise.all([
+      const [result, owner] = await Promise.all([
         request<{ moments: Moment[]; next: string | null }>('/moments?' + params.toString()),
         author && !mine && !cursor ? request<{ user: User }>('/people/' + author) : undefined,
-        mine && !cursor ? request<{ count: number }>('/moments/count') : undefined,
       ]);
       if (id !== sequence.current) return;
       setItems((current) => cursor
@@ -83,11 +111,20 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         : result.moments);
       setNext(result.next);
       if (owner) setProfile(owner.user);
-      if (totals) setCount(totals.count);
+      setCanUseCache(false);
+      if (mine && author) history.current.update((data) => {
+        const entries = reconcileEntries(data.entries, author, result.moments);
+        if (cursor) return entries === data.entries ? data : { ...data, entries };
+        const timelineCache = result.moments.filter((item) => item.authorId === author && !item.forwarded && !item.collaborationId);
+        return { ...data, entries, timelineCache };
+      });
     } catch (failure) {
       if (id === sequence.current) {
         setError(errorMessage(failure));
-        if (!cursor) { setItems([]); setNext(null); }
+        if (!cursor) {
+          setCanUseCache(mine && (!(failure instanceof ApiError) || failure.status >= 500));
+          setItems([]); setNext(null);
+        }
       }
     } finally {
       if (id === sequence.current) { setBusy(false); pageLock.current = false; }
@@ -97,7 +134,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   useFocusEffect(useCallback(() => {
     setItems(undefined);
     setProfile(undefined);
-    setCount(undefined);
+    setCanUseCache(false);
     setNext(null);
     void load();
     return () => { sequence.current++; pageLock.current = false; };
@@ -106,9 +143,9 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const person = home || mine ? me : profile;
   const hasLocalProfile = !!person && (home || mine || (isUiDemo && state.spaceVisible(person.id)));
   const card = hasLocalProfile && person ? state.card(person.id) : emptySpace();
-  const journals = mine ? state.value?.entries.filter((entry) => entry.ownerId === author && entry.kind === 'journal').length : undefined;
-  const albums = mine ? state.value?.albums.filter((album) => album.ownerId === author).length : undefined;
-  const archive = mine && state.value?.entries.some((entry) => entry.ownerId === author && entry.kind === 'thought');
+  const rows = useMemo(() => timelineRows(canUseCache ? state.value?.timelineCache ?? [] : items ?? [],
+    mine ? state.value?.entries ?? [] : [], mine ? author : undefined, !!next),
+    [canUseCache, items, state.value, mine, author, next]);
   function update(id: string, change: Partial<Moment>) {
     setItems((current) => current?.map((item) => item.id === id ? { ...item, ...change } : item));
   }
@@ -118,43 +155,48 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     else router.push('/private-moment');
   }
   const spaceHeader = person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
-    immersive={home ? { ...metrics, width, reveal, top: insets.top } : undefined}
+    immersive={immersive ? { ...metrics, width, reveal, top: insets.top } : undefined} hidePanes={mine}
     pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
     onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
     onCover={home || mine ? () => setPanel('cover') : undefined}
-    counts={mine ? { thought: count, journal: journals, albums } : undefined} />;
-  const header = <View style={!home && local.header}>
-    {home ? <View onLayout={({ nativeEvent }) => { coverHeaderHeight.current = nativeEvent.layout.height; }}>
-      <BlurTargetView ref={homeBlurTarget}>{spaceHeader}</BlurTargetView>
-      <HomeNotificationBell target={homeBlurTarget} top={insets.top + space.xs} />
+    />;
+  const goBack = () => router.canGoBack() ? router.back() : router.replace('/moments');
+  const header = <View style={!immersive && local.header}>
+    {immersive ? <View onLayout={({ nativeEvent }) => { coverHeaderHeight.current = nativeEvent.layout.height; }}>
+      {home ? <BlurTargetView ref={bellTarget}>{spaceHeader}</BlurTargetView> : spaceHeader}
+      {home ? <HomeNotificationBell target={bellTarget} photo={!!card.cover.photo} top={insets.top + space.xs} />
+        : <View pointerEvents="box-none" style={[local.timelineNav, { top: insets.top + space.xs }]}>
+          <IconButton label="返回" icon="chevron-back" tinted onPress={goBack} />
+          <View style={styles.grow} />
+          <IconButton label="动态选项" icon="ellipsis-horizontal" tinted onPress={() => setPanel('timelineActions')} />
+          <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
+        </View>}
     </View> : spaceHeader}
-    <View style={home ? [local.column, local.homeBody] : local.body}>
+    <View style={home ? [local.column, local.homeBody] : mine ? local.timelineBody : local.body}>
       {pane === 'thought' ? <>
         {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
-        {!home && <Section title="动态记录">
-          {archive && <Button label="本机旧动态" variant="quiet" onPress={() => router.push({
-            pathname: '/space/[id]', params: { id: author!, archive: '1' },
-          })} />}
-        </Section>}
         {!!error && <Notice action="重试" onAction={() => void load()}>{error}</Notice>}
+        {mine && !!state.error && <Notice action="重试" onAction={state.retry}>{state.error}</Notice>}
       </> : hasLocalProfile && person && <SpaceCollections owner={person.id} pane={pane}
         theme={albumTheme} onTheme={setAlbumTheme} />}
     </View>
   </View>;
 
-  const list: FlatListProps<Moment> = {
-    data: pane === 'thought' ? items ?? [] : [], keyExtractor: (entry) => entry.id, initialNumToRender: 5,
-    contentContainerStyle: home ? local.homeList : local.list, ListHeaderComponent: header,
+  const list: FlatListProps<TimelineRow> = {
+    data: pane === 'thought' ? rows : [], keyExtractor: (entry) => entry.key, initialNumToRender: 5,
+    contentContainerStyle: immersive ? local.homeList : local.list, ListHeaderComponent: header,
     refreshing: pane === 'thought' && busy, onRefresh: pane === 'thought' ? () => void load() : undefined,
-    renderItem: ({ item }) => {
+    renderItem: ({ item: row }) => {
+      if (row.entry) return <View style={local.column}><EntryCard entry={row.entry} timeline /></View>;
+      const item = row.moment;
       const post = <PostCard item={item} onRemove={() => { void load(); }} onUpdate={(change) => update(item.id, change)}
         onPin={mine ? async (pinned) => {
           await request('/moments/' + item.id + '/pin', { method: 'PUT', body: { pinned } });
           void load();
         } : undefined} />;
-      return home ? <View style={local.column}>{post}</View> : post;
+      return immersive ? <View style={local.column}>{post}</View> : post;
     },
-    ListEmptyComponent: pane !== 'thought' ? undefined : !items && !error ? <LoadingSkeleton label="正在读取动态" />
+    ListEmptyComponent: pane !== 'thought' ? undefined : (!items || (mine && state.loading)) && !error ? <LoadingSkeleton label="正在读取动态" />
       : error ? undefined : <Empty icon="image-outline">{home ? '好友的新动态会出现在这里。' : '这里还没有你可见的动态。'}</Empty>,
     ListFooterComponent: pane === 'thought' && next ? <View style={local.footer}>
       {busy ? <Text style={styles.small}>正在加载更早动态…</Text>
@@ -162,14 +204,9 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     </View> : undefined,
   };
 
-  return <SafeAreaView style={local.safe} edges={home ? ['left', 'right'] : ['top', 'left', 'right', 'bottom']}>
-    {!home && <TopBar title={mine ? '我的动态' : '好友动态'}
-      back={() => router.canGoBack() ? router.back() : router.replace('/moments')}
-      actions={mine && <>
-        <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
-        <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
-      </>} />}
-    {home ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
+  return <SafeAreaView style={local.safe} edges={home ? ['left', 'right'] : mine ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
+    {!immersive && <TopBar title="好友动态" back={goBack} />}
+    {immersive ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
       onScroll={({ nativeEvent }) => {
         const barCenter = nativeEvent.contentOffset.y + insets.top / 2;
         const headerHeight = coverHeaderHeight.current;
@@ -178,9 +215,9 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
           : barCenter >= metrics.resting - 72 ? 'profile' : 'cover';
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
       }} /> : <FlatList {...list} />}
-    {home && focused && person && statusSurface !== 'feed' && <StatusBar
+    {immersive && focused && person && statusSurface !== 'feed' && <StatusBar
       style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
-    {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={home ? { width, ...metrics } : undefined} onClose={() => setPanel(undefined)} />}
+    {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...metrics }} onClose={() => setPanel(undefined)} />}
     {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />
       <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => openPublish(true)} separator={false} />
@@ -197,10 +234,30 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   </SafeAreaView>;
 }
 
-function HomeNotificationBell({ target, top }: { target: React.RefObject<ComponentRef<typeof View> | null>; top: number }) {
+function HomeNotificationBell({ photo, top, target }: {
+  photo: boolean; top: number; target: RefObject<ComponentRef<typeof View> | null>;
+}) {
+  const focused = useIsFocused();
   const { data } = useRecord<{ unread: boolean }>('/moment-notifications?badge=1', 20000);
-  return <FrostedAction label="动态消息" icon="notifications-outline" small unread={data?.unread} target={target}
-    style={[local.bell, { top }]} onPress={() => router.push('/life/moment-notifications')} />;
+  return <Pressable accessibilityRole="button" accessibilityLabel="动态消息" accessibilityHint={data?.unread ? '有未读互动' : undefined}
+    onPress={() => router.push('/life/moment-notifications')}
+    style={({ pressed }) => [local.bell, { top }, pressed && local.pressed]}>
+    <View pointerEvents="none" style={local.bellGlyph}>
+      <View style={local.bellEdge}><Icon name="notifications-outline" size={26} color="#25262BB8" /></View>
+      {Platform.OS === 'web' ? <View style={local.bellFace}>
+        <Icon name="notifications" size={24} color="#FFFFFF88" />
+      </View> : <MaskedView style={StyleSheet.absoluteFill}
+        maskElement={<View style={local.bellGlyph}><Icon name="notifications" size={24} color="black" /></View>}>
+        {focused && (Platform.OS === 'ios' || Number(Platform.Version) >= 31) &&
+          <BlurView tint="light" intensity={14} blurMethod="dimezisBlurViewSdk31Plus" blurTarget={target}
+            style={StyleSheet.absoluteFill} />}
+        <LinearGradient colors={['#FFFFFFED', '#FFFFFF36', '#42475038', '#FFFFFF99']}
+          locations={[0, 0.38, 0.67, 1]} start={{x: 0.2, y: 0}} end={{x: 0.9, y: 1}} style={StyleSheet.absoluteFill} />
+      </MaskedView>}
+      <Icon name="notifications-outline" size={24} color={photo ? '#FFFFFFCE' : '#3F414AAA'} />
+    </View>
+    {data?.unread && <View pointerEvents="none" style={local.unread} />}
+  </Pressable>;
 }
 
 function HomePublishBar({ onPublish }: { onPublish: () => void }) {
@@ -236,6 +293,12 @@ const local = StyleSheet.create({
   publishButton: { ...styles.grow, flexDirection: 'row', gap: space.xs, paddingHorizontal: space.md, paddingVertical: space.xs },
   publishLabel: { flexShrink: 1 },
   pressed: { opacity: 0.72 },
-  bell: { position: 'absolute', right: space.md, zIndex: 2 },
+  timelineBody: { paddingHorizontal: space.md, gap: space.xs },
+  timelineNav: { position: 'absolute', left: space.sm, right: space.sm, zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: space.xxs },
+  bell: { position: 'absolute', right: space.md, zIndex: 2, width: touch, height: touch, justifyContent: 'center', alignItems: 'center' },
+  bellGlyph: { width: 26, height: 28, alignItems: 'center', justifyContent: 'center' },
+  bellEdge: { position: 'absolute', top: 1 }, bellFace: { position: 'absolute', top: 2 },
+  unread: { position: 'absolute', right: 5, top: 5, width: 9, height: 9, backgroundColor: '#E72442', borderRadius: 5,
+    borderWidth: 1, borderColor: '#FFFFFF' },
   footer: { padding: space.md },
 });

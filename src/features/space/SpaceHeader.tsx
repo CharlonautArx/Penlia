@@ -28,7 +28,7 @@ export function CoverPreview({ cover }: { cover: Cover }) {
   </View>;
 }
 
-export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, showsCollections = true }: {
+export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true }: {
   person: { id: string; name: string; username: string };
   card: SpaceCard;
   immersive?: { width: number; resting: number; reserve: number; top: number; reveal: SharedValue<number> };
@@ -36,6 +36,7 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
   onAvatar?: () => void;
   onCover?: () => void;
   showsCollections?: boolean;
+  hidePanes?: boolean;
   pane: SpacePane;
   onPane: (pane: SpacePane) => void;
   counts?: Partial<Record<SpacePane, number>>;
@@ -67,13 +68,13 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
     <View style={[local.identity, immersive && local.homeIdentity]}>
       {onAvatar ? <Pressable accessibilityRole="button" accessibilityLabel="查看我的动态" onPress={onAvatar}
         style={({ pressed }) => [local.avatar, immersive && local.homeAvatar, pressed && local.pressed]}>{avatar}</Pressable>
-        : <View style={local.avatar}>{avatar}</View>}
+        : <View style={[local.avatar, immersive && local.homeAvatar]}>{avatar}</View>}
       <View style={[styles.grow, local.identityText]}>
         <Text style={[local.name, immersive && local.homeName]}>{person.name}</Text>
         <Text style={[styles.small, immersive && local.homeMeta]}>{formatHandle(person.username)}{card.region ? ' · ' + card.region : ''}</Text>
       </View>
     </View>
-    <View style={[local.panes, immersive && local.homePanes]}>
+    {!hidePanes && <View style={[local.panes, immersive && local.homePanes]}>
       {panes.filter(({ key }) => showsCollections || key === 'thought').map(({ key, title, icon }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={title}
         accessibilityHint={counts && counts[key] !== undefined ? `${counts[key]} 条` : undefined}
         accessibilityState={{ selected: key === pane }} onPress={() => onPane(key)}
@@ -82,7 +83,7 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
         {counts ? <Text style={local.count}>{counts[key] ?? '—'}</Text> : <Icon name={icon} size={20} color={immersive && key !== pane ? palette.light.ink : colors.ink} />}
         <Text style={[key === pane ? styles.strong : styles.muted, immersive && key !== pane && local.homeMeta, local.paneLabel]}>{title}</Text>
       </Pressable>)}
-    </View>
+    </View>}
   </View>;
 }
 

@@ -53,8 +53,8 @@ type Store = {
   loading: boolean;
   error: boolean;
   retry: () => void;
-  resolve: (peer?: string) => LocalPicture | undefined;
-  save: (peer: string | undefined, source?: LocalPicture | null) => Promise<void>;
+  resolve: (peer?: string, voice?: boolean) => LocalPicture | undefined;
+  save: (peer: string | undefined, source?: LocalPicture | null, voice?: boolean) => Promise<void>;
 };
 const Context = createContext<Store | null>(null);
 
@@ -86,13 +86,13 @@ export function ChatBackgroundProvider({ account, children }: { account?: string
     return () => { active = false; ready.current = false; };
   }, [account, key, attempt]);
 
-  function resolve(peer?: string) {
+  function resolve(peer?: string, voice = false) {
     if (!account || !nativeChatBackgrounds) return;
-    const picture = chatBackground(value, peer);
+    const picture = voice ? value.voice : chatBackground(value, peer);
     return picture && { ...picture, uri: new File(folder(account), picture.file).uri };
   }
 
-  function save(peer: string | undefined, source?: LocalPicture | null) {
+  function save(peer: string | undefined, source?: LocalPicture | null, voice = false) {
     const pending = queue.current.then(async () => {
       if (!account || !ready.current) throw new Error('聊天背景设置尚未读取，请重试。');
       const destination = folder(account);
@@ -106,7 +106,7 @@ export function ChatBackgroundProvider({ account, children }: { account?: string
         const picture = copied && source ? {
           file: copied.name, width: source.width, height: source.height, x: source.x, y: source.y,
         } : source === null ? null : undefined;
-        const next = assignBackground(latest.current, peer, picture);
+        const next = voice ? { ...latest.current, voice: picture ?? undefined } : assignBackground(latest.current, peer, picture);
         await AsyncStorage.setItem(key, JSON.stringify(next));
         latest.current = next;
         setValue(next);

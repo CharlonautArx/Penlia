@@ -1,7 +1,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Sheet, TopBar } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
@@ -62,6 +62,9 @@ function PersonScreen({ id }: { id: string }) {
   }
 
   const name = person && (own ? person.name : displayName({ userId: id, name: person.name }, directory.value ?? emptyDirectory));
+  const insets = useSafeAreaInsets();
+  const coverWidth = Math.max(1, Math.min(width - insets.left - insets.right, contentWidth));
+  const coverHeight = Math.max(190, Math.min(300, coverWidth * 0.53));
   const openSpace = () => router.push({ pathname: '/life/timeline/[id]', params: { id } });
 
   return <SafeAreaView style={local.safe} edges={['top', 'left', 'right', 'bottom']}>
@@ -71,15 +74,17 @@ function PersonScreen({ id }: { id: string }) {
       back={() => router.canGoBack() ? router.back() : router.replace(own ? '/profile' : '/friends')} />
     {person ? <>
       <ScrollView contentContainerStyle={local.column} showsVerticalScrollIndicator={false}>
-        <ProfileCoverImage photo={cover.photo} height={Math.max(190, Math.min(300, width * 0.53))} fades />
+        <ProfileCoverImage photo={cover.photo} height={coverHeight} fades />
         <View style={local.details}>
-          <View style={local.avatarFrame}>
-            <Avatar userId={id} name={person.name} source={demoPortrait((own && demoAvatarKey) || person.username)} size={88} />
-          </View>
-          <Text accessibilityRole="header" style={local.name}>{name}</Text>
-          <View style={local.metadata}>
-            <Text style={styles.muted}>昵称 {person.name}</Text>
-            <Text selectable style={styles.muted}>朋聊号 {formatHandle(person.username)}</Text>
+          <View style={local.identity}>
+            <View style={local.avatarFrame}>
+              <Avatar userId={id} name={person.name} source={demoPortrait((own && demoAvatarKey) || person.username)} size={88} />
+            </View>
+            <View style={[styles.grow, local.metadata]}>
+              <Text accessibilityRole="header" style={local.name}>{name}</Text>
+              <Text style={styles.muted}>昵称：{person.name}</Text>
+              <Text selectable style={styles.muted}>朋聊号：{formatHandle(person.username)}</Text>
+            </View>
           </View>
           {!!person.bio && <Text style={styles.body}>{person.bio}</Text>}
           {own && !!cover.failure && <Notice>{cover.failure}</Notice>}
@@ -96,7 +101,7 @@ function PersonScreen({ id }: { id: string }) {
     </> : <View style={local.details}><Empty busy={!failure && !error && (!relationships || !!friend)}>
       {failure || error || (relationships && !friend ? '找不到这位好友。' : '正在加载资料…')}
     </Empty></View>}
-    {management === 'cover' && own && <EditProfileCover cover={cover} onClose={() => setManagement(undefined)} />}
+    {management === 'cover' && own && <EditProfileCover ratio={coverWidth / coverHeight} cover={cover} onClose={() => setManagement(undefined)} />}
     {management === 'directory' && friend && <FriendDetailsEditor id={id} name={friend.name} onClose={() => setManagement(undefined)} />}
     {management === 'menu' && friend && <Sheet title="好友设置" onClose={() => setManagement(undefined)}>
       <ListRow title="备注与分组" left={<Icon name="bookmark-outline" />} onPress={() => setManagement('directory')} />
@@ -132,10 +137,11 @@ const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.panel },
   column: { width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
   details: { paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
-  avatarFrame: { marginTop: -46, borderWidth: 4, borderColor: colors.panel, borderRadius: radius.pill,
+  identity: { ...styles.row, marginTop: -28, alignItems: 'center' },
+  avatarFrame: { borderWidth: 4, borderColor: colors.panel, borderRadius: radius.pill,
     backgroundColor: colors.panel, alignSelf: 'flex-start' },
-  name: { ...type.article, color: colors.text },
-  metadata: { gap: 2 },
+  name: { ...type.hero, color: colors.text },
+  metadata: { gap: 2, paddingTop: space.xl },
   spaceEntry: { marginTop: space.sm, marginHorizontal: -space.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   footer: { paddingHorizontal: space.md, paddingTop: space.xs, paddingBottom: space.md },
 });

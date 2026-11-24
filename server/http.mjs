@@ -46,6 +46,9 @@ export function createApiServer(options = {}) {
           return readBody(request,Math.ceil(mediaLimit/3)*4+1024);
         if(request.method==='POST'&&/^\/v1\/p2\/capsule-entries\/[0-9a-f-]{36}\/audio$/.test(url.pathname))
           return readBody(request,Math.ceil(2097152/3)*4+1024);
+        if ((request.method === 'POST' && url.pathname === '/v1/groups') ||
+            (request.method === 'PUT' && /^\/v1\/groups\/[a-f0-9-]{36}\/avatar$/.test(url.pathname)))
+          return readBody(request, 32768 + 1024);
         if (request.method === 'PUT' && url.pathname === '/v1/me/profile-cover')
           return readBody(request, Math.ceil(profileCoverLimit / 3) * 4 + 1024);
         return readBody(request,MAX_BODY_BYTES);

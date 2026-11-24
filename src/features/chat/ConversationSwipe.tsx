@@ -14,9 +14,9 @@ const width = 222;
 const rowTransition = LinearTransition.duration(200);
 const spring = { stiffness: 310, damping: 32, mass: 0.9, overshootClamping: true };
 const actionColors = {
-  pin: { color: '#FFD4C4', shadow: '#704C40D0', width: 70 },
-  unread: { color: '#BBD8FF', shadow: '#3B5370D0', width: 82 },
-  hide: { color: '#800020', shadow: 'transparent', width: 70 },
+  pin: { color: '#B8441B', width: 70 },
+  unread: { color: '#1963AF', width: 82 },
+  hide: { color: '#800020', width: 70 },
 };
 
 export function ConversationSwipe({ id, owner, pinned, unread, busy, onAction, children }: {
@@ -87,7 +87,7 @@ export function ConversationSwipe({ id, owner, pinned, unread, busy, onAction, c
         return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: busy }}
           key={action} disabled={busy} onPress={() => { if (owner.value === id && ready) onAction(action); }}
           style={({ pressed }) => [local.action, { width: ink.width }, pressed && local.pressed]}>
-          <Text style={[local.label, { color: ink.color, textShadowColor: ink.shadow }]}>{label}</Text>
+          <Text style={[local.label, { color: ink.color }]}>{label}</Text>
         </Pressable>;
       })}
     </View>
@@ -103,7 +103,6 @@ const local = StyleSheet.create({
   actions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row', backgroundColor: '#FFFFFF' },
   action: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.xxs,
     borderLeftWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#EEE9EB' },
-  label: { ...type.control, fontWeight: weight.semibold, textAlign: 'center',
-    textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 1.1 },
+  label: { ...type.control, fontWeight: weight.semibold, textAlign: 'center' },
   pressed: { backgroundColor: '#F7F6F7' },
 });

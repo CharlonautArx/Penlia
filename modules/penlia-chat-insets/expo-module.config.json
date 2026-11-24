@@ -1,6 +1,6 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["app.penlia.chatinsets.PenliaChatInsetsModule"]
+    "modules": ["app.penlia.chatinsets.PenliaChatInsetsModule", "app.penlia.chatinsets.PenliaCallModule"]
   }
 }

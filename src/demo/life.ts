@@ -3,6 +3,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import type { Relationship } from '../services/api';
 import { demoMomentInteractions } from './moment-interactions';
+import { demoPortrait } from './visuals';
 import { demoPeople, demoUser } from './data';
 import { friend, friendName, members, self, type Row, type Rows } from './life-fixtures';
 
@@ -96,13 +97,32 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
   if (root === 'relationship-groups') return get ? { groups: rows('relationGroups') } : upsert('relationGroups');
   if (root === 'people' && area && get) return { user: demoPeople.find((person) => person.id === area) };
   if (root === 'group-invites') {
-    if (get && !area) return { invitations: rows('invites') };
-    if (area === 'accept' || area === 'decline') {
-      const invitation = requireRow('invites', String(body.id));
-      drop('invites', invitation);
+    function valid(invite: Row) {
+      const group = find('groups', String(invite.groupId));
+      const inviter = String(invite.inviterId ?? group?.ownerId);
+      return group && !group.active && (invite.inviteeId ?? self) === self &&
+        new Date(String(invite.expiresAt)).getTime() > Date.now() &&
+        requireRow('settings', 'privacy').groupPolicy === 'friends' &&
+        relationships.some(r => r.userId === inviter && r.status === 'accepted') &&
+        list(group.members).some(m => m.id === inviter);
+    }
+    const invitations = rows('invites').filter(valid);
+    if ((get && !area) || (area === 'resolve' && method === 'POST')) return {
+      invitations: invitations.filter(i => get || (i.code ?? 'penlia:group:penliaDemoGroupInvitation0000001') === body.code)
+        .map(i => { const g = requireRow('groups', String(i.groupId)); return { ...i, avatar: g.avatar,
+          memberCount: list(g.members).filter(m => m.id !== self).length }; }),
+    };
+    const invite = invitations.find(i => i.id === (get ? area : body.id));
+    if (!invite) throw new Error('此邀请不可用。');
+    const group = requireRow('groups', String(invite.groupId));
+    const roster = list(group.members).filter(m => m.id !== self);
+    if (get && id === 'members') return { members: roster.filter(m => !find('blocks', m.id)).map(m => ({
+      name: m.name, portrait: demoPortrait(demoPeople.find(p => p.id === m.id)?.username ?? ''),
+    })) };
+    if (method === 'POST' && (area === 'accept' || area === 'decline')) {
+      drop('invites', invite);
       if (area === 'accept') {
-        const group = requireRow('groups', String(invitation.groupId));
-        save('groups', { ...group, active: true });
+        save('groups', { ...group, active: true, members: [...roster, ...members([self])], memberCount: roster.length + 1 });
         return { groupId: group.id };
       }
       return {};
@@ -114,6 +134,11 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     const group = requireRow('groups');
     if (!group.active) throw new Error('请先在本机接受这份本机邀请。');
     if (!id) return remove ? drop('groups', group) : { group, ...people(group) };
+    if (id === 'avatar' && method === 'PUT') {
+      if (group.ownerId !== self || typeof body.avatar !== 'string' || body.avatar.length > 32768)
+        throw new Error('无法修改该群头像。');
+      return save('groups', { ...group, avatar: body.avatar });
+    }
     if (id === 'leave') return save('groups', { ...group, active: false });
     if (id === 'messages') {
       if (get) return { messages: related('groupLines', 'groupId', area).slice(0, 75), next: null };
@@ -133,6 +158,11 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     const timeline = selected === self && query.get('order') === 'pinned';
     const interactions = demoMomentInteractions(store, relationships);
     const { visible, project } = interactions;
+    if (area === 'resolve-ids' && method === 'POST') {
+      const keys = new Set(Array.isArray(body.keys) ? body.keys : []);
+      return { identities: rows('moments').filter((item) => item.authorId === self && visible(item)
+        && (keys.has(item.id) || keys.has(item.clientId))).map(({ id, clientId }) => ({ id, clientId })) };
+    }
     if (area === 'count' && get) return { count: rows('moments').filter((item) => item.authorId === self).length };
     if (!area && method === 'POST') {
       const previous = rows('moments').find((item) => item.authorId === self && item.clientId === body.clientId);

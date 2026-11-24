@@ -1,126 +1,161 @@
 import { Camera, CameraView } from 'expo-camera';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useReducer, useState } from 'react';
-import { AppState, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useReducer, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Icon, Notice, Sheet } from '../components/ui';
+import { Button, Notice, Sheet } from '../components/ui';
+import { CallAction, CallStage } from '../features/calls/CallStage';
+import { callDevice } from '../features/calls/device';
 import { transitionCall, type CallEvent, type CallKind } from '../features/calls/model';
-import { colors, styles, type } from '../theme';
+import { useChatBackgrounds } from '../features/chat/background/store';
+import { space, type } from '../theme';
 import { demoPortrait } from './visuals';
 
 export function DemoCall({ kind, name, username, incoming, onClose }: {
   kind: CallKind; name: string; username: string; incoming: boolean; onClose: () => void;
 }) {
-  const [state, send] = useReducer(transitionCall, {
+  const [state, dispatch] = useReducer(transitionCall, {
     id: 'local-demo', type: kind, phase: incoming ? 'incoming' : 'outgoing',
   });
   const [muted, setMuted] = useState(false);
   const [speaker, setSpeaker] = useState(kind === 'video');
-  const [localCamera, setLocalCamera] = useState(false);
+  const [camera, setCamera] = useState(false);
   const [facing, setFacing] = useState<'front' | 'back'>('front');
-  const [foreground, setForeground] = useState(true);
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [pip, setPip] = useState(false);
+  const [details, setDetails] = useState(false);
+  const [notice, setNotice] = useState('');
   const [checking, setChecking] = useState(false);
-  const [permissionText, setPermissionText] = useState('');
-  const title = kind === 'voice' ? '语音通话' : '视频通话';
-  function act(action: CallEvent['action']) { send({ id: state.id, action }); }
+  const mounted = useRef(true);
+  const pendingCamera = useRef(false);
+  const pendingRoute = useRef(false);
+  const latestSpeaker = useRef(speaker);
+  latestSpeaker.current = speaker;
+  const background = useChatBackgrounds().resolve(undefined, true);
+  const video = kind === 'video';
+  const ringing = state.phase === 'incoming' || state.phase === 'outgoing';
+  const live = state.phase === 'active' || state.phase === 'reconnecting';
+  const terminal = state.phase === 'ended' || state.phase === 'failed';
+  const act = (action: CallEvent['action']) => dispatch({ id: state.id, action });
 
   useEffect(() => {
+    mounted.current = true;
     const app = AppState.addEventListener('change', (status) => setForeground(status === 'active'));
-    return () => app.remove();
+    const picture = callDevice?.addListener('onPipChanged', ({ active }) => { setPip(active); if (active) setDetails(false); });
+    return () => { mounted.current = false; app.remove(); picture?.remove(); };
   }, []);
   useEffect(() => {
-    const action = state.phase === 'connecting' ? 'joined'
-      : state.phase === 'incoming' || state.phase === 'outgoing' ? 'timeout' : undefined;
+    if (!live || !video || details || checking || !callDevice) return;
+    void callDevice.configurePip(true).catch(() => {});
+    return () => { void callDevice?.configurePip(false).catch(() => {}); };
+  }, [live, video, details, checking]);
+  const visible = foreground || pip;
+  useEffect(() => {
+    if (!live || !visible || !callDevice) return;
+    let active = true;
+    void callDevice.routeSpeaker(latestSpeaker.current).then((ok) => {
+      if (active && !ok) setNotice('所选音频输出不可用，沿用设备当前输出。');
+    }).catch(() => { if (active) setNotice('无法切换音频输出。'); });
+    return () => { active = false; void callDevice?.releaseAudio().catch(() => {}); };
+  }, [live, visible]);
+  useEffect(() => {
+    const action = state.phase === 'connecting' ? 'joined' : ringing ? 'timeout' : undefined;
     if (!action) return;
-    const timer = setTimeout(() => send({ id: state.id, action }), state.phase === 'connecting' ? 500 : 45_000);
+    const timer = setTimeout(() => dispatch({ id: state.id, action }), ringing ? 45_000 : 500);
     return () => clearTimeout(timer);
-  }, [state]);
-
-  async function checkPermissions() {
-    setChecking(true); setPermissionText('');
-    try {
-      const mic = await Camera.requestMicrophonePermissionsAsync();
-      if (!mic.granted) {
-        setPermissionText('麦克风权限未开启。真实通话需授权后继续。');
-        return;
-      }
-      if (kind === 'video') {
-        const camera = await Camera.requestCameraPermissionsAsync();
-        if (!camera.granted) {
-          setPermissionText('摄像头权限未开启，本机预览保持关闭。');
-          return;
-        }
-        setPermissionText('权限已允许。你可以单独开启本机摄像头预览。');
-      } else setPermissionText('麦克风权限已允许。模拟通话不会采集或传输声音。');
-    } catch { setPermissionText('当前设备无法检查权限，请在 Android 或 iOS 设备上重试。'); }
-    finally { setChecking(false); }
-  }
+  }, [state.id, state.phase, ringing]);
 
   async function toggleCamera() {
-    if (localCamera) { setLocalCamera(false); return; }
+    if (pendingCamera.current) return;
+    if (camera) { setCamera(false); return; }
+    pendingCamera.current = true;
+    setChecking(true);
     try {
-      if (!(await Camera.requestCameraPermissionsAsync()).granted) {
-        setPermissionText('摄像头权限未开启，无法预览。');
-        return;
-      }
-      setLocalCamera(true);
-    } catch { setPermissionText('摄像头暂时不可用。'); }
+      const permission = await Camera.requestCameraPermissionsAsync();
+      if (!mounted.current) return;
+      setCamera(permission.granted);
+      setNotice(permission.granted ? '' : '摄像头权限未开启，可在设备设置中允许。');
+    } catch { if (mounted.current) setNotice('本机摄像头暂时不可用。'); }
+    finally { pendingCamera.current = false; if (mounted.current) setChecking(false); }
   }
 
-  const video = kind === 'video' && (state.phase === 'active' || state.phase === 'reconnecting');
-  const phaseText = state.phase === 'outgoing' ? '等待对方接听'
-    : state.phase === 'incoming' ? '对方邀请你通话'
-      : state.phase === 'connecting' ? '正在连接…'
-        : state.phase === 'active' ? '模拟通话中'
-          : state.phase === 'reconnecting' ? '网络变化，正在重新连接'
-            : state.phase === 'failed' ? '连接中断'
-              : state.reason === 'declined' ? '对方已拒绝' : state.reason === 'timeout' ? '无人接听' : '通话已结束';
+  async function toggleSpeaker() {
+    if (pendingRoute.current) return;
+    pendingRoute.current = true;
+    try {
+      const next = !speaker;
+      if (live && callDevice && !await callDevice.routeSpeaker(next)) {
+        if (mounted.current) setNotice('此设备不支持所选音频输出。');
+        return;
+      }
+      if (mounted.current) setSpeaker(next);
+    } catch { if (mounted.current) setNotice('暂时无法切换音频输出。'); }
+    finally { pendingRoute.current = false; }
+  }
 
-  return <Sheet title={title} onClose={onClose}>
-    <Notice>本机模拟通话信令。声音和画面只在获得批准接入 RTC 后才能传给好友。</Notice>
-    <LinearGradient colors={['#F9DEE8', '#EFE9F5', '#E1F7F4']} style={[local.stage, video && local.video]}>
-      <Avatar name={name} source={demoPortrait(username)} size={60} />
-      <Text style={local.name}>{name}</Text>
-      <Text accessibilityLiveRegion="polite" style={styles.muted}>{phaseText}</Text>
-      {video && <Text style={styles.small}>远端画面示意</Text>}
-      {video && localCamera && foreground && <View style={local.camera}>
-        <CameraView active={foreground} style={local.fill} facing={facing} mute
-          onMountError={() => { setLocalCamera(false); setPermissionText('本机摄像头暂时不可用。'); }} />
-        <Text style={local.cameraLabel}>本机预览</Text>
-      </View>}
-    </LinearGradient>
-    {(state.phase === 'outgoing' || state.phase === 'incoming') && <View style={local.controls}>
-      <Button label={incoming ? '模拟接听' : '模拟对方接听'} icon="call-outline" variant="gradient" onPress={() => act('accept')} />
-      <Button label={incoming ? '拒绝' : '模拟对方拒绝'} variant="danger" onPress={() => act('decline')} />
-    </View>}
-    {state.phase === 'active' && <View style={local.controls}>
-      <Button label={muted ? '取消静音' : '静音'} variant="soft" icon={muted ? 'mic-off-outline' : 'mic-outline'} onPress={() => setMuted(!muted)} />
-      <Button label={speaker ? '切回听筒' : '切到扬声器'} variant="soft" icon="volume-medium-outline" onPress={() => setSpeaker(!speaker)} />
-      {kind === 'video' && <>
-        <Button label={localCamera ? '关闭摄像头' : '开启本机预览'} variant="soft" icon="videocam-outline" onPress={() => void toggleCamera()} />
-        <Button label="切换前后摄像头" disabled={!localCamera} variant="soft" onPress={() => setFacing(facing === 'front' ? 'back' : 'front')} />
+  async function checkPermissions() {
+    setChecking(true);
+    try {
+      const microphone = await Camera.requestMicrophonePermissionsAsync();
+      const lens = video && await Camera.requestCameraPermissionsAsync();
+      if (mounted.current) setNotice(!microphone.granted ? '麦克风权限未开启。'
+        : video && lens && !lens.granted ? '摄像头权限未开启。' : '设备权限已允许。模拟模式不会采集或发送语音。');
+    } catch { if (mounted.current) setNotice('当前设备无法检查通话权限。'); }
+    finally { if (mounted.current) setChecking(false); }
+  }
+
+  const status = state.phase === 'outgoing' ? '等待对方接听' : state.phase === 'incoming' ? '对方邀请你通话'
+    : state.phase === 'connecting' ? '正在连接…' : state.phase === 'reconnecting' ? '网络变化，正在重新连接'
+    : state.phase === 'failed' ? '连接中断' : state.phase === 'ended' ? state.reason === 'declined' ? '对方已拒绝'
+      : state.reason === 'timeout' ? '无人接听' : '通话已结束' : video ? '模拟通话中 · 暂无远端画面' : '模拟通话中';
+  const controls = <>
+    <CallAction action={{ label: muted ? '取消静音' : '静音', selected: muted, disabled: terminal,
+      icon: muted ? 'mic-off-outline' : 'mic-outline', onPress: () => setMuted(!muted) }} />
+    <CallAction action={{ label: terminal ? '完成' : '挂断', icon: terminal ? 'close-outline' : 'call',
+      onPress: () => { if (!terminal) act('end'); onClose(); } }} />
+    <CallAction action={{ label: speaker ? '切回听筒' : '切到扬声器', selected: speaker, disabled: terminal,
+      icon: speaker ? 'volume-high-outline' : 'ear-outline', onPress: () => void toggleSpeaker() }} />
+  </>;
+  return <>
+    <CallStage simulated name={name} avatar={demoPortrait(username)} video={video} compact={pip}
+      background={video ? undefined : background} status={status} controls={controls}
+      tools={video && !terminal && <>
+        <CallAction small action={{ label: '切换前后摄像头', icon: 'camera-reverse-outline', disabled: !camera,
+          onPress: () => setFacing((current) => current === 'front' ? 'back' : 'front') }} />
+        <CallAction small action={{ label: camera ? '关闭摄像头' : '开启本机预览', icon: camera ? 'videocam-outline' : 'videocam-off-outline',
+          selected: camera, disabled: checking, onPress: () => void toggleCamera() }} />
       </>}
-      <Button label="模拟网络切换" variant="quiet" onPress={() => act('interrupt')} />
-    </View>}
-    {state.phase === 'reconnecting' && <View style={local.controls}>
-      <Icon name="cellular-outline" />
-      <Button label="模拟网络恢复" variant="soft" onPress={() => act('recover')} />
-      <Button label="模拟连接中断" variant="quiet" onPress={() => act('fail')} />
-    </View>}
-    {state.phase !== 'ended' && state.phase !== 'failed' ? <>
-      <Button label={checking ? '正在检查…' : '检查设备权限'} variant="quiet" disabled={checking} onPress={() => void checkPermissions()} />
-      {!!permissionText && <Notice>{permissionText}</Notice>}
-      <Button label="挂断" icon="call-outline" variant="danger" onPress={() => { setLocalCamera(false); act('end'); }} />
-    </> : <Button label="完成" variant="gradient" onPress={onClose} />}
-  </Sheet>;
+      preview={video && !terminal && camera && (foreground || pip) && <CameraView style={StyleSheet.absoluteFill}
+        facing={facing} mirror={facing === 'front'} mute onMountError={() => {
+          setCamera(false); setNotice('本机摄像头暂时不可用。');
+        }} />}
+      extra={<View style={ui.options}>
+        {!!notice && <Text accessibilityLiveRegion="polite" style={ui.notice}>{notice}</Text>}
+        <View style={ui.row}>
+          {ringing && <Pressable accessibilityRole="button" onPress={() => act('accept')} style={ui.utility}>
+            <Text style={ui.utilityText}>{incoming ? '模拟接听' : '模拟对方接听'}</Text></Pressable>}
+          {!terminal && <Pressable accessibilityRole="button" onPress={() => setDetails(true)} style={ui.utility}>
+            <Text style={ui.utilityText}>模拟选项</Text></Pressable>}
+        </View>
+      </View>} />
+    {details && <Sheet title="模拟选项" onClose={() => setDetails(false)}>
+      <Notice>本机模拟通话信令。摄像头仅供本地预览，声音和画面不会传给好友。</Notice>
+      {ringing && <Button label="模拟对方拒绝" variant="soft" onPress={() => { act('decline'); setDetails(false); }} />}
+      {state.phase === 'active' && <Button label="模拟网络切换" variant="soft"
+        onPress={() => { act('interrupt'); setDetails(false); }} />}
+      {state.phase === 'reconnecting' && <>
+        <Button label="模拟网络恢复" onPress={() => { act('recover'); setDetails(false); }} />
+        <Button label="模拟连接中断" variant="danger" onPress={() => { act('fail'); setDetails(false); }} />
+      </>}
+      <Button label="检查设备权限" variant="quiet" disabled={checking}
+        onPress={() => { setDetails(false); void checkPermissions(); }} />
+    </Sheet>}
+  </>;
 }
 
-const local = StyleSheet.create({
-  stage: { borderRadius: 16, alignItems: 'center', gap: 7, paddingVertical: 23 },
-  video: { minHeight: 240, justifyContent: 'center' },
-  name: { ...type.hero, color: colors.ink },
-  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  camera: { position: 'absolute', bottom: 8, right: 8, width: 77, height: 104, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.ink },
-  fill: { width: '100%', height: '100%' },
-  cameraLabel: { position: 'absolute', bottom: 3, left: 4, color: '#FFFFFF', fontSize: 10 },
+const ui = StyleSheet.create({
+  options: { minHeight: 48, justifyContent: 'flex-end', alignItems: 'center', gap: space.xxs },
+  row: { flexDirection: 'row', justifyContent: 'center', gap: space.xs },
+  utility: { minHeight: 44, paddingHorizontal: space.sm, justifyContent: 'center' },
+  utilityText: { ...type.control, color: '#D1D1D1' },
+  notice: { ...type.support, color: '#FFFFFF', textAlign: 'center' },
 });

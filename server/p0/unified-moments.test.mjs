@@ -50,6 +50,15 @@ test('unified moments and persistent status on PostgreSQL 17 with the applicatio
   };
   const { id } = await post(alice, '来自生活的照片', 'friends', [await upload(alice)]);
   const link = '/moments/' + id;
+  await t.test('archived IDs reconcile only against the signed-in author', async () => {
+    const { moment } = await call(alice, link);
+    const keys = [id, moment.clientId, randomUUID()];
+    assert.deepEqual(await call(alice, '/moments/resolve-ids', 'POST', { keys }), {
+      identities: [{ id, clientId: moment.clientId }],
+    });
+    assert.deepEqual(await call(bob, '/moments/resolve-ids', 'POST', { keys }), { identities: [] });
+    assert.equal((await call(bob, link)).moment.clientId, null);
+  });
   await t.test('likes and comments are persistent, retry-safe and limited to authorized readers', async () => {
     assert.deepEqual(await call(bob, link + '/like', 'PUT', { liked: true }), { liked: true, likeCount: 1 });
     assert.deepEqual(await call(bob, link + '/like', 'PUT', { liked: true }), { liked: true, likeCount: 1 });

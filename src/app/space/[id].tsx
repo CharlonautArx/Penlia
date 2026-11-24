@@ -26,6 +26,9 @@ export default function SpaceScreen() {
   if (mine && !archive && (pane === 'journal' || pane === 'albums')) {
     return <Redirect href={{ pathname: '/moments', params: { pane } }} />;
   }
+  if (mine && current === 'thought') {
+    return <Redirect href={{ pathname: '/life/timeline/[id]', params: { id } }} />;
+  }
   return <Screen title={current === 'albums' ? '相册' : current === 'journal' ? '日志' : '本机空间'} back={() => router.canGoBack() ? router.back() : router.replace('/moments')}
     actions={mine && visible && <>
       <IconButton label="空间隐私" icon="shield-checkmark-outline" tinted onPress={() => router.push('/space/privacy')} />

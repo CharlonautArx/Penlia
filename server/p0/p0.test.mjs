@@ -187,7 +187,18 @@ test('P0 over loopback HTTP and real PostgreSQL with the restricted application 
     assert.equal(offer.name, '周末散步');
     assert.equal(offer.memberCount, 1);
     assert.equal(offer.inviter, '青禾');
+    const membersPath = '/group-invites/' + offer.id + '/members';
+    const thumbnail = (await readFile(new URL('../../assets/demo/person-2.jpg', import.meta.url))).toString('base64');
+    assert.deepEqual((await call(b, membersPath)).data, { members: [{ name: '青禾' }] });
+    assert.equal((await call(c, membersPath)).status, 404);
+    assert.equal((await call(b, path + '/avatar', 'PUT', { avatar: thumbnail })).status, 404);
+    assert.equal((await call(a, path + '/avatar', 'PUT', { avatar: 'AAAA' })).status, 400);
+    assert.equal((await call(a, path + '/avatar', 'PUT', { avatar: thumbnail })).status, 200);
+    assert.equal((await call(a, path)).data.group.avatar, thumbnail);
+    assert.equal((await call(a, '/groups')).data.groups.find(g => g.id === group.data.id).avatar, thumbnail);
+    assert.equal((await call(b, '/group-invites')).data.invitations[0].avatar, thumbnail);
     assert.equal((await call(b, '/group-invites/decline', 'POST', { id: offer.id })).status, 200);
+    assert.equal((await call(b, membersPath)).status, 404);
     assert.equal((await call(b, path + '/messages')).status, 404);
     assert.equal((await call(b, '/group-invites/accept', 'POST', { id: offer.id })).status, 404);
     const retry = (await call(a, '/groups', 'POST', { name: '周日下午茶' })).data.id;

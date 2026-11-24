@@ -5,9 +5,9 @@ import { cancelAnimation, useSharedValue, withSpring, type SharedValue } from 'r
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { useAppearance } from '../../components/appearance';
-import type { Moment } from './model';
+import type { TimelineRow } from './timeline';
 
-export function HomeFeedList({ reveal, reserve, onRefresh, refreshing, onScroll, ...props }: FlatListProps<Moment> & {
+export function HomeFeedList({ reveal, reserve, onRefresh, refreshing, onScroll, ...props }: FlatListProps<TimelineRow> & {
   reveal: SharedValue<number>; reserve: number;
 }) {
   const { reduced } = useAppearance();

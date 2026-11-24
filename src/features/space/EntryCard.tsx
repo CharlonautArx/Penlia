@@ -30,7 +30,7 @@ export function JournalLink({ entry, viewer }: { entry: Entry; viewer?: string }
   </Pressable>;
 }
 
-export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?: boolean; viewer?: string }) {
+export function EntryCard({ entry, full = false, viewer, timeline = false }: { entry: Entry; full?: boolean; viewer?: string; timeline?: boolean }) {
   const state = useSpace();
   const author = state.person(entry.ownerId);
   const mine = state.owns(entry.ownerId);
@@ -89,8 +89,9 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
         <Text style={styles.strong}>{author.name}</Text>
         <Text style={styles.small}>{createdTime(entry.at)}{entry.editedAt ? ' · 已编辑' : ''}</Text>
       </View>
+      {timeline && entry.pinned && <Tag>置顶</Tag>}
       {mine && !viewer && <Tag>{audienceName(entry.audience)}</Tag>}
-      {mine && !viewer && <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setSheet('options')} />}
+      {mine && !viewer && <IconButton label={timeline ? '管理这条动态' : '动态选项'} icon="ellipsis-horizontal" onPress={() => setSheet('options')} />}
     </View>
     {entry.kind === 'journal' && !full
       ? <JournalLink entry={entry} viewer={viewer} />
@@ -160,6 +161,10 @@ export function EntryCard({ entry, full = false, viewer }: { entry: Entry; full?
       <SpacePhoto photo={focusPhoto} style={local.fullPhoto} />
     </Sheet>}
     {sheet === 'options' && <Sheet title="动态选项" onClose={() => setSheet(undefined)}>
+      {timeline && <ListRow title={entry.pinned ? '取消置顶' : '置顶'} left={<Icon name="pin-outline" />} onPress={() => {
+        state.updateEntry(entry.id, (current) => ({ ...current, pinned: !current.pinned }));
+        setSheet(undefined);
+      }} />}
       <ListRow title={entry.kind === 'journal' ? '编辑日志' : '编辑动态'} left={<Icon name="create-outline" />}
         onPress={() => { setSheet(undefined); router.push({ pathname: '/space/compose', params: { kind: entry.kind, edit: entry.id } }); }} />
       <Button label="删除" variant="danger" onPress={() => setSheet('delete')} />

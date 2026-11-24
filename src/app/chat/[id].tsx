@@ -4,14 +4,12 @@ import { FlatList, Image, Pressable, StyleSheet, Text, View, type ListRenderItem
 import type { ChatMessage } from 'react-native-chat-sdk';
 
 import { Avatar, Button, Empty, IconButton, Notice, Sheet } from '../../components/ui';
-import { DemoCall } from '../../demo/calls';
-import { isUiDemo } from '../../demo/mode';
 import { PetShortcut } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
-import { NoReply } from '../../features/media/NoReply';
+import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { PeerVideo } from '../../features/media/PeerVideo';
 import { chooseMomentVideo,MomentVideo } from '../../features/moments/media';
 import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
@@ -54,7 +52,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     .sort((a, b) => b.timestamp - a.timestamp) : undefined, [demoMedia, demoText, isDemo]);
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState(initialDraft);
-  const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location' | 'voice' | 'video'>();
+  const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location'>();
   const [sendError, setSendError] = useState(false);
   const [messages, setMessages] = useState<RichMessage[]>([]);
   const [cursor, setCursor] = useState<string>();
@@ -256,8 +254,12 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     }finally{batch.current=false;}
   }
 
+  function openCall(kind: 'voice' | 'video') {
+    setPicker(undefined);
+    router.push({ pathname: '/peer-call', params: { peer: person.userId, kind } });
+  }
+
   const items = shownMessages ?? messages;
-  const call = picker === 'voice' || picker === 'video' ? picker : undefined;
   const renderMessage = useCallback<ListRenderItem<RichMessage>>(({ item: message, index }) => {
     const older = items[index + 1];
     const newer = items[index - 1];
@@ -267,15 +269,17 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
     return <View>
       {block && <ChatTimestamp value={message.timestamp} />}
       <ChatBubble mine={message.mine} first={first} last={last} onActions={() => setActions(message)}
-        avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={31} />}>
+        avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
+          onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
+          <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
+        </Pressable>}>
         {'text' in message ? <MessageBody text={message.text} />
           : message.kind === 'image' ? <ImageBubble item={message} connection={connection} online={online} onDownloaded={changed} />
           : message.kind === 'video' ? <PeerVideo item={message} connection={connection} /> : <LocationBubble value={message} />}
-        {message.noReply && <NoReply />}
-        {message.silent && <Moon />}
+        <MessageMarks sharing={message.noReply} silent={message.silent} />
       </ChatBubble>
     </View>;
-  }, [changed, connection, items, online, person.name, person.username]);
+  }, [changed, connection, items, online, person.name, person.username, person.userId]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
   const sendDisabled = (!demo && !online) || !draft.trim() || sending
@@ -342,8 +346,8 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
               setPicker(undefined);
             }} />)}
         </View> : <>
-          <Button label="语音通话" icon="call-outline" variant="quiet" onPress={() => setPicker('voice')} />
-          <Button label="视频通话" icon="videocam-outline" variant="quiet" onPress={() => setPicker('video')} />
+          <Button label="语音通话" icon="call-outline" variant="quiet" onPress={() => openCall('voice')} />
+          <Button label="视频通话" icon="videocam-outline" variant="quiet" onPress={() => openCall('video')} />
           <Button label="位置" icon="location-outline" variant="quiet" disabled={(!demo && !online) || sending}
             onPress={() => setPicker('location')} />
           {!demo&&<>
@@ -361,11 +365,6 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
           {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
       </Sheet>}
-      {call && (isUiDemo ? <DemoCall kind={call} incoming={false}
-        name={person.name} username={person.username} onClose={() => setPicker(undefined)} />
-        : <Sheet title={call === 'voice' ? '语音通话' : '视频通话'} tone="neutral" onClose={() => setPicker(undefined)}>
-          <Notice>通话服务尚未启用。需要配置 RTC、通话信令和呼叫权限后才可以拨打。</Notice>
-        </Sheet>)}
       {report&&<ReportSheet peerId={person.userId} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
       {video&&<Sheet title="发送短视频" onClose={()=>{if(!sending)setVideo(undefined);}}>
         <MomentVideo source={{uri:video.uri}}/>

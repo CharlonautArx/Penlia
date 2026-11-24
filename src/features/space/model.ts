@@ -1,3 +1,5 @@
+import type { Moment } from '../moments/model';
+import type { AlbumCategory } from './album-categories';
 export const audienceOptions = [
   { key: 'friends', name: '所有好友可见', help: '已互相添加的好友可以看到。' },
   { key: 'self', name: '仅自己可见', help: '只显示在你自己的空间里。' },
@@ -29,6 +31,9 @@ export type EntryDraft = {
 };
 export type Entry = EntryDraft & {
   id: string;
+  pinned?: boolean;
+  clientId?: string;
+  cloudId?: string;
   ownerId: string;
   at: number;
   editedAt?: number;
@@ -37,7 +42,7 @@ export type Entry = EntryDraft & {
   reaction?: string;
   comments: Reply[];
 };
-export type Album = { id: string; ownerId: string; title: string; theme: string; photos: Photo[]; cover: number; at: number };
+export type Album = { id: string; ownerId: string; title: string; theme?: string; categoryId?: string; photos: Photo[]; cover: number; at: number };
 export type SpaceCard = {
   cover: Cover;
   privacy: Privacy;
@@ -46,9 +51,11 @@ export type SpaceCard = {
   guestbook: Reply[];
 };
 export type SpaceDocument = {
+  timelineCache?: Moment[];
   entries: Entry[];
   drafts: Partial<Record<EntryKind, EntryDraft>>;
   albums: Album[];
+  categories?: AlbumCategory[];
   space: SpaceCard;
   guestNotes: Record<string, Reply[]>;
 };

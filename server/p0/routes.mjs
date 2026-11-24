@@ -19,6 +19,8 @@ import {
   deleteGroup,
   getGroupInvites,
   groupDetails,
+  inviteMembers,
+  updateGroupAvatar,
   inviteToGroup,
   leaveGroup,
   listChatGroups,
@@ -34,6 +36,7 @@ import {
   listMoments,
   listMomentComments,
   ownMomentCount,
+  resolveOwnMomentIds,
   pinMoment,
   setMomentLike,
   postMedia,
@@ -110,6 +113,8 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       return result(await momentInbox(id, query));
     case 'POST /v1/moment-notifications/read':
       return result(await markMomentNotificationsRead(id, (await readBody()).ids));
+    case 'POST /v1/moments/resolve-ids':
+      return result(await resolveOwnMomentIds(id, (await readBody()).keys));
     case 'GET /v1/moments/count':
       return result(await ownMomentCount(id));
     case 'GET /v1/moments':
@@ -197,7 +202,7 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
   }
 
   const match =
-    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|groups|moments|moment-media|moment-chat-shares|moment-forward-requests)\/([0-9a-f-]{36})(?:\/(invites|messages|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
+    /^(GET|POST|PUT|PATCH|DELETE|HEAD) \/v1\/(people|relationship-groups|group-invites|groups|moments|moment-media|moment-chat-shares|moment-forward-requests)\/([0-9a-f-]{36})(?:\/(invites|members|avatar|messages|leave|pin|like|comments|profile-cover|share-chat|request-forward|forward-permission|original))?$/.exec(
       route,
     );
   if (!match) return undefined;
@@ -220,7 +225,14 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
         return result({});
       }
       break;
+    case 'group-invites':
+      if (action === 'members' && method === 'GET') return result(await inviteMembers(id, item));
+      break;
     case 'groups':
+      if (action === 'avatar' && method === 'PUT') {
+        await rateLimit('group-avatar:' + id, 20, 60);
+        return result(await updateGroupAvatar(id, item, (await readBody()).avatar));
+      }
       if (!action && method === 'GET') return result(await groupDetails(id, item));
       if (!action && method === 'DELETE') return result(await deleteGroup(id, item));
       if (action === 'invites' && method === 'POST') {

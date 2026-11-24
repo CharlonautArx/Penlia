@@ -39,3 +39,15 @@ test('crop fills both orientations without stretching and maps normalized drag o
   assert.deepEqual(pictureFrame(photo, 300, 600), { width: 900, height: 600, left: -150, top: 0 });
   assert.deepEqual(pictureFrame({ ...photo, y: 1 }, 600, 250), { width: 600, height: 400, left: 0, top: -150 });
 });
+
+test('voice wallpaper persists independently and survives cleanup for unrelated chat changes', () => {
+  const oldSettings = readBackgrounds(JSON.stringify({ global: photo, peers: {} }));
+  assert.equal(oldSettings.voice, undefined);
+  const withVoice = readBackgrounds(JSON.stringify({ ...oldSettings, voice: second }));
+  const clearedChat = assignBackground(withVoice, undefined, undefined);
+  assert.equal(chatBackground(clearedChat), undefined);
+  assert.deepEqual(clearedChat.voice, second);
+  assert.deepEqual([...usedFiles(clearedChat)], [second.file]);
+  assert.deepEqual(chatBackground({ ...withVoice, voice: undefined }), photo);
+  assert.throws(() => readBackgrounds(JSON.stringify({ ...oldSettings, voice: { ...second, file: '../unsafe.jpg' } })));
+});

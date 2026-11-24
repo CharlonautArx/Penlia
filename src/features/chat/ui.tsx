@@ -22,7 +22,7 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
 }) {
   const accessible = [name, pinned ? '置顶' : '', unread ? unread + ' 条未读消息' : manualUnread ? '已标为未读' : '', preview].filter(Boolean).join('，');
   return <Pressable accessibilityRole="button" accessibilityLabel={accessible} onPress={onPress}
-    style={({ pressed }) => [ui.thread, pressed && ui.pressedRow]}>
+    style={({ pressed }) => [ui.thread, pinned && ui.pinnedRow, pressed && ui.pressedRow]}>
     {avatar ?? <Avatar name={name} size={48} />}
     <View style={ui.threadBody}>
       <View style={ui.line}>
@@ -181,6 +181,7 @@ const ui = StyleSheet.create({
   preview: { ...type.support, color: colors.quiet },
   line: { ...styles.row, gap: space.xs },
   time: { ...type.time, color: colors.quiet },
+  pinnedRow: { backgroundColor: colors.search },
   pressedRow: { backgroundColor: colors.backdrop },
   wallLabel: { position: 'absolute', top: -1, bottom: -1, left: -5, right: -5 },
   timestamp: { alignItems: 'center', paddingTop: space.md, paddingBottom: space.xs },

@@ -2,10 +2,12 @@ import { assertAllowed } from '../p1/enforcement-access.mjs';
 import { unusedMedia } from '../p1/collection-access.mjs';
 import { randomBytes } from 'node:crypto';
 import { cleanText, hash, HttpError, inTransaction, readId } from '../core.mjs';
+import { decodeJpeg } from './profile-cover.mjs';
 import { pool } from '../db.mjs';
 import { areFriends, blocked, idsOf, lockUsers, preferences, related } from './access.mjs';
 
-export const invitationBrief = `SELECT i.id,g.id AS "groupId",g.name,u.name AS inviter,
+const avatarColumn = "translate(encode(g.avatar,'base64'),chr(10),'') AS avatar";
+export const invitationBrief = `SELECT i.id,g.id AS "groupId",g.name,${avatarColumn},u.name AS inviter,
   (SELECT count(*)::integer FROM chat_group_members m WHERE m.group_id=g.id) AS "memberCount",i.expires_at AS "expiresAt"
   FROM chat_group_invites i JOIN chat_groups g ON g.id=i.group_id JOIN users u ON u.id=i.inviter_id`;
 const pendingFor = `i.invitee_id=$1 AND i.status='pending' AND i.expires_at>now()
@@ -14,7 +16,7 @@ const pendingFor = `i.invitee_id=$1 AND i.status='pending' AND i.expires_at>now(
 
 export async function listChatGroups(user) {
   const { rows } = await pool.query(
-    `SELECT g.id,g.name,g.owner_id AS "ownerId",g.members_can_invite AS "membersCanInvite",
+    `SELECT g.id,g.name,${avatarColumn},g.owner_id AS "ownerId",g.members_can_invite AS "membersCanInvite",
     (SELECT count(*)::integer FROM chat_group_members c WHERE c.group_id=g.id) AS "memberCount"
     FROM chat_group_members m JOIN chat_groups g ON m.group_id=g.id WHERE m.user_id=$1
     ORDER BY g.created_at DESC,g.id LIMIT 60`,
@@ -25,6 +27,7 @@ export async function listChatGroups(user) {
 
 export async function createGroup(user, body) {
   const name = cleanText(body.name, 32, true);
+  const avatar = body.avatar == null ? null : decodeJpeg(body.avatar, 24576);
   const membersCanInvite = body.membersCanInvite === true;
   return inTransaction(pool, async (db) => {
     await assertAllowed(db, user, ['limit_contact','limit_account']);
@@ -36,9 +39,9 @@ export async function createGroup(user, body) {
     const {
       rows: [{ id }],
     } = await db.query(
-      `INSERT INTO chat_groups(owner_id,name,members_can_invite)
-      VALUES ($1,$2,$3) RETURNING id`,
-      [user, name, membersCanInvite],
+      `INSERT INTO chat_groups(owner_id,name,members_can_invite,avatar)
+      VALUES ($1,$2,$3,$4) RETURNING id`,
+      [user, name, membersCanInvite, avatar],
     );
     await db.query('INSERT INTO chat_group_members(group_id,user_id) VALUES ($1,$2)', [id, user]);
     return { id };
@@ -49,7 +52,7 @@ export async function groupMember(db, group, user, lock = false) {
   const {
     rows: [value],
   } = await db.query(
-    `SELECT g.id,g.name,g.owner_id AS "ownerId",g.members_can_invite AS "membersCanInvite",
+    `SELECT g.id,g.name,${avatarColumn},g.owner_id AS "ownerId",g.members_can_invite AS "membersCanInvite",
     m.joined_at AS "joinedAt" FROM chat_groups g JOIN chat_group_members m ON m.group_id=g.id
     WHERE g.id=$1 AND m.user_id=$2 ${lock ? 'FOR UPDATE OF g, m' : ''}`,
     [group, user],
@@ -116,6 +119,25 @@ export async function getGroupInvites(user, code) {
     values,
   );
   return { invitations: rows };
+}
+
+export async function inviteMembers(user, invite) {
+  const { rows } = await pool.query(
+    `SELECT u.name FROM chat_group_invites i
+     JOIN chat_group_members m ON m.group_id=i.group_id JOIN users u ON u.id=m.user_id
+     WHERE ${pendingFor} AND i.id=$2
+       AND EXISTS (SELECT 1 FROM chat_group_members sender WHERE sender.group_id=i.group_id AND sender.user_id=i.inviter_id)
+       AND NOT ${blocked('$1::uuid', 'u.id')}
+     ORDER BY m.joined_at,u.id LIMIT 40`, [user, invite]);
+  if (!rows.length) throw new HttpError(404, '此邀请不可用。');
+  return { members: rows };
+}
+
+export async function updateGroupAvatar(user, group, photo) {
+  const avatar = decodeJpeg(photo, 24576);
+  const result = await pool.query('UPDATE chat_groups SET avatar=$3 WHERE id=$1 AND owner_id=$2', [group, user, avatar]);
+  if (!result.rowCount) throw new HttpError(404, '无法修改该群头像。');
+  return {};
 }
 
 export async function decideGroupInvite(user, id, accepted) {
