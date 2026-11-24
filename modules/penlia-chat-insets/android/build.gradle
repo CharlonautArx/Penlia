@@ -9,3 +9,8 @@ version = '1.0.0'
 android {
   namespace 'app.penlia.chatinsets'
 }
+
+dependencies {
+  // The call module observes ComponentActivity's PiP and user-leave events.
+  implementation 'androidx.activity:activity:1.11.0'
+}
