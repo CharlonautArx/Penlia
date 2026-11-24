@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useLocalPhotoUri } from '../features/space/media';
 import { useAccountPhoto } from '../services/session';
-import { brandGradient, colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
+import { colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useAppearance } from './appearance';
 import { KeyboardInsets } from './keyboard-insets';
 import { GlassLayer } from './material';
@@ -115,20 +115,18 @@ export function SearchField({ label, value, onChangeText, onFocus, onBlur, varia
   label: string; variant?: 'glass' | 'neutral';
 }) {
   const [focused, setFocused] = useState(false);
-  const { scheme } = useAppearance();
   const glazed = variant === 'glass';
   const neutral = variant === 'neutral';
   const capsule = glazed || neutral;
   return <View style={[ui.search, capsule && ui.glassSearch,
-    glazed && scheme === 'light' && ui.glassSearchShadow,
-    neutral && (scheme === 'dark' ? ui.neutralSearchDark : ui.neutralSearchLight),
-    neutral && focused && ui.neutralSearchFocus]}>
+    neutral && ui.neutralSearch]}>
     {glazed && <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />}
     <Icon name="search-outline" size={19} color={colors.quiet} />
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
       onFocus={capsule ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
       onBlur={capsule ? (event) => { setFocused(false); onBlur?.(event); } : onBlur}
-      placeholderTextColor={colors.quiet} style={[ui.searchInput, capsule && ui.glassSearchInput]} />
+      placeholderTextColor={colors.quiet} style={[ui.searchInput, props.style]} />
+    {focused && <View pointerEvents="none" style={ui.searchFocus} />}
     {!!value && <IconButton label="清空搜索" icon="close-circle-outline" onPress={() => onChangeText?.('')} />}
   </View>;
 }
@@ -169,7 +167,7 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
     </View>
     {trailing ?? (onPress && <Icon name="chevron-forward" size={17} color={colors.quiet} />)}
   </>;
-  return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
+  return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityHint={detail} onPress={onPress}
     style={({ pressed }) => [ui.listRow, separator && styles.divider, style, pressed && ui.pressed]}>{content}</Pressable>
     : <View style={[ui.listRow, separator && styles.divider, style]}>{content}</View>;
 }
@@ -177,7 +175,7 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
 export function Sheet({ title, onClose, children, footer, tone, avoidKeyboard = false, ...props }: ScrollViewProps & {
   title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral'; avoidKeyboard?: boolean;
 }) {
-  const { reduced, scheme } = useAppearance();
+  const { reduced } = useAppearance();
   const entering = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) {
@@ -194,10 +192,9 @@ export function Sheet({ title, onClose, children, footer, tone, avoidKeyboard = 
   const content = <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={ui.scrim}>
       <Pressable accessibilityRole="button" accessibilityLabel="关闭浮层" onPress={onClose} style={StyleSheet.absoluteFill} />
       <Animated.View style={[ui.sheetFrame, !reduced && {
-        transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+        transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
       }]}>
-      <SafeAreaView edges={['bottom', 'left', 'right']} style={[ui.sheet,
-        tone === 'neutral' && (scheme === 'dark' ? ui.neutralSheetDark : ui.neutralSheet)]}>
+      <SafeAreaView edges={['bottom', 'left', 'right']} accessibilityViewIsModal style={ui.sheet}>
         {tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />}
         <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
@@ -234,7 +231,7 @@ export function Segments<T extends string>({ options, value, onChange, label }: 
       accessibilityState={{ selected: option.id === value }} onPress={() => onChange(option.id)}
       style={({ pressed }) => [ui.segment, option.id === value && ui.activeSegment, pressed && ui.pressed]}>
       {option.id === value && <GlassLayer roundness={radius.small} />}
-      <Text style={option.id === value ? ui.activeSegmentText : styles.muted}>{option.label}</Text>
+      <Text style={[ui.segmentText, option.id === value && ui.activeSegmentText]}>{option.label}</Text>
     </Pressable>)}
   </View>;
 }
@@ -276,37 +273,31 @@ const ui = StyleSheet.create({
     alignItems: 'center', paddingLeft: space.sm, gap: space.xs },
   glassSearch: { minHeight: touch + space.xxs, borderRadius: radius.pill, backgroundColor: 'transparent',
     paddingLeft: space.md },
-  glassSearchShadow: { boxShadow: `-5px 1px 15px ${brandGradient[0]}24, 5px 1px 15px ${brandGradient[2]}46, 0px 3px 6px #24212A0C` },
-  neutralSearchLight: { backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF',
-    boxShadow: '0px 2px 8px #1E1E2212, 0px 0px 0px 0.5px #1616160C' },
-  neutralSearchDark: { backgroundColor: '#25262A', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FFFFFF26',
-    boxShadow: '0px 2px 8px #00000040' },
-  neutralSearchFocus: { borderColor: colors.border },
+  neutralSearch: { backgroundColor: colors.panel, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  searchFocus: { ...StyleSheet.absoluteFill, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.accent },
   searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },
-  glassSearchInput: { position: 'relative', zIndex: 1 },
   notice: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs, backgroundColor: colors.lavender, borderRadius: radius.control,
     minHeight: touch, paddingHorizontal: space.sm, paddingVertical: space.xxs },
   empty: { gap: space.xs, minHeight: 112, padding: space.lg, justifyContent: 'center', alignItems: 'center' },
   centerText: { textAlign: 'center' },
   section: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: space.xs, minHeight: 26 },
-  listRow: { ...styles.row, minHeight: 58, paddingVertical: space.xs, paddingHorizontal: space.sm },
+  listRow: { ...styles.row, minHeight: 60, paddingVertical: space.xs, paddingHorizontal: space.sm },
   scrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: fixed.overlay },
   sheetFrame: { width: '100%', maxWidth: contentWidth, maxHeight: '90%', alignSelf: 'center' },
   sheet: { flexShrink: 1, backgroundColor: colors.panel, borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet, paddingBottom: space.xs },
-  neutralSheet: { backgroundColor: '#FFFFFF' },
-  neutralSheetDark: { backgroundColor: '#25262A' },
+    borderTopRightRadius: radius.sheet, paddingBottom: space.xs, overflow: 'hidden' },
   grip: { height: 4, width: 30, borderRadius: 2, alignSelf: 'center', marginTop: space.xs, backgroundColor: colors.border },
   sheetTop: { ...styles.row, ...styles.divider, paddingLeft: space.md, paddingRight: space.xs },
-  sheetBody: { padding: space.md, gap: space.sm },
+  sheetBody: { paddingHorizontal: space.lg, paddingVertical: space.md, gap: space.sm },
   sheetFooter: { paddingHorizontal: space.md, paddingVertical: space.xs, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  skeletonRow: { ...styles.row, minHeight: 68, paddingHorizontal: space.md },
+  skeletonRow: { ...styles.row, minHeight: 72, paddingHorizontal: space.md },
   skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.search },
   skeletonLine: { height: 8, borderRadius: 4, marginVertical: space.xxs, backgroundColor: colors.search },
   segments: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, rowGap: 0, ...styles.divider },
   segment: { minHeight: touch, justifyContent: 'center', paddingHorizontal: space.xs, paddingVertical: space.xxs },
   activeSegment: { borderRadius: radius.small },
-  activeSegmentText: { ...type.control, color: colors.ink },
+  segmentText: { ...type.control, color: colors.muted },
+  activeSegmentText: { color: colors.ink },
   settings: { gap: space.xs },
   settingLabel: { paddingHorizontal: space.xxs },
   settingRows: { borderRadius: radius.surface, backgroundColor: colors.panel, overflow: 'hidden' },

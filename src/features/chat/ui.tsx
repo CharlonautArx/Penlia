@@ -35,7 +35,7 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
       </View>
       <View style={ui.line}>
         {silent && <Icon name="moon-outline" size={13} color={colors.moon} />}
-        <Text numberOfLines={1} style={[styles.muted, styles.grow]}>{preview}</Text>
+        <Text numberOfLines={1} style={[ui.preview, styles.grow]}>{preview}</Text>
         <UnreadMark count={unread || Number(manualUnread === true)} dot={!unread} />
       </View>
     </View>
@@ -174,10 +174,11 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
 }
 
 const ui = StyleSheet.create({
-  thread: { flexDirection: 'row', alignItems: 'center', minHeight: 73, gap: space.sm, paddingLeft: space.md },
+  thread: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: space.sm, paddingLeft: space.md },
   threadBody: { ...styles.grow, ...styles.divider, alignSelf: 'stretch', justifyContent: 'center', gap: space.xxs, paddingRight: space.md, paddingVertical: space.xs },
   threadName: { ...styles.row, gap: space.xxs },
-  name: { flexShrink: 1 },
+  name: { flexShrink: 1, fontSize: 17 },
+  preview: { ...type.support, color: colors.quiet },
   line: { ...styles.row, gap: space.xs },
   time: { ...type.time, color: colors.quiet },
   pressedRow: { backgroundColor: colors.backdrop },

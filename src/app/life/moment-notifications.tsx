@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Empty, ListRow, Notice, Screen, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
@@ -8,7 +8,7 @@ import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
 import { forwardLabels, type MomentNotice } from '../../features/moments/model';
 import { createdTime } from '../../features/space/model';
-import { styles } from '../../theme';
+import { space, styles } from '../../theme';
 
 type Page = { notifications: MomentNotice[]; next: string | null };
 
@@ -87,7 +87,7 @@ export default function MomentNotifications() {
         left={<Avatar name={item.actor} size={36} />} onPress={() => router.push({
           pathname: '/life/moment/[id]', params: { id: item.momentId },
         })} />
-      {item.kind === 'forward_request' && item.status === 'pending' && <View style={styles.row}>
+      {item.kind === 'forward_request' && item.status === 'pending' && <View style={local.actions}>
         <Button label="拒绝转发" variant="quiet" disabled={busy} onPress={() => decide(item, 'reject')} />
         <Button label="同意转发" disabled={busy} onPress={() => decide(item, 'approve')} />
       </View>}
@@ -104,3 +104,7 @@ export default function MomentNotifications() {
     </Sheet>}
   </Screen>;
 }
+
+const local = StyleSheet.create({
+  actions: { ...styles.row, flexWrap: 'wrap', justifyContent: 'flex-end', paddingVertical: space.xxs },
+});

@@ -5,15 +5,15 @@ export const brandGradient = ['#FF768D', '#EAC8D5', '#AEFFF8'] as const;
 export const glass = {
   light: {
     base: palette.light.panel,
-    edge: '#51465525',
+    edge: '#51465520',
     shine: '#FFFFFF8C',
-    opacity: { chrome: '0D', soft: '30', control: '52', feature: '7D' },
+    opacity: { chrome: '0D', soft: '18', control: '32', feature: '62' },
   },
   dark: {
     base: '#202129',
-    edge: '#E3EFEB35',
+    edge: '#E3EFEB2B',
     shine: '#FFFFFF20',
-    opacity: { chrome: '10', soft: '23', control: '36', feature: '49' },
+    opacity: { chrome: '10', soft: '17', control: '29', feature: '42' },
   },
 } as const;
 

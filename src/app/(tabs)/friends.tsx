@@ -212,7 +212,8 @@ const local = StyleSheet.create({
   column: { flex: 1, width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
   groupActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.xxs, paddingHorizontal: space.md },
   groupContent: { gap: space.md, paddingHorizontal: space.md, paddingTop: space.xs },
-  letterHeading: { ...type.caption, color: colors.muted, paddingHorizontal: space.md, paddingVertical: 5 },
+  letterHeading: { ...type.tag, color: colors.text, backgroundColor: colors.backdrop,
+    paddingHorizontal: space.md, paddingVertical: space.xxs },
   requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   requestActions: { flexDirection: 'row' },
 });

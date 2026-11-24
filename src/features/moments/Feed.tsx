@@ -125,7 +125,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     counts={mine ? { thought: count, journal: journals, albums } : undefined} />;
   const header = <View style={!home && local.header}>
     {home ? <View onLayout={({ nativeEvent }) => { coverHeaderHeight.current = nativeEvent.layout.height; }}>
-      {spaceHeader}
+      <BlurTargetView ref={homeBlurTarget}>{spaceHeader}</BlurTargetView>
+      <HomeNotificationBell target={homeBlurTarget} top={insets.top + space.xs} />
     </View> : spaceHeader}
     <View style={home ? [local.column, local.homeBody] : local.body}>
       {pane === 'thought' ? <>
@@ -168,7 +169,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         <IconButton label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
         <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
       </>} />}
-    {home ? <BlurTargetView ref={homeBlurTarget} style={styles.grow}><HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
+    {home ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
       onScroll={({ nativeEvent }) => {
         const barCenter = nativeEvent.contentOffset.y + insets.top / 2;
         const headerHeight = coverHeaderHeight.current;
@@ -176,8 +177,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         const nextSurface = headerHeight > 0 && barCenter >= headerHeight ? 'feed'
           : barCenter >= metrics.resting - 72 ? 'profile' : 'cover';
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
-      }} /></BlurTargetView> : <FlatList {...list} />}
-    {home && <HomeNotificationBell target={homeBlurTarget} top={insets.top + space.xs} />}
+      }} /> : <FlatList {...list} />}
     {home && focused && person && statusSurface !== 'feed' && <StatusBar
       style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={home ? { width, ...metrics } : undefined} onClose={() => setPanel(undefined)} />}

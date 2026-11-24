@@ -131,11 +131,11 @@ function PersonScreen({ id }: { id: string }) {
 const local = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.panel },
   column: { width: '100%', maxWidth: contentWidth, alignSelf: 'center' },
-  details: { paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.sm },
+  details: { paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
   avatarFrame: { marginTop: -46, borderWidth: 4, borderColor: colors.panel, borderRadius: radius.pill,
     backgroundColor: colors.panel, alignSelf: 'flex-start' },
-  name: { ...type.display, color: colors.text },
-  metadata: { gap: space.xxs },
-  spaceEntry: { marginTop: space.sm, marginHorizontal: -space.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  name: { ...type.article, color: colors.text },
+  metadata: { gap: 2 },
+  spaceEntry: { marginTop: space.sm, marginHorizontal: -space.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   footer: { paddingHorizontal: space.md, paddingTop: space.xs, paddingBottom: space.md },
 });

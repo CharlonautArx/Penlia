@@ -1,5 +1,5 @@
 import { useState, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, ScrollView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -10,14 +10,16 @@ import { colors, contentWidth, radius, space, styles, touch, type } from '../../
 
 const labels = ['全部', '分组', '群聊'] as const;
 const spring = { stiffness: 290, damping: 32, mass: 0.85, overshootClamping: true };
-const columnWidth = 68;
-const columnGap = 8;
+const columnGap = 4;
 
 export type DirectoryPan = ReturnType<typeof usePanGesture>;
 
 export function DirectoryPager({ children }: {
   children: (pan: DirectoryPan) => readonly [ReactNode, ReactNode, ReactNode];
 }) {
+  const { width: viewport, fontScale } = useWindowDimensions();
+  const columnWidth = Math.min(Math.floor((viewport - 2 * space.md - 2 * columnGap) / 3),
+    Math.round(40 + 28 * Math.max(1, fontScale)));
   const { reduced } = useAppearance();
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(0);
@@ -72,12 +74,12 @@ export function DirectoryPager({ children }: {
 
   return <>
     <View style={local.tabBar} accessibilityLabel="好友浏览方式">
-      <Animated.View pointerEvents="none" style={[local.capsule, slider]}>
+      <Animated.View pointerEvents="none" style={[local.capsule, { width: columnWidth }, slider]}>
         <GlassLayer tone="control" roundness={radius.pill} />
       </Animated.View>
       {labels.map((label, index) => <Pressable key={label} accessibilityRole="tab"
         accessibilityLabel={label} aria-selected={active === index} onPress={() => select(index)}
-        style={({ pressed }) => [local.tab, pressed && local.pressed]}>
+        style={({ pressed }) => [local.tab, { width: columnWidth }, pressed && local.pressed]}>
         <Text style={active === index ? local.selected : styles.muted}>{label}</Text>
       </Pressable>)}
     </View>
@@ -101,10 +103,10 @@ export function DirectoryScroll({ pan, contentContainerStyle, ...props }: Compon
 
 const local = StyleSheet.create({
   tabBar: { position: 'relative', flexDirection: 'row', alignItems: 'center', marginHorizontal: space.md,
-    gap: columnGap, marginTop: space.sm, paddingBottom: space.xxs,
+    gap: columnGap, marginTop: space.xxs, paddingBottom: space.xxs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  capsule: { position: 'absolute', top: 0, left: 0, width: columnWidth, bottom: space.xxs, borderRadius: radius.pill },
-  tab: { width: columnWidth, minHeight: touch, alignItems: 'center', justifyContent: 'center', paddingVertical: space.xxs },
+  capsule: { position: 'absolute', top: 5, left: 0, bottom: 9, borderRadius: radius.pill },
+  tab: { minHeight: touch, alignItems: 'center', justifyContent: 'center', paddingVertical: space.xxs },
   selected: { ...type.control, color: colors.ink },
   pressed: { opacity: 0.72 },
   viewport: { flex: 1, overflow: 'hidden', backgroundColor: colors.panel },

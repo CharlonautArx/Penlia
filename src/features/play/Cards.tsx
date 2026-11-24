@@ -37,7 +37,7 @@ export function GameCard({ game, featured = false }: { game: Game; featured?: bo
         <Text style={local.featuredTitle}>{game.title}</Text>
         <Text style={local.featuredMeta}>{game.subtitle}</Text>
       </View>
-      <View style={local.heroArrow}><Icon name="play" size={17} color={colors.ink} /></View>
+      <View style={local.heroArrow}><Icon name="play" size={17} color="#312633" /></View>
     </> : <>
       <View style={styles.grow}>
         <Text style={styles.strong}>{game.title}</Text>
@@ -72,17 +72,17 @@ const local = StyleSheet.create({
     backgroundColor: colors.panel, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   chosenText: { ...type.control, color: colors.ink },
   pressed: { opacity: 0.7 },
-  hero: { minHeight: 127, borderRadius: 14, backgroundColor: '#3B2843', overflow: 'hidden', justifyContent: 'center' },
+  hero: { minHeight: 127, borderRadius: radius.surface, backgroundColor: '#3B2843', overflow: 'hidden', justifyContent: 'center' },
   heroImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', resizeMode: 'cover' },
-  heroCopy: { paddingLeft: 15, paddingRight: 65, paddingVertical: 14, gap: 5 },
-  featuredMeta: { color: '#FCF1F9', fontSize: 12, lineHeight: 17 },
+  heroCopy: { paddingLeft: space.md, paddingRight: 68, paddingVertical: space.md, gap: space.xxs },
+  featuredMeta: { ...type.caption, color: '#FFFFFF' },
   featuredTitle: { ...type.title, color: '#FFFFFF' },
   heroArrow: { width: 43, height: 43, borderRadius: 14, backgroundColor: '#FFFFFFD9',
     alignItems: 'center', justifyContent: 'center', position: 'absolute', bottom: 14, right: 13 },
   gameRow: { ...styles.row, gap: 10, minHeight: 64, padding: 7, paddingRight: 12, backgroundColor: colors.panel,
-    borderColor: colors.border, borderWidth: 1, borderRadius: 12 },
+    borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.control },
   square: { width: 54, height: 45, borderRadius: 8, backgroundColor: colors.lavender },
-  thumbnail: { width: 84, height: '100%', minHeight: 94, backgroundColor: colors.lavender },
+  thumbnail: { width: 84, alignSelf: 'stretch', minHeight: 94, backgroundColor: colors.lavender },
   place: { borderRadius: radius.surface, backgroundColor: colors.panel, borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   placeCompact: { flexDirection: 'row' },

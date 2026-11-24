@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { Button, Empty, Notice, Section, Sheet } from '../../components/ui';
-import { colors, styles } from '../../theme';
+import { colors, radius, space, styles } from '../../theme';
 import { localId } from '../local/document';
 import { Chips } from '../play/Cards';
 import { FrostedAction } from "./FrostedAction";
@@ -20,6 +20,8 @@ export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
 }) {
   const state = useSpace();
   const [creating, setCreating] = useState(false);
+  const { width, fontScale } = useWindowDimensions();
+  const singleColumn = fontScale > 1.6 && width < 420;
   const mine = state.owns(owner) && !viewer;
   if (state.error) return <Notice action="重试" onAction={state.retry}>{state.error}</Notice>;
   if (state.loading || !state.value) return <Empty busy>正在读取空间…</Empty>;
@@ -45,12 +47,12 @@ export function SpaceCollections({ owner, viewer, pane, theme, onTheme }: {
     <Chips items={albumThemes} value={theme} onChange={onTheme} />
     {albums.length ? <View style={local.grid}>
       {albums.map((album) => <Pressable key={album.id} accessibilityRole="button" accessibilityLabel={album.title}
-        style={({ pressed }) => [local.album, pressed && local.pressed]}
+        style={({ pressed }) => [local.album, singleColumn && local.singleColumn, pressed && local.pressed]}
         onPress={() => router.push({ pathname: '/space/album/[id]', params: { id: album.id, ...(viewer ? { viewer } : {}) } })}>
         <View style={local.albumCover}><SpacePhoto photo={album.photos[album.cover]} style={local.albumPhoto}
           label={album.title + '封面'} /></View>
         <View style={local.albumText}>
-          <Text style={styles.strong} numberOfLines={1}>{album.title}</Text>
+          <Text style={styles.strong} numberOfLines={2}>{album.title}</Text>
           <Text style={styles.small}>{album.theme} · {album.photos.length} 张</Text>
         </View>
       </Pressable>)}
@@ -63,7 +65,7 @@ function NewAlbum({ onClose }: { onClose: () => void }) {
   const state = useSpace();
   const [name, setName] = useState('');
   const [theme, setTheme] = useState('日常');
-  return <Sheet title="新建相册" onClose={onClose}>
+  return <Sheet avoidKeyboard title="新建相册" onClose={onClose}>
     <TextInput accessibilityLabel="相册名称" value={name} onChangeText={setName} style={styles.input}
       placeholder="给这些照片起个名字" placeholderTextColor={colors.quiet} maxLength={26} />
     <View style={[styles.row, local.wrap]}>
@@ -83,10 +85,11 @@ function NewAlbum({ onClose }: { onClose: () => void }) {
 
 const local = StyleSheet.create({
   pressed: { opacity: 0.74 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  album: { width: '48%', borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.panel },
-  albumCover: { height: 124 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  singleColumn: { width: '100%' },
+  album: { width: '48%', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.control, overflow: 'hidden', backgroundColor: colors.panel },
+  albumCover: { aspectRatio: 1.4 },
   albumPhoto: { width: '100%', height: '100%' },
-  albumText: { padding: 9, gap: 2 },
+  albumText: { padding: space.sm, gap: 2 },
   wrap: { flexWrap: 'wrap', gap: 7 },
 });

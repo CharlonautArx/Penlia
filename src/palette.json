@@ -3,7 +3,7 @@
     "backdrop": "#FAFBFC",
     "panel": "#FFFFFF",
     "chatReceived": "#FFFEFB",
-    "border": "#E7E4DF",
+    "border": "#E5E5E9",
     "text": "#23242A",
     "muted": "#565964",
     "quiet": "#666875",
@@ -15,7 +15,7 @@
     "lavender": "#EFEAF0",
     "danger": "#9F3044",
     "action": "#3E2F43",
-    "search": "#EFEEEB",
+    "search": "#F1F1F4",
     "moon": "#324D78"
   },
   "dark": {

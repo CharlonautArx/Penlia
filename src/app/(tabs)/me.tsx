@@ -1,5 +1,6 @@
 import { formatHandle } from '../../services/handle';
 import { isUiDemo } from '../../demo/mode';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -39,20 +40,21 @@ export default function MeScreen() {
   return <Screen>
     <View style={local.profile}>
       <Pressable accessibilityRole="button" accessibilityLabel="查看个人资料" onPress={() => router.push('/profile')}
-        style={({ pressed }) => [local.profileContent, pressed && local.pressed]}>
+        style={({ pressed }) => [StyleSheet.absoluteFill, pressed && local.profilePressed]} />
+      <View pointerEvents="none" style={local.profileContent}>
         <LinearGradient colors={brandGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={local.signature} />
-        <View style={[styles.row, local.profileRow]}>
+        <View style={styles.row}>
           <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={68} />
           <View style={styles.grow}>
             <Text style={local.name}>{user.name}</Text>
             <Text style={styles.muted}>朋聊号 {formatHandle(user.username)}</Text>
           </View>
         </View>
-        {!!user.bio && <Text style={styles.body}>{user.bio}</Text>}
-      </Pressable>
+      </View>
       <View style={local.profileEdit}>
         <IconButton label="编辑资料" icon="create-outline" onPress={() => setSheet('资料')} disabled={busy} />
       </View>
+      {!!user.bio && <View pointerEvents="none" style={local.bio}><Text style={styles.body}>{user.bio}</Text></View>}
     </View>
     <SettingGroup>
       <ListRow title="隐私与安全" detail="好友权限、安静时间、登录设备" left={<Tile icon="shield-checkmark-outline" />}
@@ -93,7 +95,7 @@ export default function MeScreen() {
         <Text style={styles.small}>当前外观 · {scheme === 'dark' ? '深色' : '浅色'}</Text>
         {!!error && <Notice>{error}</Notice>}
       </>}
-      {sheet === '通用设置' && <ListRow title="朋聊" detail="0.1.0" left={<Tile icon="chatbubbles-outline" />} />}
+      {sheet === '通用设置' && <ListRow title="朋聊" detail={Constants.expoConfig?.version} left={<Tile icon="chatbubbles-outline" />} />}
     </Sheet>}
   </Screen>;
 }
@@ -103,11 +105,12 @@ function Tile({ icon }: { icon: IconName }) {
 }
 
 const local = StyleSheet.create({
-  profile: { borderRadius: radius.surface, backgroundColor: colors.panel },
-  profileContent: { padding: space.md, gap: space.sm },
-  profileRow: { paddingRight: 48 },
-  profileEdit: { position: 'absolute', right: space.md, top: 38 },
-  pressed: { opacity: 0.73 },
+  profile: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.xxs,
+    padding: space.md, borderRadius: radius.surface, backgroundColor: colors.panel },
+  profileContent: { ...styles.grow, gap: space.sm },
+  profileEdit: { paddingTop: space.sm },
+  bio: { width: '100%', paddingTop: space.sm },
+  profilePressed: { borderRadius: radius.surface, backgroundColor: colors.search },
   signature: { width: 40, height: 4, borderRadius: 2 },
   name: { ...type.title, color: colors.text },
   tile: { width: 34, height: 34, borderRadius: radius.small, backgroundColor: colors.backdrop,
