@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useFontScale } from '../../components/Typography';
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
@@ -13,13 +14,14 @@ import { useDirectory } from './store';
 type Contact = ReturnType<typeof sortFriends>[number];
 
 export function ContactRow({ friend, indexed }: { friend: Contact; indexed?: boolean }) {
+  const large = useFontScale() > 1;
   return <Pressable accessibilityRole="button" accessibilityLabel={friend.displayName}
     onPress={() => router.push({ pathname: '/person/[id]', params: { id: friend.userId } })}
     style={({ pressed }) => [local.contact, indexed && local.contactIndexed, pressed && local.pressed]}>
     <Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={34} />
     <View style={local.contactText}>
-      <Text numberOfLines={1} style={local.contactName}>{friend.displayName}</Text>
-      {!!friend.bio && <Text numberOfLines={1} style={styles.small}>{friend.bio}</Text>}
+      <Text numberOfLines={large ? undefined : 1} style={local.contactName}>{friend.displayName}</Text>
+      {!!friend.bio && <Text numberOfLines={large ? undefined : 1} style={styles.small}>{friend.bio}</Text>}
     </View>
   </Pressable>;
 }

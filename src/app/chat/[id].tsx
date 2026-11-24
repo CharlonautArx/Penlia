@@ -1,3 +1,4 @@
+import { useFontScale } from '../../components/Typography';
 import { useHistoryJump } from '../../features/chat/history';
 import { useRecalls } from '../../features/chat/recalls';
 import { applyRecalls, canRecall, recalledCaption, recalledQuote, recallWindow } from '../../features/chat/recall-model';
@@ -48,7 +49,7 @@ function EmptyConversation() {
   return <View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>;
 }
 
-function Conversation({ person, initialDraft }: { person: Relationship; initialDraft: string }) {
+function Conversation({ person, initialDraft, chromeHeight }: { person: Relationship; initialDraft: string; chromeHeight: number }) {
   const { session, request } = useSession();
   const demo = useDemo();
   const markDemoRead = demo?.markRead;
@@ -362,11 +363,11 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
   return (
     <>
       <View style={styles.grow}>
-        {hasTopNotice && <View style={local.headerClearance}>
+        {hasTopNotice && <View style={[local.headerClearance, { paddingTop: chromeHeight + space.xs }]}>
           {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
           {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
         </View>}
-        {window && <View style={local.headerClearance}><Button label="返回最新消息" variant="quiet" onPress={() => {
+        {window && <View style={[local.headerClearance, { paddingTop: chromeHeight + space.xs }]}><Button label="返回最新消息" variant="quiet" onPress={() => {
           setWindow(undefined); setPosition(undefined); list.current?.scrollToOffset({ offset: 0, animated: false });
         }} /></View>}
         <FlatList
@@ -376,7 +377,7 @@ function Conversation({ person, initialDraft }: { person: Relationship; initialD
             setTimeout(() => { if (searchJump.current) list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
           }}
           inverted data={items} style={styles.grow}
-          contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && local.messageClearance]}
+          contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }]}
           keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
           ListEmptyComponent={EmptyConversation}
           ListFooterComponent={!window && cursor && online ? (
@@ -488,6 +489,8 @@ function QueuePreview({item,index}:{item:PreparedPhoto;index:number}) {
 }
 
 export default function ConversationScreen() {
+  const fontScale = useFontScale();
+  const chromeHeight = fontScale <= 1 ? headerHeight : Math.max(headerHeight, 2 * Math.ceil(24 * fontScale) + 4);
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
   const { relationships, refresh, error } = useFriends();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
@@ -502,19 +505,19 @@ export default function ConversationScreen() {
     <ChatViewport floatingChrome peer={person?.userId}>
       {/* Anchor absolute overlays inside the keyboard-adjusted area, using a stable native parent. */}
       <View collapsable={false} style={styles.grow}>
-        {person ? <Conversation key={person.userId} person={person}
+        {person ? <Conversation key={person.userId} person={person} chromeHeight={chromeHeight}
           initialDraft={typeof draft === 'string' ? draft.slice(0, 500) : ''} /> :
           <View style={local.headerClearance}>
             <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>
           </View>}
-        <View pointerEvents="box-none" style={local.headerOverlay}>
+        <View pointerEvents="box-none" style={[local.headerOverlay, { height: chromeHeight + space.xxl }]}>
           <PeerChatFog ready={!!person} />
-          <View style={local.header} pointerEvents="box-none">
+          <View style={[local.header, { height: chromeHeight }]} pointerEvents="box-none">
             <IconButton label="返回" icon="chevron-back" onPress={goBack} />
             {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
               style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
               onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
-              <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={1}>{person.name}</Text>
+              <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={fontScale > 1 ? 2 : 1}>{person.name}</Text>
             </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
             {person && <>
               <PetShortcut peer={person.userId} />
@@ -534,8 +537,6 @@ const local = StyleSheet.create({
   header: { ...styles.row, height: headerHeight, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },
   profileLink: { ...styles.row, ...styles.grow, minHeight: touch },
   headerClearance: { paddingTop: headerHeight + space.xs },
-  // Padding at the visual top of the inverted list keeps the oldest item reachable.
-  messageClearance: { paddingBottom: headerHeight + space.lg },
   profilePressed: { opacity: 0.72 },
   notice: { paddingHorizontal: space.md, paddingVertical: space.xxs },
   emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },

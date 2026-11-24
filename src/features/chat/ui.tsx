@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 
+import { useFontScale } from '../../components/Typography';
 import { useAppearance } from '../../components/appearance';
 import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Icon, IconButton } from '../../components/ui';
@@ -22,6 +23,7 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
   name: string; avatar?: ReactNode; preview: string; time: string; unread: number;
   pinned?: boolean; silent?: boolean; noReply?: boolean; signal?: ReactNode; manualUnread?: boolean; onPress: () => void;
 }) {
+  const large = useFontScale() > 1;
   const accessible = [name, pinned ? '置顶' : '', unread ? unread + ' 条未读消息' : manualUnread ? '已标为未读' : '', preview].filter(Boolean).join('，');
   return <Pressable accessibilityRole="button" accessibilityLabel={accessible} onPress={onPress}
     style={({ pressed }) => [ui.thread, pinned && ui.pinnedRow, pressed && ui.pressedRow]}>
@@ -29,7 +31,7 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
     <View style={ui.threadBody}>
       <View style={ui.line}>
         <View style={[ui.threadName, styles.grow]}>
-          <Text numberOfLines={1} style={[styles.strong, ui.name]}>{name}</Text>
+          <Text numberOfLines={large ? undefined : 1} style={[styles.strong, ui.name]}>{name}</Text>
           {pinned && <Icon name="pin-outline" size={13} color={colors.quiet} />}
           {signal}
         </View>
