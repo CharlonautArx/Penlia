@@ -73,10 +73,14 @@ export async function chooseMomentVideo(): Promise<(Extract<LocalMedia,{mime:'vi
     asset.file?.size ??
     (Platform.OS === 'web' ? (await (await fetch(asset.uri)).blob()).size : new File(asset.uri).size);
   if (!size) throw new Error('暂时无法读取这段视频，请重新选择。');
-  if (asset.mimeType && asset.mimeType !== 'video/mp4') throw new MomentMediaLimit('视频格式须为 MP4。');
-  if (asset.duration && asset.duration > 30_000) throw new MomentMediaLimit('视频时长不能超过 30 秒。');
+  const mediaType = asset.mimeType || asset.file?.type;
+  if ((mediaType && mediaType !== 'video/mp4') || (!mediaType && asset.fileName && !/\.mp4$/i.test(asset.fileName)))
+    throw new MomentMediaLimit('视频格式须为 MP4。');
+  // Browser video metadata reports seconds. The native picker reports milliseconds.
+  const duration = asset.duration ? (Platform.OS === 'web' ? asset.duration : asset.duration / 1000) : undefined;
+  if (duration && duration > 30) throw new MomentMediaLimit('视频时长不能超过 30 秒。');
   if (size > maxVideo) throw new MomentMediaLimit('视频文件大小不能超过 4 MB。');
-  return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri, bytes:size, duration:asset.duration?asset.duration/1000:undefined };
+  return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri, bytes: size, duration };
 }
 
 export async function chooseMomentDraftVideo(owner: string) {

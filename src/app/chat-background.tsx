@@ -30,7 +30,7 @@ export default function ChatBackgroundScreen() {
   const insets = useSafeAreaInsets();
   const available = Math.max(1, Math.min(contentWidth, window.width - insets.left - insets.right));
   const aspect = voice ? window.width / Math.max(1, window.height)
-    : (window.width - insets.left - insets.right) / Math.max(1, window.height - insets.top - insets.bottom);
+    : available / Math.max(1, window.height - insets.top - insets.bottom);
   const previewWidth = Math.min(Math.max(1, available - space.md * 2), aspect * Math.min(360, window.height * 0.43));
 
   useEffect(() => {

@@ -19,7 +19,7 @@ export function GroupChats({ render }: { render?: (props: {
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [scan, setScan] = useState(false);
-  const [preview, setPreview] = useState<{ invite: Invite; members: { name: string; portrait?: ImageSourcePropType }[] }>();
+  const [preview, setPreview] = useState<{ invite: Invite; members: { name: string; avatar?: string; portrait?: ImageSourcePropType }[] }>();
   const [avatar, setAvatar] = useState<string>();
   const [name, setName] = useState('');
   const [inviteMembers, setInviteMembers] = useState(false);
@@ -84,7 +84,7 @@ export function GroupChats({ render }: { render?: (props: {
         <View key={invite.id} style={styles.card}>
           <ListRow title={invite.name} detail={invite.inviter + ' 邀请你加入 · ' + invite.memberCount + ' 位成员'}
             left={<GroupPortrait name={invite.name} avatar={invite.avatar} />} onPress={() => void run(async () => {
-              const result = await request<{ members: { name: string; portrait?: ImageSourcePropType }[] }>(
+              const result = await request<{ members: { name: string; avatar?: string; portrait?: ImageSourcePropType }[] }>(
                 '/group-invites/' + invite.id + '/members');
               setPreview({ invite, members: result.members });
             })} />
@@ -110,7 +110,7 @@ export function GroupChats({ render }: { render?: (props: {
       {preview && <Sheet title={preview.invite.name} onClose={() => setPreview(undefined)}>
         <Section title="群成员" />
         {preview.members.map((member, i) => <ListRow key={i} title={member.name}
-          left={<Avatar name={member.name} source={member.portrait} size={36} />} />)}
+          left={<Avatar name={member.name} source={member.avatar ? { uri: 'data:image/jpeg;base64,' + member.avatar } : member.portrait} size={36} />} />)}
       </Sheet>}
       {creating && (
         <Sheet

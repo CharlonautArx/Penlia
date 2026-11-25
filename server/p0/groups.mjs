@@ -124,14 +124,14 @@ export async function getGroupInvites(user, code) {
 
 export async function inviteMembers(user, invite) {
   const { rows } = await pool.query(
-    `SELECT u.name FROM chat_group_invites i
+    `SELECT u.name,${avatarOf('u')} AS avatar FROM chat_group_invites i
      JOIN chat_group_members m ON m.group_id=i.group_id JOIN users u ON u.id=m.user_id
      WHERE ${pendingFor} AND i.id=$2
        AND EXISTS (SELECT 1 FROM chat_group_members sender WHERE sender.group_id=i.group_id AND sender.user_id=i.inviter_id)
        AND NOT ${blocked('$1::uuid', 'u.id')}
      ORDER BY m.joined_at,u.id LIMIT 40`, [user, invite]);
   if (!rows.length) throw new HttpError(404, '此邀请不可用。');
-  return { members: rows };
+  return { members: rows.map(({ name, avatar }) => avatar ? { name, avatar } : { name }) };
 }
 
 export async function updateGroupAvatar(user, group, photo) {
