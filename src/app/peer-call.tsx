@@ -15,7 +15,8 @@ export default function PeerCallRoute() {
   if (!person || (kind !== 'voice' && kind !== 'video')) return <Screen title="通话" back={close}>
     <Empty busy={!relationships}>{relationships ? '无法发起此通话。' : '正在读取联系人…'}</Empty>
   </Screen>;
-  if (!isUiDemo) return <CallStage name={person.name} video={kind === 'video'} compact={false}
+  if (!isUiDemo) return <CallStage name={person.name}
+    avatar={person.avatar ? { uri: 'data:image/jpeg;base64,' + person.avatar } : undefined} video={kind === 'video'} compact={false}
     background={kind === 'voice' ? backgrounds.resolve(undefined, true) : undefined}
     status="通话服务尚未启用，目前无法拨打。" controls={<CallAction action={{ label: '返回聊天', icon: 'close-outline', onPress: close }} />} />;
   return <DemoCall kind={kind} username={person.username} name={person.name} incoming={false} onClose={close} />;

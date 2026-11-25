@@ -28,6 +28,9 @@ export function presentLocalIdentity<T>(result: T, user: Identity): T {
     if (typeof value.authorUsername === 'string') value.authorUsername = user.username;
   }
   if (value.ownerId === user.id && typeof value.owner === 'string') value.owner = user.name;
+  if (value.ownerId === user.id && value.authorId == null && typeof value.author === 'string') value.author = user.name;
+  if (value.editorId === user.id && typeof value.editor === 'string') value.editor = user.name;
+  if (value.inviterId === user.id && typeof value.inviter === 'string') value.inviter = user.name;
   if (value.actorId === user.id) {
     if (typeof value.actor === 'string') value.actor = user.name;
     if (typeof value.actorName === 'string') value.actorName = user.name;

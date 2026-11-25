@@ -387,24 +387,28 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       return edit('gatherings', gathering, { state: command === 'confirm' && confirmed ? 'formed' : state,
         choiceId: body.optionId ?? body.choiceId ?? gathering.choiceId, confirmed, attendees });
     }
+    // Legacy preview journal entries were all written by the single signed-in preview account.
+    const journalAuthor = (entry: Row): Row => ({ ...entry, authorId: entry.authorId ?? self });
     if (area === 'collections') {
       if (!id && get) return { collections: rows('collections').filter((row) => row.state !== 'left') };
       if (!id) return save('collections', add(body, { ...owner, momentId: null, members: [...members([self]), ...newMembers()] }));
       const collection = requireRow('collections');
-      const entries = related('entries', 'collectionId');
+      const entries = related('entries', 'collectionId').map(journalAuthor);
       if (get && action === 'album') return { media: entries.flatMap((entry) => related('contributions', 'entryId', entry.id)
-        .flatMap((contribution) => list(contribution.media))), next: null };
+        .flatMap((contribution) => list(contribution.media).map((media) => ({
+          ...media, title: entry.title, author: contribution.author, authorId: contribution.authorId,
+        })))), next: null };
       if (get) return { collection, entries, ...people(collection), next: null };
       if (action === 'publish') {
         const moment = save('moments', add(body, { ...author, collaborationId: collection.id,
           body: collection.title, createdAt: now(), media: [] }));
         return edit('collections', collection, { momentId: moment.id });
       }
-      if (action === 'entries') return save('entries', add(body, { collectionId: id, author: demoUser.name }));
+      if (action === 'entries') return save('entries', add(body, { collectionId: id, authorId: self, author: demoUser.name }));
       if (action === 'invite' || action === 'membership') return patchMembers('collections', collection, action);
     }
     if (area === 'entries') {
-      const entry = requireRow('entries');
+      const entry = journalAuthor(requireRow('entries'));
       if (get) return { entry, collection: requireRow('collections', String(entry.collectionId)), contributions: related('contributions', 'entryId') };
       if (action === 'contributions') return save('contributions', add(body, { ...author, createdAt: now(), entryId: id, media: assetRefs() }));
     }
@@ -412,7 +416,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       if (get && !id) return { contributions: rows('contributions').filter((row) => row.authorId === self) };
       const contribution = requireRow('contributions');
       if (action === 'history') return { history: [{ revision: contribution.revision, body: contribution.body,
-        action: 'created', editor: contribution.author, editedAt: contribution.createdAt }] };
+        action: 'created', editorId: contribution.authorId, editor: contribution.author, editedAt: contribution.createdAt }] };
       if (action === 'audience') {
         if (get) return { available: query.get('channel') === 'workspace', hasConsent: !!strings(contribution.memberIds).length,
           version: String(contribution.revision),

@@ -8,11 +8,11 @@ test('local profile presentation resolves stable IDs without changing historical
   const record = {
     authorId: 'me', author: '青禾', authorUsername: 'qinghe', body: '青禾原来写的正文',
     comments: [{ authorId: 'other', author: '青禾', body: '旧文' }],
-    members: [{ id: 'me', name: '青禾' }],
+    members: [{ id: 'me', name: '青禾' }], editorId: 'me', editor: '青禾',
     quote: { senderId: 'me', name: '青禾', body: '历史原文' },
   };
   assert.deepEqual(presentLocalIdentity(record, user), {
-    ...record, author: 'ARX', authorUsername: 'new_qinghe', members: [{ id: 'me', name: 'ARX' }],
+    ...record, author: 'ARX', authorUsername: 'new_qinghe', editor: 'ARX', members: [{ id: 'me', name: 'ARX' }],
   });
   assert.equal(record.author, '青禾');
   assert.equal(nextHandleChange(new Date('2024-02-29T14:12:00.000Z')), '2025-02-28T14:12:00.000Z');
