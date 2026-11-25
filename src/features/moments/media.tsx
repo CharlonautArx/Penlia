@@ -11,6 +11,7 @@ import { Icon } from '../../components/ui';
 import { lifeDemoImages } from '../../demo/life-assets';
 import { isUiDemo } from '../../demo/mode';
 import { apiOrigin } from '../../services/api';
+import { spaceSamplePhoto } from '../../demo/visuals';
 import { useSession } from '../../services/session';
 import { colors, fixed, radius, space, styles } from '../../theme';
 import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/MediaViewer';
@@ -21,6 +22,7 @@ export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4'
 export type LocalMedia =
   | { id: string; mime: 'image/jpeg'; photoId: string; thumbnailId?: string }
   | { id: string; mime: 'video/mp4'; uri?: string; videoId?: string; bytes: number; duration?: number };
+export type EditorMedia = LocalMedia | (Media & { published: true });
 const maxVideo = 4 * 1024 * 1024;
 
 export async function chooseMomentPhotos(owner: string, limit: number, thumbnails = false) {
@@ -258,13 +260,45 @@ export function MomentVideo({ source, immersive = false }: { source: { uri: stri
 
 export function DraftMediaTile({ item }: { item: LocalMedia }) {
   const photo = useLocalPhotoUri('photoId' in item ? item.photoId : undefined);
-  return photo ? (
-    <Image
-      source={{ uri: photo }}
-      style={{ width: 72, height: 72, borderRadius: radius.small }}
-      accessibilityLabel="待发布照片"
-    />
-  ) : (
-    <Text style={styles.muted}>{item.mime === 'video/mp4' ? '已选择 MP4 视频' : '照片处理中'}</Text>
-  );
+  return photo ? <Image source={{ uri: photo }} style={{ width: 72, height: 72, borderRadius: radius.small }}
+    accessibilityLabel="待发布照片" />
+    : <Text style={styles.muted}>{item.mime === 'video/mp4' ? '已选择 MP4 视频' : '照片处理中'}</Text>;
+}
+
+function useEditorSource(item: EditorMedia, thumbnail: boolean) {
+  const published = 'published' in item;
+  const photo = !published && item.mime === 'image/jpeg' ? item : undefined;
+  const video = !published && item.mime === 'video/mp4' ? item : undefined;
+  const local = useLocalPhotoUri(photo?.photoId ?? video?.videoId);
+  const small = useLocalPhotoUri(thumbnail ? photo?.thumbnailId : undefined);
+  const protectedFile = useProtectedSource(item.id, published && !(thumbnail && item.mime === 'video/mp4'),
+    undefined, thumbnail && published && !!item.thumbnail);
+  const sample = published && item.demoAsset ? lifeDemoImages[item.demoAsset] ?? spaceSamplePhoto(item.demoAsset) : undefined;
+  const uri = published ? (thumbnail && item.demoThumbnail ? item.demoThumbnail : item.demoUri) : small ?? local ?? video?.uri;
+  const uriSource = uri ? { uri } : protectedFile.source;
+  return { source: sample ?? uriSource, uriSource, problem: protectedFile.problem };
+}
+
+export function EditorMediaThumbnail({ item }: { item: EditorMedia }) {
+  const { source, problem } = useEditorSource(item, true);
+  const [failed, setFailed] = useState(false);
+  return item.mime === 'video/mp4' ? <>
+    <Icon name="play-circle-outline" size={29} color={colors.accent} />
+    <Text style={styles.small}>短视频</Text>
+  </> : source && !failed ?
+    <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="cover" resizeMethod="resize" onError={() => setFailed(true)} />
+    : <Text style={styles.small}>{failed || problem ? '照片暂不可访问' : '正在加载…'}</Text>;
+}
+
+export function EditorMediaPreview({ item, close }: { item: EditorMedia; close: () => void }) {
+  const { source, uriSource, problem } = useEditorSource(item, false);
+  const [failed, setFailed] = useState(false);
+  const video = item.mime === 'video/mp4';
+  return <MediaViewer title={video ? '短视频' : '图片预览'} onClose={close}>
+    {failed || problem ? <MediaViewerMessage>媒体暂不可访问。</MediaViewerMessage>
+      : !source || (video && !uriSource) ? <MediaViewerMessage busy>正在加载媒体…</MediaViewerMessage>
+      : video && uriSource ? <MomentVideo source={uriSource} immersive />
+      : <Image source={source} accessibilityLabel="原图预览" resizeMode="contain" style={viewerStyles.photo}
+        onError={() => setFailed(true)} />}
+  </MediaViewer>;
 }

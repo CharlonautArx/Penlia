@@ -242,6 +242,16 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     const { visible, project, commentVisible } = interactions;
     const audienceIds = () => body.scope === 'group'
       ? strings(find('relationGroups', String(body.groupId))?.memberIds) : body.memberIds;
+    function momentAssets(existing: Row[] = []) {
+      if (body.mediaIds === undefined) return existing;
+      const ids = strings(body.mediaIds);
+      const media = ids.map((id) => existing.find((asset) => asset.id === id) ??
+        (!rows('moments').some((post) => list(post.media).some((asset) => asset.id === id)) ? find('media', id) : undefined));
+      if (!Array.isArray(body.mediaIds) || ids.length !== body.mediaIds.length || ids.length > 20 || new Set(ids).size !== ids.length
+        || media.some((asset) => !asset || asset.commentId) || (media.length > 1 && media.some((asset) => asset?.mime === 'video/mp4')))
+        throw new Error('请选择最多 20 张可用照片或一段短视频。');
+      return media as Row[];
+    }
     if (area === 'resolve-ids' && method === 'POST') {
       const keys = new Set(Array.isArray(body.keys) ? body.keys : []);
       return { identities: rows('moments').filter((item) => item.authorId === self && visible(item)
@@ -250,10 +260,10 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'count' && get) return { count: rows('moments').filter((item) => item.authorId === self).length };
     if (!area && method === 'POST') {
       const previous = rows('moments').find((item) => item.authorId === self && item.clientId === body.clientId);
-      const media = list(assetRefs());
-      if (strings(body.mediaIds).length !== media.length || media.length > 20 ||
-        (media.length > 1 && media.some((asset) => asset.mime === 'video/mp4'))) throw new Error('请选择最多 20 张照片或一段短视频。');
-      return previous ?? save('moments', add({ clientId: body.clientId, body: body.body, location: body.location,
+      if (previous) return previous;
+      const media = momentAssets();
+      if (!String(body.body ?? '').trim() && !media.length) throw new Error('请输入动态内容。');
+      return save('moments', add({ clientId: body.clientId, body: body.body, location: body.location,
         scope: body.scope, memberIds: audienceIds(), groupId: body.groupId }, { ...author, createdAt: now(), media }));
     }
     if (area) {
@@ -326,8 +336,11 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
         return {};
       }
       if (moment.sourceMomentId || method !== 'PATCH') throw new Error('无法修改这个动态。');
+      if (body.revision !== moment.revision) throw new Error('动态已经更新，请刷新后重试。');
+      const media = momentAssets(list(moment.media));
+      if (!String(body.body ?? moment.body ?? '').trim() && !media.length) throw new Error('请输入动态内容。');
       if (body.scope === 'private') interactions.revoke(moment.id);
-      return save('moments', { ...moment, body: body.body ?? moment.body, location: body.location ?? moment.location, scope: body.scope,
+      return save('moments', { ...moment, media, body: body.body ?? moment.body, location: body.location ?? moment.location, scope: body.scope,
         groupId: body.groupId, memberIds: body.scope === 'group' && moment.scope === 'group' && body.groupId === moment.groupId
           ? moment.memberIds ?? audienceIds() : audienceIds(), revision: Number(moment.revision) + 1 });
     }

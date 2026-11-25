@@ -19,11 +19,11 @@ module.exports = ({ config: base }) => {
   });
   return {
     ...config,
-    version: '0.1.5',
+    version: '0.1.6',
     scheme: 'penlia-preview',
     platforms: ['android', 'ios', 'web'],
     plugins: [...plugins, './plugins/with-penlia-call-pip', ['expo-camera', { cameraPermission, microphonePermission, barcodeScannerEnabled: true }]],
-    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 16 },
+    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 17 },
     ios: { ...config.ios, bundleIdentifier: 'app.penlia.mobile.preview' },
   };
 };

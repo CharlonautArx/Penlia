@@ -118,13 +118,13 @@ export function useLocalPhotoUri(localFile?: string) {
     ? (webFile?.id === localFile ? webFile.uri : undefined) : nativePhotoUri(localFile));
 }
 
-export function SpacePhoto({ photo, style, label = '照片' }: {
-  photo?: Photo; style: StyleProp<ImageStyle>; label?: string;
+export function SpacePhoto({ photo, style, label = '照片', resizeMode = 'cover' }: {
+  photo?: Photo; style: StyleProp<ImageStyle>; label?: string; resizeMode?: 'cover' | 'contain';
 }) {
   const localFile = photo?.type === 'local' && /^[a-z\d_-]+\.[a-z]+$/i.test(photo.id) ? photo.id : undefined;
   const uri = useLocalPhotoUri(localFile);
   const source = photo?.type === 'sample' ? spaceSamplePhoto(photo.id) : uri ? { uri } : undefined;
-  return source ? <Image accessibilityLabel={label} accessible source={source} style={style} resizeMode="cover" />
+  return source ? <Image accessibilityLabel={label} accessible source={source} style={style} resizeMode={resizeMode} />
     : <View style={[{ backgroundColor: colors.lavender }, style as StyleProp<ViewStyle>]} />;
 }
 

@@ -1,12 +1,16 @@
 import { formatHandle } from '../../services/handle';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { MediaViewer, viewerStyles } from '../../components/MediaViewer';
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Screen, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { demoPortrait } from '../../demo/visuals';
 import { localId } from '../../features/local/document';
+import { MediaEditor, useMediaEditorScroll } from '../../features/moments/MediaEditor';
+import { momentPhotoLimit, movePhoto } from '../../features/moments/photo-grid';
 import { AudienceSheet } from '../../features/space/AudienceSheet';
 import { selectPhotos, SpacePhoto } from '../../features/space/media';
 import { audienceName, blankDraft, copyDraft, selectableAudience, type Entry, type EntryDraft, type Photo } from '../../features/space/model';
@@ -37,7 +41,18 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
   const [location, setLocation] = useState(draft.location);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<Photo>();
+  const scroll = useMediaEditorScroll();
   const journal = draft.kind === 'journal';
+  const capacity = journal ? 6 : momentPhotoLimit;
+  const photos = useMemo(() => {
+    const occurrences = new Map<string, number>();
+    return draft.photos.map((photo) => {
+      const occurrence = (occurrences.get(photo.id) ?? 0) + 1;
+      occurrences.set(photo.id, occurrence);
+      return { id: photo.id + ':' + occurrence, mime: 'image/jpeg', photo };
+    });
+  }, [draft.photos]);
   const limit = journal ? 12000 : 500;
   const ready = (draft.text.trim().length > 0 || (!journal && draft.photos.length > 0)) && (!journal || draft.title.trim().length > 0);
   const partial = !!(draft.title || draft.text || draft.photos.length || draft.location || draft.videoPreview || draft.sourceId
@@ -76,7 +91,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
   function attach(photos: Photo[]) {
     const after = draft.text.split(/\n\s*\n/).length - 1;
     setDraft((current) => ({
-      ...current, photos: [...current.photos, ...photos.map((photo) => journal ? { ...photo, after } : photo)].slice(0, 6),
+      ...current, photos: [...current.photos, ...photos.map((photo) => journal ? { ...photo, after } : photo)].slice(0, capacity),
     }));
     setPanel(undefined);
   }
@@ -85,7 +100,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
     if (!state.me || busy) return;
     setError('');
     setBusy(true);
-    try { attach(await selectPhotos(state.me.id, 6 - draft.photos.length)); }
+    try { attach(await selectPhotos(state.me.id, capacity - draft.photos.length)); }
     catch (failure) { setError(failure instanceof Error ? failure.message : '暂时无法读取照片。'); setPanel(undefined); }
     finally { setBusy(false); }
   }
@@ -95,7 +110,9 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
     else goBack();
   }
 
-  return <Screen title={title} back={back} actions={<Button label={entry ? '保存' : '发布'} disabled={!ready || busy}
+  const add = () => { if (isUiDemo) setPanel('media'); else void library(); };
+  const content = <Screen title={title} back={back} renderScroll={journal ? undefined : scroll.render}
+    actions={<Button label={entry ? '保存' : '发布'} disabled={!ready || busy}
     variant="gradient" onPress={publish} />}>
     {restored && <Text style={local.saved}>已恢复本机草稿</Text>}
     {!!(error || state.error) && <Notice>{error || state.error}</Notice>}
@@ -108,7 +125,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
         placeholderTextColor={colors.quiet} value={draft.text} multiline maxLength={limit}
         onChangeText={(text) => setDraft({ ...draft, text })} style={[local.body, journal && local.article]} />
       <Text style={local.count}>{draft.text.length} / {limit}</Text>
-      <View style={local.attachments}>
+      {journal ? <View style={local.attachments}>
         {draft.photos.map((photo, index) => <View key={photo.id + index} style={local.photoFrame}>
           <SpacePhoto photo={photo} style={local.photo} />
           <View style={local.remove}>
@@ -116,11 +133,14 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
               setDraft({ ...draft, photos: draft.photos.filter((_, item) => item !== index) })} />
           </View>
         </View>)}
-        {draft.photos.length < 6 && <View style={local.add}><IconButton label="添加图片" icon="add-outline" onPress={() => {
-          if (isUiDemo) setPanel('media');
-          else void library();
-        }} /></View>}
-      </View>
+        {draft.photos.length < capacity && <View style={local.add}><IconButton label="添加图片" icon="add-outline" onPress={add} /></View>}
+      </View> : <View style={local.momentAttachments}>
+        <MediaEditor items={photos} scroll={scroll} busy={busy} add={photos.length < capacity ? add : undefined}
+          tile={({ photo }) => <SpacePhoto photo={photo} style={local.gridPhoto} />}
+          open={({ photo }) => setPreview(photo)}
+          remove={({ id }) => setDraft((current) => ({ ...current, photos: current.photos.filter((_, index) => photos[index].id !== id) }))}
+          move={(id, to) => setDraft((current) => ({ ...current, photos: [...movePhoto(current.photos, photos.findIndex((item) => item.id === id), to)] }))} />
+      </View>}
       {draft.videoPreview && <ListRow title="视频动态样式" detail="样式预览" left={<Icon name="videocam-outline" />}
         trailing={<IconButton label="移除视频样式" icon="close-circle-outline" onPress={() => setDraft({ ...draft, videoPreview: false })} />} />}
       <View style={local.tools}>
@@ -138,6 +158,9 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
     </View>
     {!entry && <Button label="存为草稿" variant="soft" icon="document-text-outline" onPress={persistDraft} disabled={!partial || busy} />}
     <Text style={styles.small}>内容和可见设置保存在此设备。</Text>
+    {preview && <MediaViewer title="图片预览" onClose={() => setPreview(undefined)}>
+      <SpacePhoto photo={preview} style={viewerStyles.photo} resizeMode="contain" />
+    </MediaViewer>}
     {panel === 'audience' && <AudienceSheet initial={draft.audience} friends={state.friends}
       onSave={(audience) => { setDraft({ ...draft, audience }); setPanel(undefined); }} onClose={() => setPanel(undefined)} />}
     {panel === 'location' && <Sheet title="标注地点" onClose={() => setPanel(undefined)}>
@@ -173,6 +196,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
       <Button label="放弃本次修改" variant="danger" onPress={goBack} />
     </Sheet>}
   </Screen>;
+  return journal ? content : <GestureHandlerRootView style={styles.grow}>{content}</GestureHandlerRootView>;
 }
 
 const local = StyleSheet.create({
@@ -183,6 +207,8 @@ const local = StyleSheet.create({
   article: { minHeight: 248, lineHeight: 26 },
   count: { ...styles.small, textAlign: 'right', paddingHorizontal: 13, paddingVertical: 7 },
   attachments: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingBottom: 9, alignItems: 'center' },
+  momentAttachments: { paddingHorizontal: 12, paddingBottom: 9 },
+  gridPhoto: { width: '100%', height: '100%' },
   add: { width: 66, height: 62, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop },
   photoFrame: { width: 83, height: 70 },
   photo: { width: '100%', height: '100%', borderRadius: 8 },

@@ -39,11 +39,11 @@ function order(a: TimelineRow, b: TimelineRow) {
   return Number(b.pinned) - Number(a.pinned) || b.time - a.time || b.key.localeCompare(a.key);
 }
 
-export function timelineRows(moments: Moment[], entries: Entry[], owner?: string, hasMore = false): TimelineRow[] {
+export function timelineRows(moments: Moment[], entries: Entry[], owner?: string, hasMore = false, mixed = false): TimelineRow[] {
   const cloud = new Map<string, TimelineRow>();
   for (const moment of moments) {
-    if (owner && moment.authorId !== owner) continue;
-    cloud.set(moment.id, { key: 'moment:' + moment.id, moment, pinned: !!moment.pinned, time: Date.parse(moment.createdAt) });
+    if (!mixed && owner && moment.authorId !== owner) continue;
+    cloud.set(moment.id, { key: 'moment:' + moment.id, moment, pinned: !mixed && !!moment.pinned, time: Date.parse(moment.createdAt) });
   }
   const rows = [...cloud.values()];
   if (!owner) return rows;
@@ -58,7 +58,7 @@ export function timelineRows(moments: Moment[], entries: Entry[], owner?: string
   }
   for (const entry of archives.values()) {
     if (entry.cloudId || index.has(entry.id) || (entry.clientId && index.has(entry.clientId))) continue;
-    const row = { key: 'entry:' + entry.id, entry, pinned: !!entry.pinned, time: entry.at };
+    const row = { key: 'entry:' + entry.id, entry, pinned: !mixed && !!entry.pinned, time: entry.at };
     if (!boundary || order(row, boundary) <= 0) rows.push(row);
   }
   return rows.sort(order);

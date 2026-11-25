@@ -12,6 +12,12 @@ export const scopes: Record<Audience, string> = {
 export const momentShareCaption = '看我在朋聊分享的动态';
 export const momentSharePath = '/life/moment/';
 
+export type MomentVisibility = 'self' | 'friends' | 'partial';
+export function visibilityText(scope: Audience | null, visibility?: MomentVisibility) {
+  const level = visibility ?? (scope === 'private' ? 'self' : scope === 'friends' ? 'friends' : scope ? 'partial' : undefined);
+  return level === 'self' ? '仅自己可见' : level === 'friends' ? '全部好友可见' : level === 'partial' ? '部分好友可见' : '可见范围由发布者设置';
+}
+
 export type Moment = {
   id: string;
   clientId?: string | null;
@@ -32,6 +38,7 @@ export type Moment = {
   likeCount?: number;
   commentCount?: number;
   scope: Audience | null;
+  visibility?: MomentVisibility;
   groupId: string | null;
   memberIds: string[] | null;
   media: Media[];

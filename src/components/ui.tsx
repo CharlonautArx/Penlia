@@ -38,18 +38,20 @@ export function IconButton({ label, icon, onPress, color, tinted = false, disabl
   );
 }
 
-export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back, onScroll, fill = false }: {
+export function Screen({ title, actions, children, inset = true, refreshing, onRefresh, solid = false, back, onScroll, fill = false, renderScroll }: {
   title?: string; actions?: ReactNode; children: ReactNode; inset?: boolean; refreshing?: boolean;
   onRefresh?: () => void; solid?: boolean; back?: () => void; onScroll?: ScrollViewProps['onScroll']; fill?: boolean;
+  renderScroll?: (props: ScrollViewProps) => ReactNode;
 }) {
+  const scrollProps: ScrollViewProps = {
+    onScroll, keyboardShouldPersistTaps: 'handled', showsVerticalScrollIndicator: false,
+    refreshControl: onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} /> : undefined,
+    contentContainerStyle: [ui.column, inset && ui.inset, fill && ui.fill], children,
+  };
   return (
     <SafeAreaView style={[ui.safe, solid && ui.white]} edges={back ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
       {title && <TopBar title={title} actions={actions} back={back} />}
-      <ScrollView onScroll={onScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
-        refreshControl={onRefresh && <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
-        contentContainerStyle={[ui.column, inset && ui.inset, fill && ui.fill]}>
-        {children}
-      </ScrollView>
+      {renderScroll ? renderScroll(scrollProps) : <ScrollView {...scrollProps} />}
     </SafeAreaView>
   );
 }

@@ -22,6 +22,7 @@ const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clien
     FROM moment_forward_requests r WHERE r.moment_id=p.id AND r.requester_id=$1) AS "forwardRequest",
   CASE WHEN p.author_id=$1 THEN p.pinned ELSE NULL END AS pinned,
   CASE WHEN p.author_id=$1 THEN p.scope END AS scope,
+  CASE p.scope WHEN 'private' THEN 'self' WHEN 'friends' THEN 'friends' ELSE 'partial' END AS visibility,
   EXISTS(SELECT 1 FROM moment_likes l WHERE l.moment_id=p.id AND l.user_id=$1) AS liked,
   (SELECT count(*)::integer FROM moment_likes l WHERE l.moment_id=p.id AND ${participantVisible('l.user_id')}) AS "likeCount",
   (SELECT count(*)::integer FROM moment_comments c WHERE c.moment_id=p.id AND ${participantVisible('c.user_id')}) AS "commentCount",
@@ -222,7 +223,7 @@ export async function publishMoment(userId, body, transaction) {
   const clientId = transaction ? randomUUID() : readId(body.clientId);
   const text = cleanText(body.body, 2000);
   const location = cleanText(body.location ?? '', 100);
-  const media = idsOf(body.mediaIds, 20);
+  const media = momentMediaIds(body.mediaIds);
   if (!text && !media.length) throw new HttpError(400, '写点文字，或选择照片和视频。');
   const save = async (db) => {
     await lockUsers(db, userId);
@@ -271,9 +272,11 @@ export async function updateMoment(userId, id, body) {
     if (body.revision !== previous.revision) throw new HttpError(409, '动态已经更新，请刷新后重试。');
     const value = await audience(db, userId, body);
     const text = body.body === undefined ? previous.body : cleanText(body.body, 2000);
-    if (!text && !(await db.query('SELECT 1 FROM private_media WHERE moment_id=$1 LIMIT 1', [id])).rowCount) {
+    const assets = body.mediaIds === undefined ? undefined : momentMediaIds(body.mediaIds);
+    if (!text && !(assets ? assets.length : (await db.query('SELECT 1 FROM private_media WHERE moment_id=$1 LIMIT 1', [id])).rowCount)) {
       throw new HttpError(400, '请输入动态内容。');
     }
+    if (assets) await replaceMomentMedia(db, userId, id, assets);
     const {
       rows: [saved],
     } = await db.query(
@@ -290,6 +293,31 @@ export async function updateMoment(userId, id, body) {
     if (value.scope === 'private') await revokeMomentSharing(db, id, userId);
     return saved;
   });
+}
+
+function momentMediaIds(input) {
+  if (!Array.isArray(input) || input.length > 20) throw new HttpError(400, '请选择最多 20 张照片或一段短视频。');
+  const ids = input.map(readId);
+  if (new Set(ids).size !== ids.length) throw new HttpError(400, '动态附件不能重复。');
+  return ids;
+}
+
+async function replaceMomentMedia(db, owner, moment, ids) {
+  const { rows } = await db.query(`SELECT id,mime FROM private_media b WHERE owner_id=$1 AND id=ANY($2::uuid[])
+    AND (moment_id=$3 OR (${unusedMedia('b')} AND created_at>now()-interval '1 day')) FOR UPDATE`, [owner, ids, moment]);
+  if (rows.length !== ids.length) throw new HttpError(404, '图片或视频已失效，请重新选择。');
+  if (ids.length > 1 && rows.some(({ mime }) => mime === 'video/mp4'))
+    throw new HttpError(400, '一条视频动态只能包含一段视频。');
+
+  // Temporarily move retained rows outside the live ordinal range to avoid unique collisions on swaps.
+  await db.query('UPDATE private_media SET position=-position WHERE moment_id=$1 AND id=ANY($2::uuid[])', [moment, ids]);
+  const { rows: detached } = await db.query(
+    'UPDATE private_media SET moment_id=NULL,position=NULL WHERE moment_id=$1 AND NOT (id=ANY($2::uuid[])) RETURNING id',
+    [moment, ids]);
+  if (detached.length) await db.query(
+    `DELETE FROM private_media b WHERE id=ANY($1::uuid[]) AND ${unusedMedia('b')}`, [detached.map(({ id }) => id)]);
+  await db.query(`UPDATE private_media b SET moment_id=$1,position=media.position
+    FROM unnest($2::uuid[]) WITH ORDINALITY AS media(id,position) WHERE b.id=media.id`, [moment, ids]);
 }
 
 export async function deleteMoment(userId, id) {

@@ -129,4 +129,54 @@ test('unified moments and persistent status on PostgreSQL 17 with the applicatio
     await call(alice, '/p2/status', 'DELETE');
     await call(alice, '/moment-media/' + image, 'GET', undefined, 404);
   });
+  await t.test('the mixed feed uses publish time and preserves owner and friend permissions', async () => {
+    const privatePhoto = await upload(claire);
+    const ownPrivate = (await post(claire, '私密动态', 'private', [privatePhoto])).id;
+    const newest = (await post(bob, '好友的新动态')).id;
+    const limited = (await call(claire, '/moments', 'POST', {
+      clientId: randomUUID(), body: '部分好友', scope: 'selected', memberIds: [bob.user.id], mediaIds: [],
+    }, 201)).id;
+    const all = (await post(claire, '全部好友')).id;
+    await pool.query('UPDATE private_moments SET created_at=$2 WHERE id=$1', [ownPrivate, '2025-02-12T18:30:00Z']);
+    await call(claire, '/moments/' + ownPrivate + '/pin', 'PUT', { pinned: true });
+    const first = await call(claire, '/moments');
+    assert.deepEqual(first.moments.slice(0, 3).map((entry) => entry.id), [all, limited, newest]);
+    assert.equal(first.moments.find((entry) => entry.id === ownPrivate)?.visibility, 'self');
+    const bobFeed = (await call(bob, '/moments')).moments;
+    const selection = bobFeed.find((entry) => entry.id === limited);
+    assert.equal(selection.visibility, 'partial');
+    assert.equal(selection.scope, null);
+    assert.equal(selection.memberIds, null);
+    assert.equal(bobFeed.find((entry) => entry.id === all)?.visibility, 'friends');
+    assert.equal(bobFeed.some((entry) => entry.id === ownPrivate), false);
+    assert.equal((await call(alice, '/moments')).moments.some((entry) => entry.id === limited), false);
+    await call(bob, '/moments/' + ownPrivate, 'GET', undefined, 404);
+    await call(bob, '/moment-media/' + privatePhoto, 'GET', undefined, 404);
+  });
+  await t.test('an attachment edit at the 20-photo limit is ordered, atomic and private', async () => {
+    const first = await Promise.all(Array.from({ length: 20 }, () => upload(claire)));
+    const { id } = await post(claire, '', 'friends', first);
+    const path = '/moments/' + id;
+    const replacement = await upload(claire);
+    const foreign = await upload(bob);
+    const removed = first[3];
+    const expected = [first[19], ...first.filter((id) => id !== removed && id !== first[19]), replacement];
+    const idsOf = async (who, endpoint = path) => (await call(who, endpoint)).moment.media.map((item) => item.id);
+    await call(claire, path, 'PATCH', { revision: 1, scope: 'friends', mediaIds: [first[0], foreign] }, 404);
+    await call(claire, path, 'PATCH', { revision: 1, scope: 'friends', mediaIds: [first[0], first[0]] }, 400);
+    await call(claire, path, 'PATCH', { revision: 1, scope: 'friends', mediaIds: [] }, 400);
+    await call(bob, path, 'PATCH', { revision: 1, scope: 'friends', mediaIds: [] }, 404);
+    assert.deepEqual(await idsOf(bob), first);
+    await call(claire, path, 'PATCH', { revision: 1, scope: 'selected', memberIds: [bob.user.id], mediaIds: expected });
+    assert.deepEqual(await idsOf(claire), expected);
+    assert.deepEqual(await idsOf(bob), expected);
+    for (const endpoint of ['/moments', '/moments?author=' + claire.user.id + '&order=pinned']) {
+      const { moments } = await call(claire, endpoint);
+      assert.deepEqual(moments.find((moment) => moment.id === id).media.map((item) => item.id), expected);
+    }
+    await call(claire, path, 'PATCH', { revision: 1, scope: 'friends', mediaIds: first }, 409);
+    await call(bob, '/moment-media/' + removed, 'GET', undefined, 404);
+    await call(alice, '/moment-media/' + replacement, 'GET', undefined, 404);
+    await call(bob, '/moment-media/' + replacement);
+  });
 });

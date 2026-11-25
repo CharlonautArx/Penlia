@@ -55,11 +55,13 @@ export function demoMomentInteractions(store: Rows, relationships: Relationship[
     && !blocked(item.authorId, self) && !restricted(item.authorId, self);
 
   function project(post: Row) {
-    const { sourceMomentId, demoLikes, allowForward, ...data } = post;
+    const { sourceMomentId, demoLikes, allowForward, scope, groupId, memberIds, clientId, ...data } = post;
     const likes = array(demoLikes).filter((actor) => visible(post, actor) && !blocked(actor, self) && !restricted(actor, self));
     const comments = rows('momentComments').filter((item) => item.momentId === post.id &&
       commentVisible(post, item));
     return { ...data, authorUsername: post.authorId === self ? demoUser.username : demoPeople.find((person) => person.id === post.authorId)?.username,
+      visibility: scope === 'private' ? 'self' : scope === 'friends' || scope == null ? 'friends' : 'partial',
+      ...(post.authorId === self ? { scope, groupId, memberIds, clientId } : { scope: null, groupId: null, memberIds: null }),
       pinned: post.authorId === self ? !!post.pinned : null, forwarded: !!sourceMomentId,
       ...(post.authorId === self && { allowForward: allowForward !== false }),
       canForward: canForward(post), forwardRequest: rows('momentForwards').find((item) => item.momentId === post.id && item.requester === self),

@@ -2,23 +2,25 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Icon, IconButton, ListRow, Notice, Sheet, Tag, type IconName } from '../../components/ui';
+import { Button, Icon, IconButton, ListRow, Notice, Sheet, Tag, type IconName } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, space, styles, touch, type } from '../../theme';
 import { createdTime } from '../space/model';
-import { scopes, type Moment, type MomentComment } from './model';
+import { visibilityText, type Moment, type MomentComment } from './model';
 import { MomentMediaGrid } from './media';
+import { MomentAuthor } from './MomentAuthor';
 import { PeaceIcon } from './PeaceIcon';
 import { CommentList } from './Comments';
 import { MomentShareSheet } from './ShareSheet';
 
-export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = false, hideComments = false }: {
+export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = false, hideComments = false, showPin = true }: {
   item: Moment;
   onReply?: (comment?: MomentComment) => void;
   detail?: boolean;
   hideComments?: boolean;
+  showPin?: boolean;
   onUpdate?: (change: Partial<Moment>) => void;
   onPin?: (pinned: boolean) => Promise<void>;
   onRemove?: () => void;
@@ -83,19 +85,14 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
     }, () => setOptimistic(undefined));
   }
 
-  const avatar = <Avatar userId={item.authorId} name={item.author} source={demoPortrait(item.authorUsername ?? '')} size={43} />;
   return <View style={local.post}>
-    <View style={styles.row}>
-      {mine ? avatar : <Pressable accessibilityRole="button" accessibilityLabel={item.author + '的动态'}
-        onPress={() => router.push({ pathname: '/life/timeline/[id]', params: { id: item.authorId } })}>{avatar}</Pressable>}
-      <View style={styles.grow}>
-        <Text style={styles.strong} numberOfLines={2}>{item.author}</Text>
-        <Text style={styles.small}>{createdTime(Date.parse(item.createdAt))}{item.scope ? ' · ' + scopes[item.scope] : ' · 可见范围由发布者设置'}</Text>
-      </View>
-      {!!item.pinned && mine && <Tag>置顶</Tag>}
+    <MomentAuthor id={item.authorId} name={item.author} photo={demoPortrait(item.authorUsername ?? '')}
+      stamp={createdTime(Date.parse(item.createdAt))} visibility={visibilityText(item.scope, item.visibility)}
+      onPress={mine ? undefined : () => router.push({ pathname: '/life/timeline/[id]', params: { id: item.authorId } })}>
+      {showPin && !!item.pinned && mine && <Tag>置顶</Tag>}
       {mine && <IconButton label={item.pinned ? '管理置顶动态' : '管理这条动态'} icon="ellipsis-horizontal"
         onPress={() => { setError(''); setSheet('options'); }} />}
-    </View>
+    </MomentAuthor>
     {item.forwarded && <ListRow title="查看转发的原动态" left={<Icon name="arrow-redo-outline" />}
       onPress={() => router.push({ pathname: '/life/moment/[id]', params: { id: item.id, original: '1' } })} separator={false} />}
     {!detail && <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openDetail()}>

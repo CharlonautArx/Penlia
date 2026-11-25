@@ -8,6 +8,8 @@ import { demoPortrait } from '../../demo/visuals';
 import { colors, styles, type } from '../../theme';
 import { CommentList } from '../moments/Comments';
 import type { MomentComment } from '../moments/model';
+import { visibilityText } from '../moments/model';
+import { MomentAuthor } from '../moments/MomentAuthor';
 import { PeaceIcon } from '../moments/PeaceIcon';
 import { localId } from '../local/document';
 import { SpacePhoto } from './media';
@@ -92,20 +94,29 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
     </View>)}</View>;
   }
 
+  const authorPhoto = demoPortrait((mine && state.demoAvatarKey) || author.username);
+  const openAuthor = () => router.push({ pathname: '/space/[id]', params: { id: entry.ownerId, ...(viewer ? { viewer } : {}) } });
+  const stamp = createdTime(entry.at) + (entry.editedAt ? ' · 已编辑' : '');
+  const actions = <>
+    {timeline && entry.pinned && <Tag>置顶</Tag>}
+    {mine && !viewer && <IconButton label={timeline ? '管理这条动态' : '动态选项'} icon="ellipsis-horizontal" onPress={() => setSheet('options')} />}
+  </>;
+
   return <View style={[local.post, full && local.full]}>
-    <View style={styles.row}>
+    {entry.kind === 'thought' ? <MomentAuthor id={author.id} name={author.name} photo={authorPhoto}
+      stamp={stamp} visibility={visibilityText(null, entry.audience.mode === 'self' ? 'self' : entry.audience.mode === 'friends' ? 'friends' : 'partial')}
+      onPress={openAuthor}>{actions}</MomentAuthor> : <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={author.name + '的空间'} onPress={() =>
         router.push({ pathname: '/space/[id]', params: { id: entry.ownerId, ...(viewer ? { viewer } : {}) } })}>
-        <Avatar userId={author.id} name={author.name} source={demoPortrait((mine && state.demoAvatarKey) || author.username)} size={39} />
+        <Avatar userId={author.id} name={author.name} source={authorPhoto} size={39} />
       </Pressable>
       <View style={styles.grow}>
         <Text style={styles.strong}>{author.name}</Text>
-        <Text style={styles.small}>{createdTime(entry.at)}{entry.editedAt ? ' · 已编辑' : ''}</Text>
+        <Text style={styles.small}>{stamp}</Text>
       </View>
-      {timeline && entry.pinned && <Tag>置顶</Tag>}
       {mine && !viewer && <Tag>{audienceName(entry.audience)}</Tag>}
-      {mine && !viewer && <IconButton label={timeline ? '管理这条动态' : '动态选项'} icon="ellipsis-horizontal" onPress={() => setSheet('options')} />}
-    </View>
+      {actions}
+    </View>}
     {entry.kind === 'journal' && !full
       ? <JournalLink entry={entry} viewer={viewer} />
       : entry.kind === 'journal'

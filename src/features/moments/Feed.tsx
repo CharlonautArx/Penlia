@@ -47,6 +47,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const coverHeaderHeight = useRef(0);
   const [statusSurface, setStatusSurface] = useState<'cover' | 'profile' | 'feed'>('cover');
   const mine = !!author && author === me?.id;
+  const archiveOwner = home || mine ? me?.id : undefined;
   const [pane, setPane] = useState<SpacePane>(linkedPane ?? 'thought');
   const [albumTheme, setAlbumTheme] = useState<AlbumTheme>('全部');
   const [items, setItems] = useState<Moment[]>();
@@ -54,11 +55,11 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const immersive = home || mine;
   const history = useRef(state);
   history.current = state;
-  const keys = useMemo(() => mine && author ? lookupKeys(state.value?.entries ?? [], author).sort().join(',') : '',
-    [mine, author, state.value?.entries]);
+  const keys = useMemo(() => archiveOwner ? lookupKeys(state.value?.entries ?? [], archiveOwner).sort().join(',') : '',
+    [archiveOwner, state.value?.entries]);
   const [canUseCache, setCanUseCache] = useState(false);
   useEffect(() => {
-    if (!focused || !author || !keys) return;
+    if (!focused || !archiveOwner || !keys) return;
     let active = true;
     async function resolve() {
       const candidates = keys.split(',');
@@ -66,7 +67,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         const { identities } = await request<{ identities: MomentIdentity[] }>('/moments/resolve-ids',
           { method: 'POST', body: { keys: candidates.slice(start, start + 100) } });
         if (active && identities.length) history.current.update((data) => {
-          const entries = reconcileEntries(data.entries, author!, identities);
+          const entries = reconcileEntries(data.entries, archiveOwner!, identities);
           return entries === data.entries ? data : { ...data, entries };
         });
       }
@@ -74,7 +75,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     // Old servers can still reconcile identities from ordinary timeline pages.
     void resolve().catch(() => {});
     return () => { active = false; };
-  }, [keys, author, focused, request]);
+  }, [keys, archiveOwner, focused, request]);
   const [panel, setPanel] = useState<'publish' | 'timelineActions' | 'cover'>();
   const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -98,7 +99,6 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     try {
       const params = new URLSearchParams();
       if (author) params.set('author', author);
-      else params.set('feed', 'friends');
       if (mine) params.set('order', 'pinned');
       if (cursor) params.set('before', cursor);
       const [result, owner] = await Promise.all([
@@ -112,24 +112,25 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
       setNext(result.next);
       if (owner) setProfile(owner.user);
       setCanUseCache(false);
-      if (mine && author) history.current.update((data) => {
-        const entries = reconcileEntries(data.entries, author, result.moments);
-        if (cursor) return entries === data.entries ? data : { ...data, entries };
-        const timelineCache = result.moments.filter((item) => item.authorId === author && !item.forwarded && !item.collaborationId);
+      if (archiveOwner) history.current.update((data) => {
+        const ownMoments = result.moments.filter((item) => item.authorId === archiveOwner);
+        const entries = reconcileEntries(data.entries, archiveOwner, ownMoments);
+        if (cursor || !mine) return entries === data.entries ? data : { ...data, entries };
+        const timelineCache = ownMoments.filter((item) => !item.forwarded && !item.collaborationId);
         return { ...data, entries, timelineCache };
       });
     } catch (failure) {
       if (id === sequence.current) {
         setError(errorMessage(failure));
         if (!cursor) {
-          setCanUseCache(mine && (!(failure instanceof ApiError) || failure.status >= 500));
+          setCanUseCache(!!archiveOwner && (!(failure instanceof ApiError) || failure.status >= 500));
           setItems([]); setNext(null);
         }
       }
     } finally {
       if (id === sequence.current) { setBusy(false); pageLock.current = false; }
     }
-  }, [request, author, mine]);
+  }, [request, author, mine, archiveOwner]);
 
   useFocusEffect(useCallback(() => {
     setItems(undefined);
@@ -143,9 +144,9 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const person = home || mine ? me : profile;
   const hasLocalProfile = !!person && (home || mine || (isUiDemo && state.spaceVisible(person.id)));
   const card = hasLocalProfile && person ? state.card(person.id) : emptySpace();
-  const rows = useMemo(() => timelineRows(canUseCache ? state.value?.timelineCache ?? [] : items ?? [],
-    mine ? state.value?.entries ?? [] : [], mine ? author : undefined, !!next),
-    [canUseCache, items, state.value, mine, author, next]);
+  const rows = useMemo(() => items ? timelineRows(canUseCache ? state.value?.timelineCache ?? [] : items,
+    archiveOwner ? state.value?.entries ?? [] : [], archiveOwner, !!next, home) : [],
+    [canUseCache, items, state.value?.timelineCache, state.value?.entries, archiveOwner, home, next]);
   function update(id: string, change: Partial<Moment>) {
     setItems((current) => current?.map((item) => item.id === id ? { ...item, ...change } : item));
   }
@@ -188,9 +189,10 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     contentContainerStyle: immersive ? local.homeList : local.list, ListHeaderComponent: header,
     refreshing: pane === 'thought' && busy, onRefresh: pane === 'thought' ? () => void load() : undefined,
     renderItem: ({ item: row }) => {
-      if (row.entry) return <View style={local.column}><EntryCard entry={row.entry} timeline /></View>;
+      if (row.entry) return <View style={local.column}><EntryCard entry={row.entry} timeline={mine} /></View>;
       const item = row.moment;
       const post = <PostCard item={item} onRemove={() => { void load(); }} onUpdate={(change) => update(item.id, change)}
+        showPin={!home}
         onPin={mine ? async (pinned) => {
           await request('/moments/' + item.id + '/pin', { method: 'PUT', body: { pinned } });
           void load();
@@ -198,7 +200,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
       return immersive ? <View style={local.column}>{post}</View> : post;
     },
     ListEmptyComponent: pane !== 'thought' ? undefined : (!items || (mine && state.loading)) && !error ? <LoadingSkeleton label="正在读取动态" />
-      : error ? undefined : <Empty icon="image-outline">{home ? '好友的新动态会出现在这里。' : '这里还没有你可见的动态。'}</Empty>,
+      : error ? undefined : <Empty icon="image-outline">{home ? '你和好友的新动态会出现在这里。' : '这里还没有你可见的动态。'}</Empty>,
     ListFooterComponent: pane === 'thought' && next ? <View style={local.footer}>
       {busy ? <Text style={styles.small}>正在加载更早动态…</Text>
         : <Button label="加载更早动态" variant="soft" onPress={() => void load(next)} />}
