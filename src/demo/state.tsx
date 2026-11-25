@@ -114,6 +114,17 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       });
       return {} as T;
     }
+    const savingMoment = (path === '/moments' && method === 'POST')
+      || (/^\/moments\/[^/?]+$/.test(path) && ['PATCH', 'DELETE'].includes(method));
+    if (savingMoment) {
+      let result: unknown;
+      await store.current.save((value) => {
+        const rows = { ...value.rows };
+        result = offlineRequest(rows, path, method, body ?? {}, relationships.current);
+        return Object.keys(rows).some((key) => rows[key] !== value.rows[key]) ? { ...value, rows } : value;
+      });
+      return result as T;
+    }
     const current = store.current.getLatest();
     if (!current) throw new Error('正在读取本机预览数据，请稍后重试。');
     const draft = { ...current.rows };
