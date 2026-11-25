@@ -40,6 +40,25 @@ test('friend invitations and personal report records use server authorization', 
   const [alice, bob, stranger] = await Promise.all(['Alice', 'Bob', 'Stranger'].map(signup));
   const photo = (await readFile(new URL('../../assets/demo/person-1.jpg', import.meta.url))).toString('base64');
 
+  await t.test('requests prioritize pending rows and sort each status group by the original application time', async () => {
+    const receiver = await signup('Sorter');
+    const people = await Promise.all(['Older', 'Newer', 'Accepted', 'Rejected'].map(signup));
+    const results = [];
+    for (const person of people) results.push(await call(person, '/friends', 'POST', { userId: receiver.user.id }));
+    const [older, newer, accepted, rejected] = results;
+    await call(receiver, '/friends/accept', 'POST', { id: accepted.id });
+    await call(receiver, '/friends/decline', 'POST', { id: rejected.id });
+    await pool.query(`UPDATE friendships f SET requested_at=now()-make_interval(days=>v.days)
+      FROM unnest($1::uuid[],$2::integer[]) v(id,days) WHERE f.id=v.id`,
+      [results.map(({ id }) => id), [7, 5, 1, 2]]);
+    const { requests } = await call(receiver, '/friend-requests');
+    assert.deepEqual(requests.map(({ id }) => id), [newer.id, older.id, accepted.id, rejected.id]);
+    assert.deepEqual(requests.map(({ status }) => status), ['pending', 'pending', 'accepted', 'declined']);
+    const { requests: outgoing } = await call(people[0], '/friend-requests');
+    assert.equal(outgoing[0].requestedAt, requests[1].requestedAt);
+    assert.equal(outgoing[0].outgoing, true);
+  });
+
   await t.test('opaque credentials can be issued, rotated and revoked under the server clock', async () => {
     await call(bob, '/friends/code', 'POST', { days: 1.1 }, 400);
     await call(bob, '/friends/code', 'POST', { days: 31 }, 400);

@@ -71,6 +71,36 @@ test('moment media, space privacy and report history on PostgreSQL with the appl
     await call(stranger, path + '?size=thumb', 'GET', undefined, 404);
   });
 
+  await t.test('a 20 MB video can be mixed with pictures and reordered while oversized and duplicate videos are rejected', async () => {
+    const clip = await readFile(process.env.PENLIA_P0_VIDEO_FIXTURE);
+    const limit = 20 * 1024 * 1024;
+    const padded = (size) => {
+      const freeBox = Buffer.alloc(size - clip.length);
+      freeBox.writeUInt32BE(freeBox.length);
+      freeBox.write('free', 4);
+      return Buffer.concat([clip, freeBox]);
+    };
+    const video = (data, expected) => call(alice, '/moment-media', 'POST', {
+      clientId: randomUUID(), mime: 'video/mp4', base64: data.toString('base64'),
+    }, expected);
+    await video(padded(limit + 1), 413);
+    const first = await upload(alice), last = await upload(alice);
+    const { media: clipMedia } = await video(padded(limit), 201);
+    const { media: secondClip } = await video(clip, 201);
+    await call(alice, '/moments', 'POST', { scope: 'friends', clientId: randomUUID(), body: '双视频',
+      mediaIds: [clipMedia.id, secondClip.id] }, 400);
+    const mixed = await publish('混合附件', [first, clipMedia.id, last], 'private');
+    const { moment } = await call(alice, '/moments/' + mixed.id);
+    assert.deepEqual(moment.media.map(({ id }) => id), [first, clipMedia.id, last]);
+    assert.equal(moment.media[1].mime, 'video/mp4');
+    const order = [last, first, clipMedia.id];
+    await call(alice, '/moments/' + mixed.id, 'PATCH', { scope: 'private', revision: moment.revision, mediaIds: order });
+    const updated = (await call(alice, '/moments/' + mixed.id)).moment;
+    assert.deepEqual(updated.media.map(({ id }) => id), order);
+    assert.equal((await call(alice, '/moment-media/' + clipMedia.id)).byteLength, limit);
+    await call(bob, '/moment-media/' + clipMedia.id, 'GET', undefined, 404);
+  });
+
   await t.test('local midnight applies to feed, timeline, detail, comments, media and existing chat shares', async () => {
     afterCutoff = await publish('当天开始');
     const privatePost = await publish('仅自己', [], 'private');
