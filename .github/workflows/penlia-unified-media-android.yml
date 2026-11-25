@@ -1,0 +1,86 @@
+name: Penlia 0.1.9 Android Release
+on:
+  push:
+    tags: [penlia-unified-media-android]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [x86_64, arm64-v8a]
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 3
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Install SDK, build tools and NDK
+        run: sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+      - run: npm ci && npm ci --prefix server && npm run typecheck && node --test --test-isolation=none tests/*.test.mjs
+      - name: Verify source commit
+        run: |
+          git rev-parse HEAD^
+          git diff-tree --no-commit-id --name-only -r HEAD^
+      - name: Compile Android Release with R8
+        run: |
+          npx expo prebuild --platform android --no-install
+          (
+            cd android
+            ./gradlew :app:assembleRelease --max-workers=3 -PreactNativeArchitectures=${{ matrix.abi }} -Pandroid.enableMinifyInReleaseBuilds=true
+          )
+          mkdir out
+          cp android/app/build/outputs/apk/release/app-release.apk out/Penlia-${{ matrix.abi }}.apk
+      - name: Verify the packaged PNG matches the repository asset
+        run: |
+          cmp assets/startup/pale-blue-dot.png android/app/src/main/res/raw/penlia_launch_art.png
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          from zipfile import ZipFile
+          image = Path('assets/startup/pale-blue-dot.png').read_bytes()
+          with ZipFile('out/Penlia-${{ matrix.abi }}.apk') as apk:
+              matches = [name for name in apk.namelist() if name.startswith('res/') and apk.getinfo(name).file_size == len(image) and apk.read(name) == image]
+              assert len(matches) == 1, matches
+              print('Original PNG in APK:', matches[0], len(image), 'bytes')
+          PYTHON
+      - name: Validate Release signature, ABI and package
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/Penlia-${{ matrix.abi }}.apk | tee out/signer.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-${{ matrix.abi }}.apk | tee out/badging.txt
+          grep -Fx "application-label:'朋聊'" out/badging.txt
+          ! grep -F "朋聊演示" out/badging.txt
+          grep -Fx "native-code: '${{ matrix.abi }}'" out/badging.txt
+          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 4 out/Penlia-${{ matrix.abi }}.apk
+          sha256sum out/Penlia-${{ matrix.abi }}.apk | tee out/sha256.txt
+      - name: Scan Release packages before publishing
+        run: |
+          curl -fSsL --retry 2 -o "$RUNNER_TEMP/gitleaks.tar.gz" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          (
+            cd "$RUNNER_TEMP"
+            echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | sha256sum --check
+            tar -xzf gitleaks.tar.gz gitleaks
+          )
+          python3 scripts/scan-release.py --config .gitleaks.toml --scanner "$RUNNER_TEMP/gitleaks" out/*.apk
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: penlia-unified-media-${{ matrix.abi }}-release
+          path: out/
+          retention-days: 30
