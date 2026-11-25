@@ -1,3 +1,7 @@
+const { realpathSync } = require('node:fs');
+const { resolve } = require('node:path');
+
+const projectRoot = resolve(__dirname, '..');
 const publicKeys = new Set([
   'EXPO_PUBLIC_API_URL',
   'EXPO_PUBLIC_EASEMOB_APP_KEY',
@@ -6,6 +10,8 @@ const publicKeys = new Set([
 
 function validatePublicConfig(env) {
   for (const key of Object.keys(env)) {
+    // The Expo CLI adds this during Metro setup, then reads app.config again.
+    if (key === 'EXPO_PUBLIC_PROJECT_ROOT' && (env[key] === projectRoot || env[key] === realpathSync(projectRoot))) continue;
     if (key.startsWith('EXPO_PUBLIC_') && !publicKeys.has(key))
       throw new Error('Unapproved public build variable: ' + key);
   }

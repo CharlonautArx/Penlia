@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { easemobOrigin, imPrivacyReady, validateServerEnvironment } from './security.mjs';
@@ -31,6 +33,8 @@ test('environment separation and public build credential allowlist fail closed',
   assert.throws(() => validatePublicConfig({ EXPO_PUBLIC_API_URL: 'https://api.example.test?token=fixture' }));
   assert.throws(() => validatePublicConfig({ EAS_BUILD_PROFILE: 'production' }));
   validatePublicConfig({ EAS_BUILD_PROFILE: 'ui-demo', EXPO_PUBLIC_PENLIA_UI_DEMO: '1' });
+  validatePublicConfig({ EXPO_PUBLIC_PROJECT_ROOT: dirname(fileURLToPath(new URL('../app.config.js', import.meta.url))) });
+  assert.throws(() => validatePublicConfig({ EXPO_PUBLIC_PROJECT_ROOT: secret() }), /Unapproved public build variable/);
   validatePublicConfig({ EAS_BUILD_PROFILE: 'production', EXPO_PUBLIC_PENLIA_UI_DEMO: '0',
     EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_EASEMOB_APP_KEY: 'example#production' });
 });
