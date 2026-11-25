@@ -18,15 +18,20 @@ const emptyPress = () => {};
 export function useMediaEditorScroll() {
   const ref = useAnimatedRef<Animated.ScrollView>();
   const offset = useSharedValue(0);
-  const viewport = useSharedValue({ height: 0, top: 0, content: 0 });
+  const viewportHeight = useSharedValue(0);
+  const viewportTop = useSharedValue(0);
+  const contentHeight = useSharedValue(0);
   const [dragging, setDragging] = useState(false);
-  const onScroll = useAnimatedScrollHandler(({ contentOffset }) => { offset.value = contentOffset.y; });
+  const onScroll = useAnimatedScrollHandler(({ contentOffset }) => {
+    'worklet';
+    offset.value = contentOffset.y;
+  });
   return {
-    ref, offset, viewport, setDragging,
+    ref, offset, viewportHeight, viewportTop, contentHeight, setDragging,
     render: (props: ScrollViewProps) => <Animated.ScrollView {...props} ref={ref} scrollEnabled={!dragging}
       onScroll={onScroll} scrollEventThrottle={16}
-      onLayout={({ nativeEvent }) => { viewport.modify((value) => ({ ...value, height: nativeEvent.layout.height })); }}
-      onContentSizeChange={(_, content) => { viewport.modify((value) => ({ ...value, content })); }} />,
+      onLayout={({ nativeEvent }) => { viewportHeight.value = nativeEvent.layout.height; }}
+      onContentSizeChange={(_, height) => { contentHeight.value = height; }} />,
   };
 }
 
@@ -50,16 +55,16 @@ export function MediaEditor<T extends Item>({ items, busy, scroll, add, open, re
   const { reduced } = useAppearance();
   const order = useSharedValue<readonly string[]>(items.map(({ id }) => id));
   const drag = useSharedValue<Drag | null>(null);
-  const { ref, offset, viewport } = scroll;
+  const { ref, offset, viewportHeight, viewportTop, contentHeight } = scroll;
   useEffect(() => { order.value = items.map(({ id }) => id); }, [items, order]);
   useFrameCallback(({ timeSincePreviousFrame }) => {
     'worklet';
     const active = drag.value;
     if (!active || !timeSincePreviousFrame) return;
-    const { top, height, content } = viewport.value;
-    const velocity = photoEdgeSpeed(active.absoluteY, top, height);
+    const height = viewportHeight.value;
+    const velocity = photoEdgeSpeed(active.absoluteY, viewportTop.value, height);
     if (!velocity) return;
-    const next = Math.max(0, Math.min(Math.max(0, content - height),
+    const next = Math.max(0, Math.min(Math.max(0, contentHeight.value - height),
       offset.value + velocity * Math.min(timeSincePreviousFrame, 32) / 1000));
     if (Math.abs(next - offset.value) < 0.2) return;
     scrollTo(ref, 0, next, false);
@@ -84,7 +89,7 @@ function EditorTile({ item, index, count, size, busy, reduced, state, move, open
   item: Item; index: number; count: number; size: number; busy: boolean; reduced: boolean; state: GridState;
   move: (id: string, to: number) => void; open: () => void; remove: () => void; children: ReactNode;
 }) {
-  const { order, drag, scroll: { ref, offset, viewport, setDragging } } = state;
+  const { order, drag, scroll: { ref, offset, viewportHeight, viewportTop, setDragging } } = state;
   const id = item.id;
   const step = size + gap;
   const pan = usePanGesture({
@@ -94,7 +99,10 @@ function EditorTile({ item, index, count, size, busy, reduced, state, move, open
       const from = order.value.indexOf(id);
       if (from < 0 || drag.value) return;
       const bounds = measure(ref);
-      if (bounds) viewport.value = { ...viewport.value, top: bounds.pageY, height: bounds.height };
+      if (bounds) {
+        viewportTop.value = bounds.pageY;
+        viewportHeight.value = bounds.height;
+      }
       drag.value = { id, from, to: from, x: absoluteX, y: absoluteY, dx: 0, absoluteY, scroll: offset.value };
       scheduleOnRN(setDragging, true);
     },
