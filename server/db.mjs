@@ -15,6 +15,22 @@ export const pool = new pg.Pool({
 });
 pool.on('error', () => console.error('Idle PostgreSQL connection failed'));
 
+export async function assertProductionDatabase() {
+  const { rows: [state] } = await pool.query(`
+    SELECT current_database() = $1 AND current_user = $2
+      AND EXISTS (SELECT FROM pg_stat_ssl WHERE pid=pg_backend_pid() AND ssl)
+      AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+      AND NOT has_database_privilege(current_user, current_database(), 'CREATE')
+      AND NOT EXISTS (SELECT FROM pg_roles r
+        WHERE (r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolreplication OR r.rolbypassrls
+          OR r.rolname IN ('pg_read_all_data','pg_write_all_data','pg_read_server_files','pg_write_server_files','pg_execute_server_program'))
+          AND pg_has_role(r.oid, 'MEMBER'))
+      AND NOT EXISTS (SELECT FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE n.nspname='public' AND c.relkind IN ('r','p') AND pg_has_role(c.relowner, 'MEMBER'))
+      AS ready`, [process.env.PGDATABASE, process.env.PGUSER]);
+  if (!state?.ready) throw new Error('Unsafe PostgreSQL application role');
+}
+
 export async function checkDatabase() {
   const { rows: [state] } = await pool.query(`
     SELECT EXISTS (SELECT FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl) AS tls,

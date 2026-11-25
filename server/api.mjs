@@ -15,6 +15,7 @@ import { p3Routes } from './p3/routes.mjs';
 import { lifeWorkerAuthorized, runLifeReminders } from './p2/memories.mjs';
 import { assertAllowed } from './p1/enforcement-access.mjs';
 import { runEnforcement, workerAuthorized } from './p1/moderation.mjs';
+import { imPrivacyReady } from './security.mjs';
 
 export { HttpError } from './core.mjs';
 
@@ -194,7 +195,10 @@ async function prepareChat(userId,other) {
     WHERE first_user=least($1::uuid,$2::uuid) AND second_user=greatest($1::uuid,$2::uuid) AND status='accepted'`,[userId,other]);
   if (!row) throw new HttpError(403,'只能与已接受请求的好友聊天。');
   if (!row.im_synced) {
+    if (!imPrivacyReady()) throw new HttpError(503, '聊天权限服务暂未启用。');
+    await rateLimit('im-contact:' + userId, 30, 15);
     await rateLimit('pair:'+row.id,20,15);
+    await rateLimit('im-contact-global', 300, 1);
     await imOperation(()=>syncFriends(userId,other));
     const done=await pool.query(`UPDATE friendships SET im_synced=true WHERE id=$1 AND status='accepted'
       AND NOT ${blocked('first_user','second_user')}`,[row.id]);
@@ -338,11 +342,10 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
       case 'POST /v1/im/contact':
         return json(200, await prepareChat(user.id, (await readBody()).userId));
       case 'POST /v1/im/token':
-        if (process.env.PENLIA_IM_PRIVACY_READY!=='1'||!process.env.PENLIA_IM_CALLBACK_SECRET||
-            !process.env.PENLIA_IM_CALLBACK_PATH_KEY || process.env.PENLIA_IM_CALLBACK_PATH_KEY.length<32) {
-          throw new HttpError(503,'聊天权限服务暂未启用。');
-        }
+        if (!imPrivacyReady()) throw new HttpError(503,'聊天权限服务暂未启用。');
+        await assertAllowed(pool, user.id, ['limit_account']);
         await rateLimit('im:' + user.id, 20, 15);
+        await rateLimit('im-token-global', 600, 1);
         return json(200, await imOperation(() => userToken(user.id)));
       default:
         return await p0Routes(route,{user,tokenHash,query,headers,sourceIp,readBody,rateLimit})

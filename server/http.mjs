@@ -28,7 +28,8 @@ async function readBody(request, maxBytes = MAX_BODY_BYTES) {
 }
 
 export function createApiServer(options = {}) {
-  return createServer(async (request, response) => {
+  return createServer({ headersTimeout: 10000, requestTimeout: 30000, maxHeaderSize: 8192 }, async (request, response) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
     let url;
     try {
       if (!request.url?.startsWith('/') || request.url.startsWith('//')) throw new Error();

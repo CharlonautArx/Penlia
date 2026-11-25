@@ -1,0 +1,15 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "penlia-server-credential"
+description = "Literal assigned to a Penlia server credential"
+regex = '''(?im)(?:^|[\s{,])(?:EASEMOB_CLIENT_SECRET|ALIBABA_CLOUD_ACCESS_KEY_SECRET|ALICLOUD_SECRET_KEY|PGPASSWORD|OSS_ACCESS_KEY_SECRET|PENLIA_(?:DIAGNOSTIC_TOKEN|MODERATION_JOB_TOKEN|LIFE_JOB_TOKEN|EVIDENCE_KEY|PHONE_LOOKUP_SECRET|IM_CALLBACK_SECRET|IM_CALLBACK_PATH_KEY))\s*[:=]\s*["']?([A-Za-z0-9_./+=-]{18,})'''
+secretGroup = 1
+entropy = 3.2
+
+[[rules]]
+id = "penlia-alibaba-access-key-id"
+description = "Alibaba Cloud access key identifier requiring ownership review"
+regex = '''\bLTAI[A-Za-z0-9]{12,28}\b'''
+entropy = 3.0

@@ -80,7 +80,7 @@ test('P1 HTTP integration on isolated PostgreSQL', async (t) => {
         await api(null, '/register', 'POST', {
           username: 'p1_account_' + index,
           name,
-          password: 'synthetic_p1_passphrase',
+          password: randomUUID(),
         }),
         201,
       ),

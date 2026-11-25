@@ -19,11 +19,9 @@ trap 'kill "$logcat_pid" 2>/dev/null || true' EXIT
 fail() {
   adb shell dumpsys activity exit-info "$package" > "$results/exit-info.txt" || true
   adb exec-out screencap -p > "$results/failure.png" || true
-  tail -n 30 "$results/launch.txt" || true
-  if [ -f "$results/ui.xml" ]; then
-    python3 -c 'import sys,xml.etree.ElementTree as e; print([(n.get("package"),n.get("text"),n.get("content-desc")) for n in e.parse(sys.argv[1]).iter("node") if n.get("text") or n.get("content-desc")][:35])' "$results/ui.xml" || true
-  fi
-  grep -En -C 3 'FATAL EXCEPTION|Fatal signal|ReactNativeJS.*Error|Unable to start activity|UnsatisfiedLinkError|NoClassDefFoundError|Process: app\.penlia\.mobile\.preview' "$results/logcat.txt" | tail -n 90 || true
+  # Publish only stable error categories. Raw device logs and UI dumps stay on the runner.
+  grep -Eo 'FATAL EXCEPTION|Fatal signal|ReactNativeJS|Unable to start activity|UnsatisfiedLinkError|NoClassDefFoundError' \
+    "$results/logcat.txt" | sort | uniq -c > "$results/startup-errors.txt" || true
   exit 1
 }
 

@@ -71,9 +71,8 @@ test('P0 over loopback HTTP and real PostgreSQL with the restricted application 
   const d = await register('dodo_p0', '冬雨');
   let friendId;
 
-  function webhook(from, to, { ext = {}, bodies = [{ type: 'txt', msg: '测试' }], invalid = false } = {}) {
-    const timestamp = Date.now();
-    const callId = process.env.EASEMOB_APP_KEY + '_' + randomUUID();
+  function webhook(from, to, { ext = {}, bodies = [{ type: 'txt', msg: '测试' }], invalid = false,
+    timestamp = Date.now(), callId = process.env.EASEMOB_APP_KEY + '_' + randomUUID() } = {}) {
     const security = createHash('md5')
       .update(callId + process.env.PENLIA_IM_CALLBACK_SECRET + timestamp)
       .digest('hex');
@@ -256,6 +255,16 @@ test('P0 over loopback HTTP and real PostgreSQL with the restricted application 
     assert.equal((await webhook(a, b)).data.valid, false);
     await admin.query("UPDATE friendships SET updated_at=now()-interval '2 days' WHERE id=$1", [friendId]);
     await friend(a, b);
+  });
+
+  await t.test('signed callback retries retain authorization and cannot change the original payload', async () => {
+    const callId = process.env.EASEMOB_APP_KEY + '_' + randomUUID();
+    const same = { callId, timestamp: Date.now() };
+    assert.equal((await webhook(a, b, same)).data.valid, true);
+    assert.equal((await webhook(a, b, same)).data.valid, true);
+    assert.equal((await webhook(a, b, { ...same, ext: { penlia_quiet: true } })).data.valid, false);
+    assert.equal((await webhook(a, b, { timestamp: Date.now() - 360_000 })).data.valid, false);
+    assert.equal((await ask('/v1/im/token', { method: 'POST' })).status, 401);
   });
 
   await t.test('private posts, photo-only, video range, revision and revocation', async () => {

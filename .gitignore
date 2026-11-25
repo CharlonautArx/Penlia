@@ -12,6 +12,13 @@ ios/
 *.p12
 *.mobileprovision
 credentials.json
+*service-account*.json
+*.private.pem
+*.key
+*.pfx
+*.apk
+*.aab
+/server/deploy/Penlia-api.zip
 .DS_Store
 
 /modules/*/android/build/

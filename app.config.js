@@ -1,6 +1,8 @@
 const { light } = require('./src/palette.json');
+const { validatePublicConfig } = require('./tooling/public-config.cjs');
 
 module.exports = ({ config: base }) => {
+  validatePublicConfig(process.env);
   const config = { ...base, backgroundColor: light.backdrop, plugins: [...base.plugins,
     ['expo-media-library', { photosPermission: false, savePhotosPermission: '允许朋聊将二维码图片保存到相册。', granularPermissions: [] }],
   ] };

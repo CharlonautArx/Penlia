@@ -8,25 +8,31 @@ output_dir="$(cd "$output_dir" && pwd)"
 staging="$(mktemp -d)"
 trap 'rm -rf "$staging"' EXIT
 
-cp "$server_dir"/{index,http,api,core,db,im,migrate,migration-files}.mjs "$server_dir"/package{,-lock}.json "$staging/"
-cp -R "$server_dir/migrations" "$staging/"
-mkdir "$staging/p0"
-cp "$server_dir"/p0/{access,groups,moments,moment-interactions,profile-cover,routes}.mjs "$staging/p0/"
-mkdir "$staging/p1"
-cp "$server_dir"/p1/{routes,common,collection-access,contribution-consent,collections,enforcement-access,gatherings,moderation,rtc,wishes}.mjs "$staging/p1/"
-mkdir "$staging/p2"
-cp "$server_dir"/p2/{access,calendar,capsules,common,contact-cleanup,items,memories,routes,spaces,status,trips}.mjs "$staging/p2/"
-mkdir "$staging/p3"
-cp "$server_dir"/p3/{access,contact-cleanup,records,routes,sources,spaces}.mjs "$staging/p3/"
-mkdir "$staging/phone"
-cp "$server_dir"/phone/{policy,services}.mjs "$staging/phone/"
+cp "$server_dir"/{index,http,api,core,db,im,security,migrate,migration-files}.mjs "$server_dir"/package{,-lock}.json "$staging/"
+mkdir "$staging/migrations"
+find "$server_dir/migrations" -maxdepth 1 -type f -name '[0-9]*_*.sql' -exec cp {} "$staging/migrations/" \;
+for area in p0 p1 p2 p3 phone; do
+  mkdir "$staging/$area"
+  find "$server_dir/$area" -maxdepth 1 -type f -name '*.mjs' ! -name '*.test.mjs' \
+    -exec cp {} "$staging/$area/" \;
+done
 if [[ -n "${PENLIA_RDS_CA_FILE:-}" ]]; then
+  # Reject appended private keys, comments with credentials, and non-certificate input.
+  awk '
+    /^-----BEGIN CERTIFICATE-----\r?$/ && !inside { inside=1; seen++; next }
+    /^-----END CERTIFICATE-----\r?$/ && inside { inside=0; next }
+    inside && /^[A-Za-z0-9+\/=]+\r?$/ { next }
+    !inside && /^[[:space:]]*$/ { next }
+    { exit 1 }
+    END { if (inside || !seen) exit 1 }
+  ' "$PENLIA_RDS_CA_FILE"
+  openssl crl2pkcs7 -nocrl -certfile "$PENLIA_RDS_CA_FILE" -out /dev/null 2>/dev/null
   cp "$PENLIA_RDS_CA_FILE" "$staging/rds-ca.pem"
 fi
-npm ci --prefix "$staging" --omit=dev
+npm ci --prefix "$staging" --omit=dev --ignore-scripts
 (
   cd "$staging"
-  zip -qr Penlia-api.zip index.mjs http.mjs api.mjs core.mjs db.mjs im.mjs migrate.mjs migration-files.mjs migrations phone p0 p1 p2 p3 package.json package-lock.json node_modules
+  zip -qr Penlia-api.zip index.mjs http.mjs api.mjs core.mjs db.mjs im.mjs security.mjs migrate.mjs migration-files.mjs migrations phone p0 p1 p2 p3 package.json package-lock.json node_modules
   if [[ -f rds-ca.pem ]]; then
     zip -q Penlia-api.zip rds-ca.pem
   fi

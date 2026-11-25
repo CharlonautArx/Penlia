@@ -1,3 +1,6 @@
+import { easemobOrigin, easemobTtlUnit } from './security.mjs';
+
+export const userTokenTtlSeconds = 900;
 let appToken;
 let pendingToken;
 
@@ -6,9 +9,7 @@ function serviceUrl(path) {
   if (!organization || !app || extra !== undefined || !process.env.EASEMOB_REST_URL) {
     throw new Error('Missing IM configuration');
   }
-  const origin = new URL(process.env.EASEMOB_REST_URL);
-  if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' ||
-      origin.search || origin.hash) throw new Error('Invalid IM REST URL');
+  const origin = easemobOrigin(process.env);
   return new URL('/' + [organization, app, ...path].map(encodeURIComponent).join('/'), origin);
 }
 
@@ -70,7 +71,8 @@ export function imUserId(id) {
 
 export async function userToken(id) {
   const username = imUserId(id);
-  const body = { grant_type: 'inherit', username, autoCreateUser: true, ttl: 3600 };
+  const unit = easemobTtlUnit(process.env);
+  const body = { grant_type: 'inherit', username, autoCreateUser: true, ttl: userTokenTtlSeconds * unit };
   let data;
   try {
     data = await authorized(['token'], { body });
@@ -78,8 +80,11 @@ export async function userToken(id) {
     if (error.status !== 409) throw error;
     data = await authorized(['token'], { body: { ...body, autoCreateUser: false } });
   }
-  if (!data.access_token) throw new Error('Missing IM User Token');
-  return { username, token: data.access_token };
+  const lifetime = Number(data.expires_in);
+  if (typeof data.access_token !== 'string' || !data.access_token || data.access_token.length > 8192 ||
+    !Number.isSafeInteger(lifetime) || lifetime < 1 || lifetime > userTokenTtlSeconds * unit)
+    throw new Error('Invalid IM User Token response');
+  return { username, token: data.access_token, expiresIn: Math.ceil(lifetime / unit) };
 }
 
 export async function syncFriends(first, second) {

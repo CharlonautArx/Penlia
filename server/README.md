@@ -2,6 +2,14 @@
 
 这份手册针对上海地域现有的 `Penlia-api` Web 函数和 `penlia_dev` 数据库。从第一步开始，确认每一步的结果再继续。手机或平板可用浏览器打开控制台，表单显示不全时切换到桌面网站。
 
+## 安全配置与生产上线
+
+- 联调显式使用 `PENLIA_ENV=development` 与独立的 `penlia_dev`。预览和测试数据库分别使用 `_preview`（或 `_staging`）与 `_test` 后缀。生产设置 `PENLIA_ENV=production`，使用独立的 `_prod` 或 `_production` 库、`penlia_app` 运行角色、VPC 内网域名和已校验的 TLS。部署前使用独立的迁移身份执行包含 `019_provider_callback_replay.sql` 的迁移，再启动服务。
+- 在运行进程中以非管理员身份验证数据库连接。生产启动将拒绝可建库、建表、持有业务表所有权或具有全库读写角色的运行账号。内网访问、备份和恢复须单独在阿里云控制台验证。
+- 环信 App Token、Client Secret、回调凭证、运营和诊断用的令牌分别保存与注入。生产回调开启前，在供应商控制台设置好友检查和发送前回调失败时拒绝发送。网关日志需脱敏回调路径、认证头和正文。用户 Token 上限为 15 分钟，普通集群默认以秒计时。特殊集群应先确认供应商的请求和响应均使用毫秒，再设置 `EASEMOB_TTL_UNIT=milliseconds`。在隔离应用验证签发和客户端续期。[环信 User Token](https://doc.easemob.com/document/server-side/easemob_user_token.html)
+- 启用短信后，在私有监控系统中用服务端持有的诊断令牌读取 `/ops/phone-usage`。告警监控 `monthly_warning`、`dailyLimitReached`、`providerUncertaintyHigh` 及已计费和未对账的数量。验证码供应商和账单告警须在控制台单独配置。
+- 发布前按 [安全开发规范](../AGENTS.md) 检查变更，并在隔离环境验证。生产配置、迁移与第三方服务开关由有权限的运维身份操作。
+
 ## 1. 确认现有 Web 函数的网络
 
 进入 **阿里云控制台 → 函数计算 → 上海 → 函数 → Penlia-api → 配置 → 网络配置**。先查看现有设置。需要修改时，选择手动配置并使用已有资源。

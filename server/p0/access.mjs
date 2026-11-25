@@ -423,12 +423,34 @@ export function verifiedImCallback(body, pathKey) {
     callId.length > 220 ||
     !Number.isSafeInteger(timestamp) ||
     Math.abs(Date.now() - timestamp) > 300_000 ||
-    !/^[0-9a-f]{32}$/.test(security ?? '')
+    typeof security !== 'string' || !/^[0-9a-f]{32}$/.test(security)
   ) return false;
   const expected = createHash('md5')
     .update(callId + secret + timestamp)
     .digest('hex');
   return timingSafeEqual(Buffer.from(expected), Buffer.from(security));
+}
+
+async function bindImCallback(body) {
+  const { callId, from, to, chat_type, payload } = body;
+  const content = JSON.stringify({ from, to, chat_type, payload }, (_, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, value[key]]))
+      : value);
+  // Exact vendor retries remain eligible, but must still pass current relationship checks.
+  const { rowCount } = await pool.query(`
+    WITH removed AS (
+      DELETE FROM provider_callback_checks WHERE call_hash IN (
+        SELECT call_hash FROM provider_callback_checks WHERE expires_at < now() AND call_hash <> $1
+        ORDER BY expires_at LIMIT 24 FOR UPDATE SKIP LOCKED
+      )
+    )
+    INSERT INTO provider_callback_checks(call_hash, fingerprint, expires_at)
+    VALUES($1, $2, now() + interval '11 minutes')
+    ON CONFLICT(call_hash) DO UPDATE SET fingerprint=provider_callback_checks.fingerprint
+      WHERE provider_callback_checks.fingerprint=excluded.fingerprint
+    RETURNING call_hash`, [hash(callId), hash(content)]);
+  return rowCount === 1;
 }
 
 export async function beforeImSend(body, pathKey) {
@@ -448,6 +470,7 @@ export async function beforeImSend(body, pathKey) {
     return { valid: false };
   const extras = payload.ext && typeof payload.ext === 'object' && !Array.isArray(payload.ext) ? payload.ext : {};
   if (extras.em_force_notification === true || Array.isArray(extras.em_force_notification)) return { valid: false };
+  if (!await bindImCallback(body)) return { valid: false };
   const configured = await notificationPolicy(pool, from, to, extras.penlia_quiet === true);
   const text = payload.bodies.every((item) => item.type === 'txt');
   const desired = configured.suppress;

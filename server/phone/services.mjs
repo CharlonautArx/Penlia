@@ -277,6 +277,9 @@ export function createPhoneAuth({ pool, secret, captcha, sms, limits: overrides,
       const boundary = cnBoundaries(now);
       const { rows: [state] } = await db.query(
         `SELECT (SELECT enabled FROM phone_auth_control WHERE id) AS enabled,
+           (SELECT daily_count FROM phone_auth_control WHERE id) AS configured_daily_count,
+           (SELECT daily_micros FROM phone_auth_control WHERE id)::text AS configured_daily_micros,
+           (SELECT unit_floor_micros FROM phone_auth_control WHERE id)::text AS configured_unit_floor_micros,
            (SELECT count(*)::int FROM phone_captcha_checks WHERE created_at >= $1) AS captcha_checks_today,
            (SELECT EXISTS(SELECT FROM phone_budget_alerts WHERE month_start = $3)) AS monthly_warning,
            count(*) FILTER (WHERE created_at >= $1)::int AS reserved_today,
@@ -289,7 +292,14 @@ export function createPhoneAuth({ pool, secret, captcha, sms, limits: overrides,
            coalesce(sum(billed_micros), 0)::text AS known_billed_micros_this_month,
            count(*) FILTER (WHERE billed_micros IS NULL)::int AS unpriced_attempts_this_month
          FROM phone_sms_attempts WHERE created_at >= $2`, [boundary.day, boundary.month, boundary.monthLabel]);
-      return state;
+      const ceiling = Math.min(limits.dailyCount, state.configured_daily_count ?? limits.dailyCount);
+      const budget = lower(BigInt(limits.dailyMicros), BigInt(state.configured_daily_micros ?? limits.dailyMicros));
+      const unitCost = higher(BigInt(limits.unitMicros), BigInt(state.configured_unit_floor_micros ?? limits.unitMicros));
+      return {
+        ...state,
+        dailyLimitReached: state.reserved_today >= ceiling || BigInt(state.counted_micros_today) + unitCost > budget,
+        providerUncertaintyHigh: state.uncertain_today >= 3 && state.uncertain_today * 4 >= state.reserved_today,
+      };
     });
   }
 

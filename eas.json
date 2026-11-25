@@ -6,6 +6,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "env": {
         "EXPO_PUBLIC_PENLIA_UI_DEMO": "0"
       }
@@ -21,13 +22,14 @@
       }
     },
     "production": {
+      "environment": "production",
       "env": {
         "EXPO_PUBLIC_PENLIA_UI_DEMO": "0"
       }
     },
     "ui-demo": {
       "distribution": "internal",
-      "environment": "preview",
+      "environment": "development",
       "android": {
         "buildType": "apk"
       },

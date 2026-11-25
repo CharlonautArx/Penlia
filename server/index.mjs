@@ -1,5 +1,15 @@
-import { createApiServer } from './http.mjs';
-import { pool } from './db.mjs';
+import { validateServerEnvironment } from './security.mjs';
+
+const mode = validateServerEnvironment();
+const { pool, assertProductionDatabase } = await import('./db.mjs');
+const { createApiServer } = await import('./http.mjs');
+if (mode === 'production') {
+  try { await assertProductionDatabase(); }
+  catch {
+    await pool.end();
+    throw new Error('Production database readiness failed: isolation, TLS or runtime role');
+  }
+}
 
 // A reviewed CAPTCHA and SMS adapter are required before enabling phone routes.
 const server = createApiServer();

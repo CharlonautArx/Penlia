@@ -34,7 +34,7 @@ test('P3 privacy and shared workflows on isolated PostgreSQL 17', async (t) => {
   const uid = (p) => p.user.id;
   const people = [];
   for (const [i,name] of ['小禾','筱晓','阿言','路人'].entries())
-    people.push(ok(await api(null,'/register','POST',{ username:'p3_fixture_'+i,name,password:'fixture_pass_123' }),201));
+    people.push(ok(await api(null,'/register','POST',{ username:'p3_fixture_'+i,name,password: randomUUID() }),201));
   const [a,b,c,outside] = people;
   async function friends(x,y) {
     const r = ok(await api(x,'/friends','POST',{ userId:uid(y) }));
