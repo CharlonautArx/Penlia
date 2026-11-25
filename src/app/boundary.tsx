@@ -37,7 +37,7 @@ export default function Boundary() {
   const [deleting, setDeleting] = useState<{ ids?: string[]; all?: true }>();
   const [older, setOlder] = useState<HistoryPage>();
   useEffect(() => { setOlder(undefined); }, [data]);
-  const reports = [...(data?.reports ?? []), ...(older?.reports ?? [])];
+  const reports = [...(data?.reports ?? []), ...(older?.reports ?? [])].filter(({ kind }) => kind === 'boundary');
   const next = older ? older.next : data?.next;
   function toggle(id: string) {
     setChecked((current) => {
@@ -48,7 +48,7 @@ export default function Boundary() {
   }
   return (
     <Screen title="生活边界保护计划" back={back} refreshing={busy} onRefresh={() => void load()}>
-      <Text style={styles.muted}>{isUiDemo ? '长按单聊或群聊消息即可举报。预览版的记录保存在本机。' : '长按聊天消息可以举报。确认提交前，可以查看将交给审核人员的内容。'}</Text>
+      <Text style={styles.muted}>{isUiDemo ? '在单聊或群聊的聊天设置中选择「举报」。预览版记录保存在本机。' : '在聊天设置中选择「举报」。提交前可核对所选消息与补充材料。'}</Text>
       {!!error && <Notice>{error}</Notice>}
       {data?.canReview && (
         <ListRow title="审核工作台" detail="处理工单和申诉" onPress={() => router.push('/review/queue')} />
@@ -65,7 +65,7 @@ export default function Boundary() {
         <ListRow key={item.id} title={reportKinds[item.kind]}
           detail={[isUiDemo ? '保存在本机' : item.status === 'pending' ? '等待审核' : '已处理',
             item.submittedAt ? formatTime(item.submittedAt) : ''].filter(Boolean).join(' · ')}
-          onPress={checked ? () => toggle(item.id) : undefined}
+          onPress={() => checked ? toggle(item.id) : router.push({ pathname: '/boundary/[id]', params: { id: item.id } })}
           left={checked ? <Icon name={checked.has(item.id) ? 'checkmark-circle' : 'ellipse-outline'} /> : undefined}
           trailing={checked ? undefined : <IconButton label="删除举报记录" icon="trash-outline" disabled={busy}
             onPress={() => setDeleting({ ids: [item.id] })} />} />

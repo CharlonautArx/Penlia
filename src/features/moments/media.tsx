@@ -119,19 +119,19 @@ function base64Of(blob: Blob): Promise<string> {
   });
 }
 
-function useProtectedSource(id: string, enabled = true, reviewId?:string, thumbnail = false) {
+function useProtectedSource(id: string, enabled = true, reviewId?:string, thumbnail = false, boundaryId?: string) {
   const token = useSession().session?.token;
   const [cached, setCached] = useState<{ source: string; token: string; uri: string }>();
   const [problem, setProblem] = useState('');
   const uri = useMemo(() => {
     if (isUiDemo || !enabled || !token) return undefined;
     try {
-      return apiOrigin() + (reviewId ? '/v1/p1/review-media/' + encodeURIComponent(reviewId) + '/' : '/v1/moment-media/')
+      return apiOrigin() + (boundaryId ? '/v1/p1/boundary-media/' + encodeURIComponent(boundaryId) + '/' : reviewId ? '/v1/p1/review-media/' + encodeURIComponent(reviewId) + '/' : '/v1/moment-media/')
         + encodeURIComponent(id) + (thumbnail ? '?size=thumb' : '');
     } catch {
       return undefined;
     }
-  }, [id, token, enabled, reviewId, thumbnail]);
+  }, [id, token, enabled, reviewId, thumbnail, boundaryId]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !uri || !token) return;
     let active = true,
@@ -170,15 +170,15 @@ function useProtectedSource(id: string, enabled = true, reviewId?:string, thumbn
   };
 }
 
-export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onLongPress, more, index, onMore }: {
-  item: Media; context?: 'moment' | 'chat'; reviewId?: string; ratio?: number; onLongPress?: MessageLongPress; more?: number; index?: number; onMore?: () => void;
+export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onLongPress, more, index, onMore, boundaryId }: {
+  item: Media; context?: 'moment' | 'chat'; reviewId?: string; boundaryId?: string; ratio?: number; onLongPress?: MessageLongPress; more?: number; index?: number; onMore?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const [viewerFailed, setViewerFailed] = useState(false);
   const video = item.mime === 'video/mp4';
-  const { source, problem } = useProtectedSource(item.id, !video, reviewId, !!item.thumbnail);
-  const full = useProtectedSource(item.id, open && (video || !!item.thumbnail), reviewId);
+  const { source, problem } = useProtectedSource(item.id, !video, reviewId, !!item.thumbnail, boundaryId);
+  const full = useProtectedSource(item.id, open && (video || !!item.thumbnail), reviewId, false, boundaryId);
   const openedSource = item.thumbnail || video ? full.source : source;
   const viewProblem = item.thumbnail || video ? full.problem : problem;
   const original = isUiDemo && item.demoUri ? { uri: item.demoUri } : openedSource;
@@ -188,7 +188,7 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onL
   const viewSource = sample ?? original;
   return <>
     <Pressable accessibilityRole="button"
-      accessibilityLabel={more ? '查看全部照片，另有 ' + (more - 1) + ' 张' : index ? '查看动态照片 ' + index : reviewId ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
+      accessibilityLabel={more ? '查看全部照片，另有 ' + (more - 1) + ' 张' : index ? '查看动态照片 ' + index : (reviewId || boundaryId) ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
       onPress={more && onMore ? onMore : () => { setViewerFailed(false); setOpen(true); }} onLongPress={onLongPress}
       style={({ pressed }) => [{ height: ratio ? undefined : 140, aspectRatio: ratio, width: ratio ? '100%' : undefined,
         flexGrow: ratio ? 0 : 1, minWidth: ratio ? 0 : 100, overflow: 'hidden', opacity: pressed ? 0.84 : 1,

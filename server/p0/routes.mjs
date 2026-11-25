@@ -1,3 +1,4 @@
+import { findApplicant, findFriendRequests, friendCodeStatus, publicIntro, resolveFriendCode, revokeFriendCode } from './friend-requests.mjs';
 import { readMomentSpace, writeMomentSpace } from './moment-space.mjs';
 import { getChatRecord, saveChatRecord, saveChatFavorite } from './chat-records.mjs';
 import { cleanText, hash, HttpError, readId } from '../core.mjs';
@@ -56,6 +57,8 @@ const result = (body, statusCode = 200) => ({ statusCode, body });
 
 export async function p0Routes(route, { user, tokenHash, query, headers, sourceIp, readBody, rateLimit }) {
   const id = user.id;
+  const applicant = /^GET \/v1\/friend-requests\/([0-9a-f-]{36})$/.exec(route);
+  if (applicant) return result(await findApplicant(id, applicant[1]));
   switch (route) {
     case 'GET /v1/me/profile-cover':
       return result(await getProfileCover(id, id));
@@ -88,10 +91,23 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
     case 'POST /v1/people/code':
       await rateLimit('p0-code-user:' + id, 20, 60);
       await rateLimit('p0-code-net:' + sourceIp, 80, 60);
-      return result(await searchPerson(id, (await readBody()).code, 'code'));
+      return result(await resolveFriendCode(id, (await readBody()).code));
     case 'POST /v1/friends/code':
       await rateLimit('p0-code-create:' + id, 12, 60);
-      return result(await newFriendCode(id));
+      return result(await newFriendCode(id, (await readBody()).days));
+    case 'POST /v1/friends/code/status':
+      await rateLimit('p0-code-status:' + id, 30, 60);
+      return result(await friendCodeStatus(id, (await readBody()).code));
+    case 'DELETE /v1/friends/code':
+      await rateLimit('p0-code-revoke:' + id, 20, 60);
+      return result(await revokeFriendCode(id));
+    case 'GET /v1/friend-requests':
+      return result(await findFriendRequests(id));
+    case 'GET /v1/me/public-intro':
+      return result(await publicIntro(id));
+    case 'PATCH /v1/me/public-intro':
+      await rateLimit('public-intro:' + id, 12, 60);
+      return result(await publicIntro(id, await readBody()));
     case 'POST /v1/friends/remove':
     case 'POST /v1/friends/block':
     case 'POST /v1/friends/unblock':

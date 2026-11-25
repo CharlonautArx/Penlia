@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -12,7 +12,8 @@ import { GroupChats } from '../../features/groups/GroupChats';
 import { emptyDirectory, sortFriends } from '../../features/friends/directory';
 import { useDirectory } from '../../features/friends/store';
 import { isUiDemo } from '../../demo/mode';
-import { QRImage, ScanCode } from '../../features/privacy/CodeSheet';
+import { ScanCode } from '../../features/privacy/CodeSheet';
+import { openScannedInvitation } from '../../features/friends/invitations';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage, type User } from '../../services/api';
 import { formatHandle } from '../../services/handle';
@@ -21,15 +22,14 @@ import { useSession } from '../../services/session';
 import { colors, contentWidth, radius, space, styles, type } from '../../theme';
 
 export default function FriendsScreen() {
-  const { request } = useSession();
+  const { request, session } = useSession();
   const { relationships, refresh, error: listError } = useFriends();
   const [lookup,setLookup]=useState<'handle'|'phone'>('handle');
-  const [codeSheet,setCodeSheet]=useState<'mine'|'scan'>();
-  const [ownCode,setOwnCode]=useState<{code:string;expiresAt:string}>();
+  const [scan, setScan] = useState(false);
   const [note,setNote]=useState('');
   const [username, setUsername] = useState('');
   const [filter, setFilter] = useState('');
-  const [sheet, setSheet] = useState<'add' | 'requests'>();
+  const [sheet, setSheet] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [result, setResult] = useState<User | null>();
   const [error, setError] = useState('');
@@ -72,7 +72,6 @@ export default function FriendsScreen() {
   }
 
   const incoming = relationships?.filter((item) => item.status === 'pending' && !item.outgoing) ?? [];
-  const outgoing = relationships?.filter((item) => item.status === 'pending' && item.outgoing) ?? [];
   const contacts = useMemo(() => sortFriends(
     relationships?.filter((item) => item.status === 'accepted') ?? [], directory.value ?? emptyDirectory,
   ), [relationships, directory.value]);
@@ -96,9 +95,9 @@ export default function FriendsScreen() {
     try { await refresh(); } finally { setRefreshing(false); }
   }
 
-  function openSheet(next: typeof sheet) {
+  function openSheet() {
     setError('');
-    setSheet(next);
+    setSheet(true);
   }
 
   return (
@@ -106,7 +105,7 @@ export default function FriendsScreen() {
       <GestureHandlerRootView style={local.column}>
       <View style={local.control}>
         <View style={local.searchRow}>
-          <IconButton label="添加好友" icon="add" onPress={() => openSheet('add')} />
+          <IconButton label="添加好友" icon="add" onPress={openSheet} />
           <View style={styles.grow}>
             <SearchField variant="neutral" label="搜索好友" placeholder="搜索好友的备注、昵称或朋聊号"
               value={filter} onChangeText={setFilter} />
@@ -114,12 +113,12 @@ export default function FriendsScreen() {
         </View>
         {!!listError && <Notice action="重试" onAction={() => void reload()}>{listError}</Notice>}
       </View>
-      <ListRow title="新的朋友" style={local.managementRow} detail={incoming.length ? '有好友申请待处理' : '查看好友申请'}
+      <ListRow title="好友申请" style={local.managementRow} detail={incoming.length ? '有好友申请待处理' : '查看好友申请'}
         left={<View style={local.requestsIcon}><GlassLayer /><Icon name="people-outline" /></View>}
         trailing={<View style={styles.row}>
           {incoming.length > 0 && <Tag>{String(incoming.length)}</Tag>}
           <Icon name="chevron-forward" size={16} color={colors.quiet} />
-        </View>} onPress={() => openSheet('requests')} />
+        </View>} onPress={() => router.push('/friend-requests')} />
       <DirectoryPager>{(pan) => [
         <View style={styles.grow} key="all">
           <DirectoryScroll ref={scroll} pan={pan} refreshControl={
@@ -154,51 +153,30 @@ export default function FriendsScreen() {
           }>{children}</DirectoryScroll>
         </>} />,
       ]}</DirectoryPager>
-      {sheet && <Sheet title={sheet === 'add' ? '添加好友' : '新的朋友'} onClose={() => setSheet(undefined)}>
+      {sheet && <Sheet title="添加好友" onClose={() => setSheet(false)}>
         {!!error && <Notice>{error}</Notice>}
-        {sheet === 'add' ? <>
-          {!isUiDemo && <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
-            <Button label="按朋聊号" variant={lookup==='handle'?'primary':'soft'} onPress={()=>{setLookup('handle');setUsername('');setResult(undefined);}} />
-            <Button label="按手机号" variant={lookup==='phone'?'primary':'soft'} onPress={()=>{setLookup('phone');setUsername('');setResult(undefined);}} />
-            <Button label="扫码添加" icon="scan-outline" variant="soft" onPress={()=>{setSheet(undefined);setCodeSheet('scan');}} />
-            <Button label="我的二维码" icon="qr-code-outline" variant="soft" onPress={()=>{setSheet(undefined);setCodeSheet('mine');void run(async()=>{
-              setOwnCode(await request('/friends/code',{method:'POST'}));
-            });}} />
-          </View>}
+        <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+            {!isUiDemo && <><Button label="按朋聊号" variant={lookup==='handle'?'primary':'soft'} onPress={()=>{setLookup('handle');setUsername('');setResult(undefined);}} />
+            <Button label="按手机号" variant={lookup==='phone'?'primary':'soft'} onPress={()=>{setLookup('phone');setUsername('');setResult(undefined);}} /></>}
+            <Button label="扫码添加" icon="scan-outline" variant="soft" onPress={() => { setSheet(false); setScan(true); }} />
+            <Button label="我的二维码" icon="qr-code-outline" variant="soft" onPress={() => { setSheet(false); router.push('/my-qr'); }} />
+          </View>
           <SearchField label={lookup==='phone'?'好友手机号':'好友账号'} placeholder={lookup==='phone'?'输入完整手机号':'输入完整朋聊号'} value={username}
             autoCapitalize="none" autoCorrect={false} editable={!busy} maxLength={24}
             onChangeText={(value) => { setUsername(value); setResult(undefined); }}
             onSubmitEditing={() => { if (!busy && username.trim()) search(); }} returnKeyType="search" />
           <Button label={busy ? '查找中…' : '查找'} disabled={busy || !username.trim()} onPress={search} />
           {result === null && <Empty>找不到可添加的账号。</Empty>}
-          {result && !foundRelationship && !isUiDemo && <SearchField label="好友申请验证消息" placeholder="选填・说说你是谁" value={note} maxLength={100} onChangeText={setNote}/> }
+          {result && !foundRelationship && <SearchField label="好友申请验证消息" placeholder="选填・说说你是谁" value={note} maxLength={100} onChangeText={setNote}/> }
           {result && <ListRow title={result.name} detail={formatHandle(result.username)}
             left={<Avatar name={result.name} source={demoPortrait(result.username)} />} trailing={foundRelationship
               ? <Text style={styles.small}>{foundRelationship.status === 'accepted' ? '已是好友' : '已有好友申请'}</Text>
               : <Button label="发送申请" variant="soft" disabled={busy} onPress={() => change('/friends', { userId: result.id, note })} />} />}
-        </> : <>
-          {incoming.map((friend) => <ListRow key={friend.id} title={friend.name} detail={formatHandle(friend.username) + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
-            left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={36} />}
-            trailing={<View style={local.requestActions}>
-              <Button label="拒绝" variant="quiet" disabled={busy} onPress={() => change('/friends/decline', { id: friend.id })} />
-              <Button label="接受" variant="soft" disabled={busy} onPress={() => change('/friends/accept', { id: friend.id })} />
-            </View>} />)}
-          {outgoing.map((friend) => <ListRow key={friend.id} title={friend.name} detail={formatHandle(friend.username) + (friend.verificationMessage ? ' · ' + friend.verificationMessage : '')}
-            left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={36} />}
-            trailing={<Text style={styles.small}>等待接受</Text>} />)}
-          {!incoming.length && !outgoing.length && <Empty icon="people-outline">目前没有待处理的好友申请。</Empty>}
-        </>}
       </Sheet>}
-      {codeSheet==='mine' && <Sheet title="我的好友二维码" onClose={()=>setCodeSheet(undefined)}>
-        {!!error && <Notice>{error}</Notice>}
-        {ownCode?<><QRImage value={ownCode.code}/><Text selectable style={styles.small}>{ownCode.code}</Text>
-          <Text style={styles.muted}>有效至 {new Date(ownCode.expiresAt).toLocaleString('zh-CN')}。生成新码会使旧码失效。</Text></>
-          : !error&&<Empty busy>正在生成二维码…</Empty>}
-      </Sheet>}
-      {codeSheet==='scan' && <ScanCode mode="add" onClose={()=>setCodeSheet(undefined)} onResult={(code)=>{
-        setCodeSheet(undefined);setSheet('add');setResult(undefined);
-        void run(async()=>{const {person}=await request<{person:User|null}>('/people/code',{method:'POST',body:{code}});setResult(person);});
-      }}/>}
+      {scan && <ScanCode mode="add" onClose={() => setScan(false)} onResult={(code) => {
+        setScan(false);
+        if (session) openScannedInvitation(session.user.id, code);
+      }} />}
       </GestureHandlerRootView>
     </SafeAreaView>
   );
@@ -215,5 +193,4 @@ const local = StyleSheet.create({
   letterHeading: { ...type.tag, color: colors.text, backgroundColor: colors.backdrop,
     paddingHorizontal: space.md, paddingVertical: space.xxs },
   requestsIcon: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
-  requestActions: { flexDirection: 'row' },
 });

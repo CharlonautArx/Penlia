@@ -26,6 +26,7 @@ type Evidence = {
   status: string;
   evidence: {
     explanation?: string;
+    supplemental?: Media[];
     anchorId: string;
     messages: {
       id: string;
@@ -111,6 +112,12 @@ function Case({ id }: { id: string }) {
               )}
             </View>
           ))}
+          {!!data.evidence.supplemental?.length && <>
+            <Section title="补充配图" />
+            <View style={[styles.row, { flexWrap: 'wrap' }]}>
+              {data.evidence.supplemental.map((item) => <MomentMediaTile key={item.id} item={item} reviewId={id} />)}
+            </View>
+          </>}
           {data.status === 'pending' && (
             <>
               {data.kind === 'boundary' && (

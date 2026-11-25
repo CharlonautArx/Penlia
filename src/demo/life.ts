@@ -155,7 +155,12 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     }
     return upsert('relationGroups');
   }
-  if (root === 'people' && area && get) return { user: demoPeople.find((person) => person.id === area) };
+  if (root === 'people' && area && get) {
+    const user = demoPeople.find((person) => person.id === area && relationships.some((entry) =>
+      entry.userId === area && entry.status === 'accepted'));
+    if (!user) throw new Error('只可查看已接受好友的个人资料。');
+    return { user };
+  }
   if (root === 'group-invites') {
     function valid(invite: Row) {
       const group = find('groups', String(invite.groupId));
@@ -418,28 +423,50 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     }
     if (area === 'events') return { events: rows('events') };
     if (area === 'boundary') {
+      const reports = rows('reports').filter((report) => report.kind === 'boundary').sort(newestFirst);
       if (!get) {
         if (method !== 'POST') throw new Error(unavailable);
         const chosen = new Set(strings(body.ids));
-        store.reports = rows('reports').map((report) => body.all === true || chosen.has(report.id) ? { ...report, hidden: true } : report);
+        store.reports = rows('reports').map((report) => report.kind === 'boundary' && (body.all === true || chosen.has(report.id))
+          ? { ...report, hidden: true } : report);
         return {};
       }
-      const reports = rows('reports').slice().sort(newestFirst);
+      if (id) {
+        const row = reports.find((report) => report.id === id && !report.hidden);
+        if (!row) throw new Error('这条举报记录已不可访问。');
+        const { target, status, submittedAt, lines, explanation, photos } = row;
+        return { target, status, submittedAt, lines, explanation, photos };
+      }
       const before = query.get('before');
       const page = reports.slice(before ? reports.findIndex(({ id }) => id === before) + 1 : 0)
         .filter((item) => !item.hidden).slice(0,51);
-      return { reports: page.slice(0,50), next: page[50] ? page[49].id : null, actions: rows('enforcement'), canReview: false };
+      return { reports: page.slice(0,50).map(({ id, kind, status, submittedAt }) => ({ id, kind, status, submittedAt })),
+        next: page[50] ? page[49].id : null, actions: rows('enforcement'), canReview: false };
     }
     if (area === 'reports' && method === 'POST') {
       const existing = rows('reports').find((report) => report.clientId === body.clientId);
       if (existing) return { id: existing.id };
-      const peer = relationships.some((friend) => friend.userId === body.peerId && friend.status === 'accepted');
-      const group = body.groupId && find('groups', String(body.groupId))?.active &&
-        rows('groupLines').some((line) => line.groupId === body.groupId && line.id === body.anchorId && line.senderId !== self);
-      if (!(group || (peer && list(body.messages).some((line) => line.id === body.anchorId && line.mine === false))))
-        throw new Error('请选择对方发送的消息。');
+      const peer = relationships.find((friend) => friend.userId === body.peerId && friend.status === 'accepted');
+      const ids = strings(body.messageIds);
+      const groupLines = body.groupId && find('groups', String(body.groupId))?.active
+        ? rows('groupLines').filter((line) => line.groupId === body.groupId && ids.includes(line.id) && !line.recalled)
+        : [];
+      const groupAnchor = groupLines.find((line) => line.id === body.anchorId && line.senderId !== self);
+      const privateLines = list(body.messages);
+      const privateAnchor = privateLines.find((line) => line.id === body.anchorId && line.mine === false);
+      const target = groupAnchor?.name ?? (peer && privateAnchor ? peer.name : undefined);
+      const picked = groupAnchor ? groupLines : privateLines;
+      if (!target || !picked.length || picked.length > 5 || (groupAnchor && picked.length !== ids.length))
+        throw new Error('请选择对方发送的消息和必要的上下文。');
+      const lines = picked.map((line) => ({
+        id: line.id, author: line.mine || line.senderId === self ? '我' : line.name ?? target,
+        content: line.content, sentAt: line.sentAt, attachments: list(line.media).length,
+      })).sort((a, b) => String(a.sentAt).localeCompare(String(b.sentAt)));
       const at = now();
-      return save('reports', add({ clientId: body.clientId }, { status: 'pending', kind: body.kind, submittedAt: at, createdAt: at }));
+      const { id } = save('reports', add({ clientId: body.clientId }, { status: 'pending', kind: body.kind,
+        submittedAt: at, createdAt: at, target, lines, explanation: String(body.explanation ?? '').slice(0,500),
+        photos: list(body.localPhotos).slice(0,3) }));
+      return { id };
     }
     if (area === 'groups' && action === 'call') {
       if (get) return { call: null, available: false };

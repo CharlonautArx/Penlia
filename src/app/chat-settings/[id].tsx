@@ -9,10 +9,13 @@ import { useDemo } from '../../demo/state';
 import { errorMessage } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { imUserId, useIm } from '../../services/im';
+import { openConversationAction, ReportEntry } from '../../features/social/ReportSheet';
+import { useSession } from '../../services/session';
 import { colors } from '../../theme';
 
 export default function ChatSettings() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useSession();
   const { relationships } = useFriends();
   const person = relationships?.find((entry) => entry.userId === id && entry.status === 'accepted');
   const store = useConversationPreferences();
@@ -80,6 +83,7 @@ export default function ChatSettings() {
         <ListRow title="设置当前聊天背景" detail={nativeChatBackgrounds ? undefined : '请在手机 App 中设置'} left={<Icon name="image-outline" />}
           separator={false} onPress={nativeChatBackgrounds ? () => router.push({ pathname: '/chat-background', params: { peer: id, currentOnly: '1' } }) : undefined} />
       </SettingGroup>
+      {session && <ReportEntry onPress={() => openConversationAction(session.user.id, id, '/chat/[id]', 'report')} />}
     </>}
   </Screen>;
 }

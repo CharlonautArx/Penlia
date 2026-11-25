@@ -13,15 +13,16 @@ export async function p1Routes(
   path,
   { user, query, readBody, rateLimit, headers, rtc, moderationEvidence, reviewAdvisor },
 ) {
-  const attachment = /^\/v1\/p1\/review-media\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/.exec(path);
+  const attachment = /^\/v1\/p1\/(review-media|boundary-media)\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/.exec(path);
   if (attachment && (method === 'GET' || method === 'HEAD')) {
     await rateLimit('p1:review-media:' + user.id, 180, 1);
     return review.readReportMedia(
       user.id,
-      readId(attachment[1]),
       readId(attachment[2]),
+      readId(attachment[3]),
       headers.range,
       method === 'HEAD',
+      attachment[1] === 'boundary-media',
     );
   }
   const match = /^\/v1\/p1\/([a-z-]+)(?:\/([a-zA-Z0-9-]+))?(?:\/([a-z-]+))?$/.exec(path);
@@ -116,6 +117,7 @@ export async function p1Routes(
         return collections.removeContribution(me, id);
     }
   if (resource === 'boundary' && route === 'GET:list') return review.boundaryOverview(me, query.get('before'));
+  if (resource === 'boundary' && route === 'GET:one') return review.reportHistoryDetail(me, id);
   if (resource === 'boundary' && route === 'POST:list') return review.hideReportHistory(me, await body());
   if (resource === 'reports' && route === 'POST:list') return review.submitReport(me, await body());
   if (resource === 'enforcement' && route === 'POST:one:appeal')

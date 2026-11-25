@@ -70,9 +70,9 @@ function messageDate(value: number) {
   return day + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-export function ChatBubble({ mine, first, last, author, avatar, children, onActions, report, bare }: {
+export function ChatBubble({ mine, first, last, author, avatar, children, onActions, bare }: {
   mine: boolean; first: boolean; last: boolean; author?: string; avatar?: ReactNode;
-  bare?: boolean; children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void; report?: () => void;
+  bare?: boolean; children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void;
 }) {
   const wall = useWallpaperLabel();
   return <View style={[ui.messageRow, mine && ui.sentRow, first && ui.firstMessage]}>
@@ -81,8 +81,8 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
       {!!author && first && !mine && <Text numberOfLines={1} style={[ui.sender, wall]}>{author}</Text>}
       <Pressable
         onLongPress={({ nativeEvent }) => onActions({ x: nativeEvent.pageX, y: nativeEvent.pageY })}
-        accessibilityActions={[{ name: 'longpress', label: '消息操作' }, ...(report ? [{ name: 'report', label: '举报这条消息' }] : [])]}
-        onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); else if (nativeEvent.actionName === 'report') report?.(); }}
+        accessibilityActions={[{ name: 'longpress', label: '消息操作' }]}
+        onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); }}
         delayLongPress={380}
         style={({ pressed }) => [bare ? ui.bareBubble : [ui.bubble, mine ? ui.sent : ui.received,
           !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>

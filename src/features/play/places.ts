@@ -17,12 +17,14 @@ export type Place = {
   category: Category;
   city: City;
   district: string;
+  address?: string;
+  coordinates?: { latitude: number; longitude: number };
   group: string;
   intro: string;
   description: string;
   image?: ImageSourcePropType;
   price?: { label: string; verifiedOn: string };
-  rating?: { label: string; source: string };
+  rating?: { label: string; source: string; value?: number; maximum?: number };
   offer?: { label: string; expiresAt: string };
   origin: Origin;
 };
@@ -63,3 +65,12 @@ export function disclosure(place: Place) {
     case 'editorial': return '编辑推荐';
   }
 }
+
+export type PlaceQuery = { city?: City; category?: Category; keyword?: string; cursor?: string; limit?: number };
+export type PlacePage = { places: Place[]; next: string | null };
+export type PlaceProvider = {
+  id: string;
+  cacheTtlMs: number;
+  search: (query: PlaceQuery, signal?: AbortSignal) => Promise<PlacePage>;
+  detail: (id: string, signal?: AbortSignal) => Promise<Place | undefined>;
+};

@@ -1,8 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { cleanText, hash, HttpError, inTransaction, readId } from '../core.mjs';
 import { pool } from '../db.mjs';
 import { blocked, idsOf, lockUsers } from '../p0/access.mjs';
 import { invalidMediaRange, mediaResponse, parseMediaRange } from '../p0/moments.mjs';
+import { decodeJpeg } from '../p0/profile-cover.mjs';
 import { groupMember } from '../p0/groups.mjs';
 import { choose, conflict, invalid, missing } from './common.mjs';
 
@@ -28,6 +29,18 @@ function unsealBytes(id, bytes) {
   decoder.setAAD(Buffer.from('penlia-evidence-v1:' + id));
   decoder.setAuthTag(bytes.subarray(13, 29));
   return Buffer.concat([decoder.update(bytes.subarray(29)), decoder.final()]);
+}
+
+export const reportPhotoLimit = 384 * 1024;
+export const reportBodyLimit = reportPhotoLimit * 4 + 65536;
+const kinds = ['boundary','sexual','rumor','advertising','fraud','violence','illegal','self_harm','spam','harassment','threat'];
+
+function reportPhotos(input = []) {
+  if (!Array.isArray(input) || input.length > 3) throw invalid('最多添加三张举报配图。');
+  return input.map((photo) => {
+    const data = decodeJpeg(photo, reportPhotoLimit);
+    return { id: randomUUID(), mime: 'image/jpeg', data, sha256: hash(data) };
+  });
 }
 
 const seal = (id, snapshot) => sealBytes(id, Buffer.from(JSON.stringify(snapshot)));
@@ -66,8 +79,8 @@ async function groupEvidence(db, reporter, body) {
   if (!ids.includes(anchor)) throw invalid('请包含被举报消息。');
   const membership = await groupMember(db, group, reporter, true);
   const { rows } = await db.query(
-    `SELECT m.id,m.sender_id AS "senderId",m.content,m.sent_at AS "sentAt"
-    FROM chat_group_messages m WHERE m.group_id=$1 AND m.id=ANY($2::uuid[]) AND m.sent_at>=$3 AND m.recalled_at IS NULL
+    `SELECT m.id,m.sender_id AS "senderId",m.content,m.sent_at AS "sentAt",u.name AS author
+    FROM chat_group_messages m JOIN users u ON u.id=m.sender_id WHERE m.group_id=$1 AND m.id=ANY($2::uuid[]) AND m.sent_at>=$3 AND m.recalled_at IS NULL
     AND NOT ${blocked('$4::uuid', 'm.sender_id')} ORDER BY m.sent_at,m.id`,
     [group, ids, membership.joinedAt, reporter],
   );
@@ -112,7 +125,7 @@ async function privateEvidence(db, reporter, body) {
     !(
       await db.query(
         `SELECT 1 FROM friendships WHERE first_user=least($1::uuid,$2::uuid)
-    AND second_user=greatest($1::uuid,$2::uuid)`,
+    AND second_user=greatest($1::uuid,$2::uuid) AND status='accepted' AND NOT ${blocked('$1::uuid', '$2::uuid')}`,
         [reporter, peer],
       )
     ).rowCount
@@ -127,7 +140,9 @@ async function privateEvidence(db, reporter, body) {
     const id = proofMessageId(line.id);
     if (unique.has(id)) throw invalid();
     unique.add(id);
-    return { id, content: cleanText(line.content, 1000), mine: line.mine === true };
+    const timestamp = typeof line.sentAt === 'string' && line.sentAt.length <= 30 ? Date.parse(line.sentAt) : NaN;
+    return { id, content: cleanText(line.content, 1000), mine: line.mine === true,
+      ...(Number.isFinite(timestamp) ? { sentAt: new Date(timestamp).toISOString() } : {}) };
   });
   if (!messages.some((message) => message.id === anchor && !message.mine))
     throw invalid('请选择对方发送的消息作为举报对象。');
@@ -136,7 +151,8 @@ async function privateEvidence(db, reporter, body) {
 
 export async function submitReport(reporter, body) {
   const clientId = readId(body.clientId);
-  const kind = choose(body.kind, ['boundary', 'harassment', 'threat']);
+  const kind = choose(body.kind, kinds);
+  const photos = reportPhotos(body.photos);
   return inTransaction(pool, async (db) => {
     await lockUsers(db, reporter);
     const {
@@ -160,9 +176,11 @@ export async function submitReport(reporter, body) {
     if (quantity.n >= 3) throw new HttpError(429, '该联系人今日的举报提交已达上限。');
     const {
       rows: [row],
-    } = await db.query('SELECT gen_random_uuid() AS id');
+    } = await db.query('SELECT gen_random_uuid() AS id,(SELECT name FROM users WHERE id=$1) AS subject', [evidence.subject]);
     const sealed = seal(row.id, {
       ...evidence.snapshot,
+      subject: row.subject,
+      supplemental: photos.map(({ id, mime }) => ({ id, mime })),
       explanation: cleanText(body.explanation ?? '', 500),
       allowsAssistance: body.allowAssistance === true,
     });
@@ -171,7 +189,7 @@ export async function submitReport(reporter, body) {
       VALUES($1,$2,$3,$4,$5,$6,$7)`,
       [row.id, reporter, evidence.subject, clientId, kind, evidence.provenance, sealed],
     );
-    for (const attachment of evidence.media ?? []) {
+    for (const attachment of [...(evidence.media ?? []), ...photos]) {
       await db.query(
         `INSERT INTO p1_report_media(report_id,media_id,mime,bytes,sha256,sealed_data)
         VALUES($1,$2,$3,$4,$5,$6)`,
@@ -185,7 +203,7 @@ export async function submitReport(reporter, body) {
         ],
       );
     }
-    return row;
+    return { id: row.id };
   });
 }
 
@@ -194,7 +212,7 @@ export async function hideReportHistory(user, body) {
   const ids = all ? [] : idsOf(body.ids, 100);
   if (!all && !ids.length) throw invalid('请选择要删除的举报记录。');
   await pool.query(`INSERT INTO p1_report_history_hidden(report_id)
-    SELECT r.id FROM p1_reports r WHERE r.reporter_id=$1 AND ($2::boolean OR r.id=ANY($3::uuid[]))
+    SELECT r.id FROM p1_reports r WHERE r.reporter_id=$1 AND r.kind='boundary' AND ($2::boolean OR r.id=ANY($3::uuid[]))
     ON CONFLICT DO NOTHING`, [user, all, ids]);
   return {};
 }
@@ -204,8 +222,8 @@ export async function boundaryOverview(user, before = null) {
   const [reports, actions, reviewer] = await Promise.all([
     pool.query(
       `SELECT r.id,r.kind,r.submitted_at AS "submittedAt",CASE WHEN r.status='pending' THEN 'pending' ELSE 'closed' END status
-      FROM p1_reports r WHERE r.reporter_id=$1 AND NOT EXISTS(SELECT 1 FROM p1_report_history_hidden h WHERE h.report_id=r.id)
-      AND ($2::uuid IS NULL OR (r.submitted_at,r.id)<(SELECT submitted_at,id FROM p1_reports WHERE reporter_id=$1 AND id=$2))
+      FROM p1_reports r WHERE r.reporter_id=$1 AND r.kind='boundary' AND NOT EXISTS(SELECT 1 FROM p1_report_history_hidden h WHERE h.report_id=r.id)
+      AND ($2::uuid IS NULL OR (r.submitted_at,r.id)<(SELECT submitted_at,id FROM p1_reports WHERE reporter_id=$1 AND kind='boundary' AND id=$2))
       ORDER BY r.submitted_at DESC,r.id DESC LIMIT 51`,
       [user, before],
     ),
@@ -275,12 +293,14 @@ export async function verifyPrivateReport(actor, id, adapter) {
     )
   )
     throw conflict('无法核实原始消息。');
-  const verified = result.messages.map((message) => {
+  const verified = snapshot.messages.map((submitted) => {
+    const message = result.messages.find(({ id }) => id === submitted.id);
     if (![initial.subject_id, initial.reporter_id].includes(message.senderId))
       throw conflict('无法核实原始消息。');
     return {
       id: proofMessageId(message.id),
       senderId: message.senderId,
+      sentAt: submitted.sentAt,
       content: cleanText(message.content ?? '', 1000),
     };
   });
@@ -313,7 +333,7 @@ export async function decideReport(actor, id, body) {
       boundary: '审核确认存在工作任务或催办类信息骚扰。',
       harassment: '审核确认存在骚扰行为。',
       threat: '审核确认存在严重威胁行为。',
-    }[report.kind];
+    }[report.kind] ?? '审核确认聊天内容违反朋聊社区规则。';
     const duration = body.durationHours;
     if (!Number.isInteger(duration) || duration < 1 || duration > 720)
       throw invalid('处置时长须为 1 至 720 小时。');
@@ -439,9 +459,38 @@ export async function finishAppeal(actor, id, body) {
   });
 }
 
-export async function readReportMedia(actor, id, mediaId, range, head) {
+async function reporterRecord(db, actor, id) {
+  const { rows: [report] } = await db.query(
+    `SELECT r.*,u.name AS subject_name FROM p1_reports r JOIN users u ON u.id=r.subject_id
+     WHERE r.id=$1 AND r.reporter_id=$2 AND r.kind='boundary'
+       AND NOT EXISTS(SELECT 1 FROM p1_report_history_hidden WHERE report_id=r.id)`, [id, actor]);
+  if (!report) throw missing();
+  return report;
+}
+
+export async function reportHistoryDetail(actor, id) {
+  const report = await reporterRecord(pool, actor, id);
+  const evidence = unseal(id, report.evidence);
+  const target = evidence.subject ?? report.subject_name;
+  return {
+    target, status: report.status, submittedAt: report.submitted_at,
+    explanation: evidence.explanation, photos: evidence.supplemental ?? [],
+    lines: evidence.messages.map((line) => ({
+      id: line.id, content: line.content, sentAt: line.sentAt,
+      author: line.mine === true || line.senderId === actor ? '我' : line.author ?? target,
+      attachments: line.attachmentCount ?? 0,
+    })),
+  };
+}
+
+export async function readReportMedia(actor, id, mediaId, range, head, own = false) {
   return inTransaction(pool, async (db) => {
-    await reviewable(db, actor, id);
+    if (own) {
+      const report = await reporterRecord(db, actor, id);
+      if (!unseal(id, report.evidence).supplemental?.some((photo) => photo.id === mediaId)) throw missing();
+    } else {
+      await reviewable(db, actor, id);
+    }
     const {
       rows: [value],
     } = await db.query(
@@ -464,7 +513,7 @@ export async function readReportMedia(actor, id, mediaId, range, head) {
       if (original.length !== value.bytes || hash(original) !== value.sha256)
         throw conflict('证据校验失败。');
       binary = original.subarray(bounds.first, bounds.last + 1);
-      await audit(db, id, actor, 'evidence_media_accessed');
+      if (!own) await audit(db, id, actor, 'evidence_media_accessed');
     }
     const response = mediaResponse(value.mime, value.bytes, range, bounds, binary);
     response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox";

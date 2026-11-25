@@ -46,8 +46,10 @@ export function squareCrop(width: number, height: number, zoom: number) {
   return { originX: Math.floor((width - size) / 2), originY: Math.floor((height - size) / 2), width: size, height: size };
 }
 
-export async function preparePhoto(input: SelectedImage, account: string, avatarZoom?: number): Promise<PreparedPhoto> {
+export async function preparePhoto(input: SelectedImage, account: string, avatarZoom?: number, limits?: { maxSide: number; maxBytes: number }): Promise<PreparedPhoto> {
   const longest = Math.max(input.width, input.height);
+  const maxSide = limits?.maxSide ?? 1800;
+  const maxBytes = limits?.maxBytes ?? maxChatBytes;
   const avatar = avatarZoom !== undefined;
   for (const quality of avatar ? [0.86] : [0.85, 0.7, 0.56]) {
     const context = ImageManipulator.manipulate(input.uri);
@@ -56,18 +58,18 @@ export async function preparePhoto(input: SelectedImage, account: string, avatar
         const rect = squareCrop(input.width, input.height, avatarZoom);
         context.crop(rect);
         context.resize({ width: Math.min(rect.width, 512) });
-      } else if (longest > 1800) {
-        context.resize(input.width >= input.height ? { width: 1800 } : { height: 1800 });
+      } else if (longest > maxSide) {
+        context.resize(input.width >= input.height ? { width: maxSide } : { height: maxSide });
       }
       const image = await context.renderAsync();
       try {
         const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: quality });
         const bytes = Platform.OS === 'web' ? (await (await fetch(saved.uri)).blob()).size : new File(saved.uri).size;
-        if (bytes > maxChatBytes) continue;
+        if (bytes > maxBytes) continue;
         const photo = await savePreparedPhoto(saved.uri, account);
         return { id: photo.id, width: saved.width, height: saved.height, bytes };
       } finally { image.release(); }
     } finally { context.release(); }
   }
-  throw new Error('压缩后的照片仍超过 2 MB，请换一张再试。');
+  throw new Error(limits ? '压缩后的照片仍超过图片限制，请换一张再试。' : '压缩后的照片仍超过 2 MB，请换一张再试。');
 }

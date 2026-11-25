@@ -53,13 +53,13 @@ export function PlaceCard({ place, compact = false }: { place: Place; compact?: 
     onPress={() => router.push({ pathname: '/playground/place/[id]', params: { id: place.id } })}
     style={({ pressed }) => [local.place, compact && local.placeCompact, pressed && local.pressed]}>
     {place.image && <Image source={place.image} style={compact ? local.thumbnail : local.placePhoto} />}
-    <View style={[local.placeCopy, compact && styles.grow]}>
+    <View style={[local.placeCopy, compact && local.compactCopy]}>
       <View style={local.placeHeading}>
         <Text style={[styles.strong, styles.grow]} numberOfLines={2}>{place.title}</Text>
         <Tag>{disclosure(place)}</Tag>
       </View>
       <Text style={styles.small}>{place.city} · {place.district}　|　{place.category}　|　{place.group}</Text>
-      <Text style={styles.muted} numberOfLines={compact ? 1 : 2}>{place.intro}</Text>
+      <Text style={styles.muted} numberOfLines={2}>{place.intro}</Text>
     </View>
   </Pressable>;
 }
@@ -82,11 +82,12 @@ const local = StyleSheet.create({
   gameRow: { ...styles.row, gap: 10, minHeight: 64, padding: 7, paddingRight: 12, backgroundColor: colors.panel,
     borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.control },
   square: { width: 54, height: 45, borderRadius: 8, backgroundColor: colors.lavender },
-  thumbnail: { width: 84, alignSelf: 'stretch', minHeight: 94, backgroundColor: colors.lavender },
+  thumbnail: { width: 88, height: 82, borderRadius: radius.control, resizeMode: 'cover', backgroundColor: colors.lavender },
   place: { borderRadius: radius.surface, backgroundColor: colors.panel, borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  placeCompact: { flexDirection: 'row' },
+  placeCompact: { ...styles.row, padding: space.xs, gap: space.sm },
   placePhoto: { width: '100%', height: 168, resizeMode: 'cover', backgroundColor: colors.lavender },
   placeCopy: { padding: space.sm, gap: space.xxs },
+  compactCopy: { flex: 1, minWidth: 0, padding: 0 },
   placeHeading: { ...styles.row, gap: 4 },
 });

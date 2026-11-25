@@ -2,7 +2,7 @@ import { randomUUID } from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, Empty, ListRow, Notice, Screen, Section, Segments, Sheet } from '../components/ui';
+import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../components/ui';
 import {
   back,
   categories,
@@ -86,8 +86,6 @@ export default function SocialScreen() {
   const tab = section && section in sections ? section : 'wishes';
   return (
     <Screen title={sections[tab]} back={back}>
-      <Segments<Tab> label="共同生活频道" options={(Object.keys(sections) as Tab[]).map((id) => ({ id, label: sections[id] }))}
-        value={tab} onChange={(value) => router.setParams({ section: value })} />
       {tab === 'wishes' && <Wishes key={wishTitle??''} title={wishTitle} place={wishPlace}/>}
       {tab === 'gatherings' && <Gatherings />}
       {tab === 'collections' && <Collections />}
@@ -367,7 +365,7 @@ function Events() {
           detail={event.readAt ? '已查看' : '未查看'}
           onPress={() => {
             void run(() => request('/p1/events/' + event.id + '/open', { method: 'POST' }), false);
-            if (event.kind === 'wish_match') router.setParams({ section: 'wishes' });
+            if (event.kind === 'wish_match') router.push({ pathname: '/social', params: { section: 'wishes' } });
             else if(event.kind==='p2_calendar_invited')router.push({pathname:'/life/calendar',params:{sharing:'1'}});
             else if(event.kind==='p2_trip_journal')router.push({pathname:'/life/project/[id]',params:{id:event.subjectId,kind:'trip'}});
             else if(event.kind==='p3_world_invited'||event.kind==='p3_relay_invited')
@@ -377,7 +375,7 @@ function Events() {
               if (event.groupId)
                 router.push({ pathname: '/group/[id]', params: { id: event.groupId, call: '1' } });
               else router.push('/groups');
-            } else if (event.kind === 'collection_invited') router.setParams({ section: 'collections' });
+            } else if (event.kind === 'collection_invited') router.push({ pathname: '/social', params: { section: 'collections' } });
             else router.push({ pathname: '/gathering/[id]', params: { id: event.subjectId } });
           }}
         />

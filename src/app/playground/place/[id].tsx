@@ -3,14 +3,14 @@ import { useState } from 'react';
 import { Image, Linking, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet, Tag } from '../../../components/ui';
-import { discoveryCatalog } from '../../../features/play/catalog';
+import { usePlace } from '../../../features/play/catalog';
 import { InviteButton, useSavedPlaces } from '../../../features/play/Gather';
 import { bookingUrl, disclosure } from '../../../features/play/places';
 import { colors, styles, type } from '../../../theme';
 
 export default function PlaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const place = discoveryCatalog().find((item) => item.id === id);
+  const { place, loading } = usePlace(id);
   const { saved, toggle, busy, error } = useSavedPlaces();
   const [confirm, setConfirm] = useState(false);
   const [linkError, setLinkError] = useState('');
@@ -62,7 +62,7 @@ export default function PlaceScreen() {
           void Linking.openURL(external).catch(() => setLinkError('暂时无法打开该页面。'));
         }} />
       </Sheet>}
-    </> : <Empty icon="location-outline">这个去处暂时不可用。</Empty>}
+    </> : <Empty icon="location-outline" busy={loading}>{loading ? '正在读取去处…' : '这个去处暂时不可用。'}</Empty>}
   </Screen>;
 }
 

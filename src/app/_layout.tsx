@@ -50,6 +50,11 @@ function AppNavigation() {
                   <Stack.Screen name="profile" />
                   <Stack.Screen name="groups" />
                   <Stack.Screen name="group/[id]" />
+                  <Stack.Screen name="group-settings/[id]" />
+                  <Stack.Screen name="friend-requests/index" />
+                  <Stack.Screen name="friend-requests/[id]" />
+                  <Stack.Screen name="friend-invite" />
+                  <Stack.Screen name="my-qr" />
                   <Stack.Screen name="private-moment" />
                   <Stack.Screen name="person/[id]" />
                   <Stack.Screen name="playground" />
@@ -64,6 +69,7 @@ function AppNavigation() {
                   <Stack.Screen name="journal-entry/[id]" />
                   <Stack.Screen name="contributions" />
                   <Stack.Screen name="boundary" />
+                  <Stack.Screen name="boundary/[id]" />
                   <Stack.Screen name="review/[id]" />
                 </Stack.Protected>
                 <Stack.Protected guard={!!session && isUiDemo}>

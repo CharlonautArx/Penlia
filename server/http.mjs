@@ -3,6 +3,8 @@ import { handle, HttpError } from './api.mjs';
 import { mediaLimit } from './p0/moments.mjs';
 import { profileCoverLimit } from './p0/profile-cover.mjs';
 
+import { reportBodyLimit } from './p1/moderation.mjs';
+
 const MAX_BODY_BYTES = 12000;
 
 async function readBody(request, maxBytes = MAX_BODY_BYTES) {
@@ -42,6 +44,10 @@ export function createApiServer(options = {}) {
       headers: request.headers,
       sourceIp: request.socket.remoteAddress ?? 'unknown',
       readBody: () => {
+        if (request.method === 'POST' && url.pathname === '/v1/friends/code'
+          && !request.headers['transfer-encoding'] && Number(request.headers['content-length'] ?? 0) === 0) return {};
+        if (request.method === 'PATCH' && url.pathname === '/v1/me/public-intro') return readBody(request, 33792);
+        if (request.method === 'POST' && url.pathname === '/v1/p1/reports') return readBody(request, reportBodyLimit);
         if (request.method === 'POST' && url.pathname === '/v1/chat-records') return readBody(request, 144 * 1024);
         if(request.method==='POST'&&url.pathname==='/v1/moment-media')
           return readBody(request,Math.ceil(mediaLimit/3)*4+132096);

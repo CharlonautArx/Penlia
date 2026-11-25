@@ -3,7 +3,6 @@ import { fontSizes } from '../../font-scale';
 import { formatHandle } from '../../services/handle';
 import { isUiDemo } from '../../demo/mode';
 import Constants from 'expo-constants';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,7 +13,7 @@ import { nativeChatBackgrounds } from '../../features/chat/background/store';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
-import { brandGradient, colors, radius, space, styles, type } from '../../theme';
+import { colors, radius, space, styles, type } from '../../theme';
 import { useAppearance } from '../../components/appearance';
 
 export default function MeScreen() {
@@ -45,7 +44,6 @@ export default function MeScreen() {
       <Pressable accessibilityRole="button" accessibilityLabel="查看个人资料" onPress={() => router.push('/profile')}
         style={({ pressed }) => [StyleSheet.absoluteFill, pressed && local.profilePressed]} />
       <View pointerEvents="none" style={local.profileContent}>
-        <LinearGradient colors={brandGradient} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={local.signature} />
         <View style={styles.row}>
           <Avatar userId={user.id} name={user.name} source={demoPortrait(demoAvatarKey ?? user.username)} size={68} />
           <View style={styles.grow}>
@@ -54,7 +52,8 @@ export default function MeScreen() {
           </View>
         </View>
       </View>
-      <View style={local.profileEdit}>
+      <View style={styles.row}>
+        <IconButton label="我的二维码" icon="qr-code-outline" onPress={() => router.push('/my-qr')} />
         <IconButton label="编辑资料" icon="create-outline" onPress={() => setSheet('资料')} disabled={busy} />
       </View>
       {!!user.bio && <View pointerEvents="none" style={local.bio}><Text style={styles.body}>{user.bio}</Text></View>}
@@ -113,10 +112,8 @@ const local = StyleSheet.create({
   profile: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.xxs,
     padding: space.md, borderRadius: radius.surface, backgroundColor: colors.panel },
   profileContent: { ...styles.grow, gap: space.sm },
-  profileEdit: { paddingTop: space.sm },
   bio: { width: '100%', paddingTop: space.sm },
   profilePressed: { borderRadius: radius.surface, backgroundColor: colors.search },
-  signature: { width: 40, height: 4, borderRadius: 2 },
   name: { ...type.title, color: colors.text },
   tile: { width: 34, height: 34, borderRadius: radius.small, backgroundColor: colors.backdrop,
     alignItems: 'center', justifyContent: 'center' },

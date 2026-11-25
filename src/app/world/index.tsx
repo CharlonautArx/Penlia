@@ -30,7 +30,6 @@ function SpaceList({ kind }: { kind: SpaceKind }) {
   const reload = () => { setExtra([]); setCursor(undefined); void load(); };
   return (
     <Screen title={spaceTitles[kind]} back={back} refreshing={busy} onRefresh={reload}>
-      <Choices labels={spaceTitles} value={kind} set={(value) => router.setParams({ kind: value })} />
       <Button label={kind === 'relay' ? '发起接力' : '创建共同世界'} variant="gradient" icon="add" onPress={() => setCreate(true)} />
       <Button label="管理我的投稿与摆件" variant="quiet" onPress={() => router.push('/world/own')} />
       {!!error && <Notice action="重试" onAction={reload}>{error}</Notice>}

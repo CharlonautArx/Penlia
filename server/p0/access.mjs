@@ -190,13 +190,6 @@ export async function searchPerson(userId, value, type, secret) {
       WHERE i.phone_key=$2 AND p.phone_search AND ${visible}`,
       [userId, keyedDigest(secret, 'phone', phone)],
     );
-  } else if (type === 'code') {
-    if (typeof value !== 'string' || !/^penlia:add:[A-Za-z0-9_-]{32}$/.test(value)) return { person: null };
-    result = await pool.query(
-      `${base} JOIN friend_codes c ON c.user_id=u.id
-      WHERE c.code_hash=$2 AND c.expires_at>now() AND ${visible}`,
-      [userId, hash(value)],
-    );
   } else {
     const username = typeof value === 'string' ? value.trim().toLowerCase().replace(/^[@＠]+/, '') : '';
     if (!username) return { person: null };
@@ -209,17 +202,17 @@ export async function searchPerson(userId, value, type, secret) {
   return { person: result.rows[0] ?? null };
 }
 
-export async function newFriendCode(userId) {
+export async function newFriendCode(userId, days = 1) {
+  if (!Number.isInteger(days) || days < 1 || days > 30) throw new HttpError(400, '有效期须为 1 至 30 天的整数。');
   const code = 'penlia:add:' + randomBytes(24).toString('base64url');
-  const {
-    rows: [row],
-  } = await pool.query(
-    `INSERT INTO friend_codes (user_id,code_hash,expires_at) VALUES ($1,$2,now()+interval '24 hours')
-    ON CONFLICT (user_id) DO UPDATE SET code_hash=excluded.code_hash, expires_at=excluded.expires_at
-    RETURNING expires_at AS "expiresAt"`,
-    [userId, hash(code)],
-  );
-  return { code, ...row };
+  return inTransaction(pool, async (db) => {
+    await lockUsers(db, userId);
+    const { rows: [row] } = await db.query(
+      `INSERT INTO friend_codes (user_id,code_hash,expires_at) VALUES ($1,$2,clock_timestamp()+$3::int*interval '24 hours')
+       ON CONFLICT (user_id) DO UPDATE SET code_hash=excluded.code_hash, expires_at=excluded.expires_at
+       RETURNING expires_at AS "expiresAt"`, [userId, hash(code), days]);
+    return { code, ...row };
+  });
 }
 
 export async function manageContact(userId, target, action) {

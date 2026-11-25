@@ -21,7 +21,7 @@ import { commentEmoji } from '../../features/moments/Comments';
 import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { PeerVideo } from '../../features/media/PeerVideo';
 import { chooseMomentVideo,chooseMomentDraftVideo,MomentVideo } from '../../features/moments/media';
-import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
+import { ReportForm, ReportSelectionBar, useReportSelection } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { ImageBubble } from '../../features/media/ImageBubble';
 import { LocationBubble, LocationComposer } from '../../features/media/LocationCard';
@@ -85,7 +85,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   const [video,setVideo]=useState<{ uri?: string; videoId?: string; bytes: number; duration?: number }>();
   const savedVideoUri = useLocalPhotoUri(video?.videoId);
   const videoUri = video?.uri ?? savedVideoUri;
-  const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
+  const report = useReportSelection(session?.user.id, person.userId, '/chat/[id]');
   const manage = useMessageManagement('peer:' + person.userId);
   const recalls = useRecalls();
   const markers = recalls.peers[person.userId] ?? noMarkers;
@@ -316,18 +316,17 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       photoId: message.kind === 'image' ? message.photoId : undefined,
       load: connection && message.source ? () => fetchAttachment(connection, message.source!) : undefined,
     } : undefined;
-    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file, report: !message.mine ? () => reportMessage(message) : undefined, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
       body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : message.kind === 'file' ? '[文件] ' + message.name : '',
       canCopy: (text && !message.recordId) || kind === 'location', recordId: message.recordId,
       quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
   }
   const selected = manage.selected && items.filter((message): message is RichMessage => !isRecalled(message) && !!manage.selected?.has(message.id)).map(managed);
-  function reportMessage(message: RichMessage) {
-    const index = items.findIndex((line) => line.id === message.id);
-    const lines = items.slice(Math.max(0, index - 3), index + 4).filter((line): line is RichMessage => !isRecalled(line)).map((line) => ({ id: line.id, mine: line.mine, content: summaryOf(line) }));
-    const anchor = lines.find((line) => line.id === message.id);
-    if (anchor) setReport({ anchor, lines });
-  }
+  const reportLines = report.selected ? items.filter((line): line is RichMessage =>
+    !isRecalled(line) && !!report.selected?.has(line.id)).reverse().map((line) => ({
+      id: line.id, mine: line.mine, author: line.mine ? '我' : person.name, content: summaryOf(line),
+      sentAt: new Date(line.timestamp).toISOString(),
+    })) : [];
 
   const renderMessage = useCallback<ListRenderItem<ShownMessage>>(({ item: message, index }) => {
     if (isRecalled(message)) return <View>
@@ -340,10 +339,10 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     const block = startsMessageBlock(message.timestamp, older?.timestamp);
     const first = block || message.mine !== older?.mine;
     const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
-    return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(message.id)} toggle={() => manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
+    return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(message.id)}
+      toggle={() => report.selected ? report.toggle(message.id) : manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
       {block && <ChatTimestamp value={message.timestamp} />}
       <ChatBubble bare={'kind' in message && message.kind === 'image'} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
-        report={!message.mine ? () => reportMessage(message) : undefined}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
@@ -355,7 +354,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
         <MessageMarks sharing={message.noReply} silent={message.silent} />
       </ChatBubble>
     </View></SelectionCheck>;
-  }, [changed, connection, items, online, person, manage.selected, manage.quote, markers, position, recalls.available, session?.user.name, demo]);
+  }, [changed, connection, items, online, person, manage.selected, manage.quote, report.selected, markers, position, recalls.available, session?.user.name, demo]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
   const sendDisabled = (!demo && !online) || !draft.trim() || sending
@@ -393,7 +392,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && (demo || online) ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
-      {selected ? <SelectionBar manage={manage} selected={selected} /> : <>
+      {report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <>
       <MessageComposer label="消息" floating focusKey={manage.quote?.id}
         value={draft} onChange={(text) => { setDraft(text); setSticker(undefined); }} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
@@ -444,7 +443,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
           {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
       </Sheet>}
-      {report&&<ReportSheet peerId={person.userId} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
+      {report.showForm && <ReportForm peerId={person.userId} lines={reportLines} onClose={() => report.setShowForm(false)} onFinish={report.cancel} />}
       {video&&<Sheet title="发送短视频" onClose={()=>{if(!sending)setVideo(undefined);}}>
         {videoUri ? <MomentVideo source={{ uri: videoUri }} /> : <Empty busy>正在读取视频…</Empty>}
         {noReply&&<NoReply/>}

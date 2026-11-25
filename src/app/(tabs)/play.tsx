@@ -6,7 +6,7 @@ import { GlassLayer } from '../../components/material';
 import { Empty, Icon, IconButton, Screen, Section, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { Chips, PlaceCard } from '../../features/play/Cards';
-import { discoveryCatalog } from '../../features/play/catalog';
+import { usePlaces } from '../../features/play/catalog';
 import { DiscoveryEntrance } from '../../features/play/DiscoveryEntrance';
 import { InviteButton } from '../../features/play/Gather';
 import { categories, cities, type City, visiblePlaces } from '../../features/play/places';
@@ -16,8 +16,8 @@ export default function PlayScreen() {
   const [category, setCategory] = useState<typeof categories[number]>('全部');
   const [city, setCity] = useState<City>('上海');
   const [choosingCity, setChoosingCity] = useState(false);
-  const places = visiblePlaces(discoveryCatalog()
-    .filter((place) => place.city === city && (category === '全部' || place.category === category)));
+  const { places: result, loading, error } = usePlaces(city, category === '全部' ? undefined : category);
+  const places = visiblePlaces(result);
 
   return <Screen>
     <DiscoveryEntrance onPress={() => router.push('/life')} />
@@ -40,7 +40,7 @@ export default function PlayScreen() {
     <View style={local.places}>
       <Section title="精选好去处" detail={isUiDemo ? '虚构推荐 · ' + city : city} />
       {places.map((place, index) => <PlaceCard key={place.id} place={place} compact={index > 0} />)}
-      {!places.length && <Empty icon="map-outline">这个类别暂时没有推荐。可以换个城市或类别。</Empty>}
+      {!places.length && <Empty icon="map-outline" busy={loading}>{loading ? '正在读取去处…' : error ? '暂时无法读取去处。' : '这个类别暂时没有推荐。可以换个城市或类别。'}</Empty>}
     </View>
     <InviteButton label="发起聚会提议" message="这周找一天一起出去走走？你想喝咖啡、看电影，还是试个新活动？" />
     {choosingCity && <Sheet title="选择城市" onClose={() => setChoosingCity(false)}>

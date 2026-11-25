@@ -1,3 +1,4 @@
+import { codeOwner } from './p0/friend-requests.mjs';
 import { afterImSend, listRecalls, recallPeerMessage } from './p0/peer-recall.mjs';
 import { randomBytes, scrypt as derive, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -108,7 +109,7 @@ async function requireSession(authorization) {
 async function friendships(userId) {
   const { rows } = await pool.query(
     `SELECT f.id, f.status, f.requested_by = $1 AS outgoing, f.im_synced AS "chatReady",
-            u.id AS "userId", u.username, u.name,
+            u.id AS "userId", CASE WHEN f.status='accepted' THEN u.username ELSE '' END AS username, u.name,
             CASE WHEN f.status='accepted' AND p.profile_policy IS DISTINCT FROM 'private' AND NOT ${restricted('u.id','$1::uuid')} THEN u.bio ELSE '' END AS bio,
             n.note AS "verificationMessage"
      FROM friendships f
@@ -121,7 +122,9 @@ async function friendships(userId) {
 }
 
 async function requestFriend(userId, body, sourceIp) {
-  const other=readId(body.userId);
+  const viaCode = body.code !== undefined;
+  const other = viaCode ? await codeOwner(pool, body.code) : readId(body.userId);
+  if (!other) throw new HttpError(404,'二维码无效、已过期或已撤销。');
   if (other===userId) throw new HttpError(400,'不能添加自己。');
   const note=cleanText(body.note??'',100);
   await rateLimit('friend:'+userId,20,60);
@@ -129,6 +132,8 @@ async function requestFriend(userId, body, sourceIp) {
   await rateLimit('friend-target:'+other,35,60);
   return inTransaction(pool,async(db)=>{
     await lockUsers(db,userId,other);
+    if (viaCode && await codeOwner(db, body.code) !== other)
+      throw new HttpError(404,'二维码无效、已过期或已撤销。');
     const allowed=await db.query(`SELECT 1 FROM users WHERE id=$2 AND NOT ${blocked('$1::uuid','$2::uuid')}`,[userId,other]);
     if (!allowed.rowCount || (await preferences(db,other)).addPolicy==='none') {
       throw new HttpError(404,'当前无法发送好友申请。');

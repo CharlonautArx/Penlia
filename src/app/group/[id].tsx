@@ -19,7 +19,7 @@ import {
 } from '../../features/moments/media';
 import { GroupCallScreen } from '../../features/calls/GroupCallScreen';
 import { MessageMarks, NoReply } from '../../features/media/NoReply';
-import { ReportSheet,type EvidenceLine } from '../../features/social/ReportSheet';
+import { ReportForm, ReportSelectionBar, useReportSelection } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { QRImage } from '../../features/privacy/CodeSheet';
 import { GroupPortrait, pickGroupPortrait } from '../../features/groups/GroupPortrait';
@@ -63,10 +63,10 @@ export default function GroupConversation() {
   const [emoji, setEmoji] = useState(false);
   const manage = useMessageManagement('group:' + id);
   const [call,setCall]=useState(requestedCall==='1');
-  const [report,setReport]=useState<{anchor:EvidenceLine;lines:EvidenceLine[]}>();
   const [busy, setBusy] = useState(false);
   const working = useRef(false);
   const [details, setDetails] = useState(false);
+  const report = useReportSelection(session?.user.id, id, '/group/[id]', () => setDetails(true));
   const [invite, setInvite] = useState<{ name: string; code: string }>();
   const [confirmExit, setConfirmExit] = useState(false);
   const pending = useRef<{ id: string; signature: string } | undefined>(undefined);
@@ -190,21 +190,16 @@ export default function GroupConversation() {
         : line.quote?.id === item.id ? { ...line, quote: { ...line.quote, body: recalledQuote } } : line));
       if (manage.quote?.id === item.id) manage.setQuote(undefined);
     } : undefined;
-    return { recall, recallUntil: recall ? timestamp + recallWindow : undefined, report: item.senderId !== own ? () => reportMessage(item) : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
+    return { recall, recallUntil: recall ? timestamp + recallWindow : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
       time: Date.parse(item.sentAt), author: item.name, body: item.content,
       canCopy: !!item.content && !item.recordId, recordId: item.recordId,
       assets: item.media.map(recordAsset), quote: item.quote && item.quote.author + ' · ' + item.quote.body };
   }
   const selected = manage.selected && items.filter((item) => !item.recalled && manage.selected?.has(item.id)).map(managed);
-  function reportMessage(item: Line) {
-    const index = items.findIndex((line) => line.id === item.id);
-    const lines = items.slice(Math.max(0, index - 3), index + 4).filter((line) => !line.recalled).map((line) => ({
-      id: line.id, author: line.name, mine: line.senderId === own,
-      content: line.content + (line.media.length ? ' [附件 ' + line.media.length + ']' : ''),
-    }));
-    const anchor = lines.find((line) => line.id === item.id);
-    if (anchor) setReport({ anchor, lines });
-  }
+  const reportLines = report.selected ? items.filter((line) => !line.recalled && report.selected?.has(line.id))
+    .reverse().map((line) => ({ id: line.id, author: line.senderId === own ? '我' : line.name, senderId: line.senderId,
+      mine: line.senderId === own, sentAt: line.sentAt,
+      content: line.content || (line.media.length ? '[附件 ' + line.media.length + ']' : '[群消息]') })) : [];
   return (
     <ChatViewport>
       <TopBar
@@ -212,14 +207,8 @@ export default function GroupConversation() {
         back={back}
         actions={
           group && (
-            <IconButton
-              label="群资料和邀请"
-              icon="ellipsis-horizontal"
-              onPress={() => {
-                setDetails(true);
-                void info();
-              }}
-            />
+            <IconButton label="聊天设置" icon="menu"
+              onPress={() => router.push({ pathname: '/group-settings/[id]', params: { id } })} />
           )
         }
       />
@@ -267,11 +256,12 @@ export default function GroupConversation() {
             {block && <ChatTimestamp value={timestamp} />}
             <Text style={[styles.small, { textAlign: 'center', paddingVertical: space.sm }]}>{recalledCaption(mine)}</Text>
           </>;
-          return <SelectionCheck active={!!manage.selected} checked={!!manage.selected?.has(item.id)} toggle={() => manage.toggle(item.id)}><View>
+          return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(item.id)}
+            toggle={() => report.selected ? report.toggle(item.id) : manage.toggle(item.id)}><View>
             {block && <ChatTimestamp value={timestamp} />}
             <ChatBubble bare={!item.recordId && !item.content && item.media.length > 0 && item.media.every(({ mime }) => mime.startsWith('image/'))} mine={mine} first={block || item.senderId !== older?.senderId}
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
-              author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)} report={!mine ? () => reportMessage(item) : undefined}>
+              author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)}>
               {item.quote && <QuotePreview quote={item.quote} />}
               {item.recordId && <RecordLink id={item.recordId} onLongPress={openActions} />}
               {!!item.content && <MessageBody text={item.content} onLongPress={openActions} />}
@@ -286,7 +276,7 @@ export default function GroupConversation() {
         }}
       />
       {!!error && !!group && !details && <Notice>{error}</Notice>}
-      {!!group && (selected ? <SelectionBar manage={manage} selected={selected} /> : <MessageComposer label="群消息" focusKey={manage.quote?.id} placeholder="发消息" value={draft} onChange={setDraft}
+      {!!group && (report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <MessageComposer label="群消息" focusKey={manage.quote?.id} placeholder="发消息" value={draft} onChange={setDraft}
         maxLength={1000} attachLabel="更多群消息选项" photoLabel="从图库选择群图片"
         toolsDisabled={busy} onAttach={() => setTools(true)} onEmoji={() => setEmoji(true)}
         onPhoto={() => void run(async () => {
@@ -318,7 +308,7 @@ export default function GroupConversation() {
           void run(async()=>{const chosen=await chooseMomentVideo();if(chosen)setPhotos([chosen]);});
         }}/>
       </Sheet>}
-      {report&&<ReportSheet groupId={id} anchor={report.anchor} lines={report.lines} onClose={()=>setReport(undefined)}/>}
+      {group && report.showForm && <ReportForm groupId={id} lines={reportLines} onClose={() => report.setShowForm(false)} onFinish={report.cancel} />}
       {call&&<GroupCallScreen groupId={id} onClose={()=>setCall(false)}/>}
       {!!photos.length && (
         <Sheet

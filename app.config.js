@@ -1,7 +1,9 @@
 const { light } = require('./src/palette.json');
 
 module.exports = ({ config: base }) => {
-  const config = { ...base, backgroundColor: light.backdrop };
+  const config = { ...base, backgroundColor: light.backdrop, plugins: [...base.plugins,
+    ['expo-media-library', { photosPermission: false, savePhotosPermission: '允许朋聊将二维码图片保存到相册。', granularPermissions: [] }],
+  ] };
   if (process.env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1') {
     return { ...config, plugins: [...config.plugins, ['expo-camera', {
       cameraPermission: '允许朋聊扫描好友或群邀请二维码。', microphonePermission: false, recordAudioAndroid: false,
@@ -19,11 +21,11 @@ module.exports = ({ config: base }) => {
   });
   return {
     ...config,
-    version: '0.1.6',
+    version: '0.1.7',
     scheme: 'penlia-preview',
     platforms: ['android', 'ios', 'web'],
     plugins: [...plugins, './plugins/with-penlia-call-pip', ['expo-camera', { cameraPermission, microphonePermission, barcodeScannerEnabled: true }]],
-    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 18 },
+    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 19 },
     ios: { ...config.ios, bundleIdentifier: 'app.penlia.mobile.preview' },
   };
 };
