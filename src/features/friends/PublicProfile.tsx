@@ -8,7 +8,7 @@ import type { PublicPerson } from './invitations';
 export function PublicProfile({ person, note }: { person: PublicPerson; note?: string }) {
   return <>
     <View style={local.card}>
-      <Avatar name={person.name} size={70} source={person.avatar ? { uri: 'data:image/jpeg;base64,' + person.avatar } : demoPortrait(person.demoPortraitKey ?? '')} />
+      <Avatar userId={person.id} name={person.name} size={70} source={person.avatar ? { uri: 'data:image/jpeg;base64,' + person.avatar } : demoPortrait(person.demoPortraitKey ?? '')} />
       <View style={styles.grow}>
         <Text style={styles.section}>{person.name}</Text>
         {!!person.region && <Text style={styles.small}>{person.region}</Text>}

@@ -1,3 +1,4 @@
+import { parsePlaceCard } from '../../features/play/place-card-model';
 import { canRecall, recalledCaption, recalledQuote, recallWindow } from '../../features/chat/recall-model';
 import type { MessageLongPress } from '../../features/chat/record-model';
 import { ManagementUI, QuotePreview, RecordLink, SelectionBar, SelectionCheck, useMessageManagement, type ManagedMessage } from '../../features/chat/MessageManagement';
@@ -22,10 +23,10 @@ import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { ReportForm, ReportSelectionBar, useReportSelection } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { QRImage } from '../../features/privacy/CodeSheet';
-import { GroupPortrait, pickGroupPortrait } from '../../features/groups/GroupPortrait';
+import { GroupPortrait, useGroupPortraitPicker } from '../../features/groups/GroupPortrait';
 import type { ChatGroup } from '../../features/privacy/types';
 import { ApiError, errorMessage } from '../../services/api';
-import { useFriends } from '../../services/friends';
+import { useFriends, useIdentityResolver } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, space, styles } from '../../theme';
 import { ChatBubble, ChatTimestamp, MessageBody, MessageComposer, chatLayout, startsMessageBlock } from '../../features/chat/ui';
@@ -47,8 +48,10 @@ export default function GroupConversation() {
   const { id, call: requestedCall } = useLocalSearchParams<{ id: string; call?: string }>();
   const { request, session } = useSession();
   const { relationships, refresh } = useFriends();
+  const portraitPicker = useGroupPortraitPicker();
   const [group, setGroup] = useState<ChatGroup>();
-  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; name: string; avatar?: string }[]>([]);
+  const identity = useIdentityResolver();
   const [messages, setMessages] = useState<Line[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [seenOlder, setSeenOlder] = useState(false);
@@ -180,6 +183,11 @@ export default function GroupConversation() {
     await load();
   }
   const items = messages.filter((item) => !manage.history.hidden.has(item.id));
+  const portraits = new Map(members.map(({ id, avatar }) => [id, avatar]));
+  function picture(id: string) {
+    const avatar = portraits.get(id);
+    return avatar ? { uri: 'data:image/jpeg;base64,' + avatar } : undefined;
+  }
   function managed(item: Line): ManagedMessage {
     const asset = item.media[0];
     const timestamp = Date.parse(item.sentAt);
@@ -192,7 +200,7 @@ export default function GroupConversation() {
     } : undefined;
     return { recall, recallUntil: recall ? timestamp + recallWindow : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
       time: Date.parse(item.sentAt), author: item.name, body: item.content,
-      canCopy: !!item.content && !item.recordId, recordId: item.recordId,
+      canCopy: !!item.content && !item.recordId && !parsePlaceCard(item.content), recordId: item.recordId,
       assets: item.media.map(recordAsset), quote: item.quote && item.quote.author + ' · ' + item.quote.body };
   }
   const selected = manage.selected && items.filter((item) => !item.recalled && manage.selected?.has(item.id)).map(managed);
@@ -261,7 +269,8 @@ export default function GroupConversation() {
             {block && <ChatTimestamp value={timestamp} />}
             <ChatBubble bare={!item.recordId && !item.content && item.media.length > 0 && item.media.every(({ mime }) => mime.startsWith('image/'))} mine={mine} first={block || item.senderId !== older?.senderId}
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
-              author={item.name} avatar={<Avatar name={item.name} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)}>
+              author={identity(item.senderId)?.name ?? item.name}
+              avatar={<Avatar userId={item.senderId} name={item.name} source={picture(item.senderId)} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)}>
               {item.quote && <QuotePreview quote={item.quote} />}
               {item.recordId && <RecordLink id={item.recordId} onLongPress={openActions} />}
               {!!item.content && <MessageBody text={item.content} onLongPress={openActions} />}
@@ -345,16 +354,16 @@ export default function GroupConversation() {
           {!!error && <Notice>{error}</Notice>}
           <ListRow title={group.name} detail={group.ownerId === own ? '更换群头像' : undefined}
             left={<GroupPortrait name={group.name} avatar={group.avatar} />}
-            onPress={group.ownerId === own ? () => void run(async () => {
-              const avatar = await pickGroupPortrait();
-              if (!avatar) return;
+            onPress={group.ownerId === own ? () => void run(() => portraitPicker.choose(async (avatar) => {
               await request(groupPath + '/avatar', { method: 'PUT', body: { avatar } });
-              setGroup({ ...group, avatar });
-            }) : undefined} />
+              setGroup((latest) => latest && { ...latest, avatar });
+            })) : undefined} />
           <Button label="群视频通话" icon="videocam-outline" variant="soft" onPress={()=>{setDetails(false);setCall(true);}}/>
           <Section title="群成员" detail={members.length + ' 位'} />
           {members.map((member) => (
-            <ListRow key={member.id} title={member.name} detail={member.id === group.ownerId ? '群主' : undefined} />
+            <ListRow key={member.id} title={identity(member.id)?.name ?? member.name}
+              left={<Avatar userId={member.id} name={member.name} source={picture(member.id)} size={34} />}
+              detail={member.id === group.ownerId ? '群主' : undefined} />
           ))}
           {(group.ownerId === own || group.membersCanInvite) && (
             <>
@@ -416,6 +425,7 @@ export default function GroupConversation() {
           />
         </Sheet>
       )}
+      {portraitPicker.crop}
     </ChatViewport>
   );
 }

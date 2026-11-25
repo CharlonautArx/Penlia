@@ -4,13 +4,14 @@ import { Image, Linking, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Empty, Icon, IconButton, Notice, Screen, Section, Sheet, Tag } from '../../../components/ui';
 import { usePlace } from '../../../features/play/catalog';
-import { InviteButton, useSavedPlaces } from '../../../features/play/Gather';
+import { useSavedPlaces } from '../../../features/play/Gather';
+import { PlaceShareButton } from '../../../features/play/PlaceShare';
 import { bookingUrl, disclosure } from '../../../features/play/places';
 import { colors, styles, type } from '../../../theme';
 
 export default function PlaceScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { place, loading } = usePlace(id);
+  const { id, provider } = useLocalSearchParams<{ id: string; provider?: string }>();
+  const { place, loading } = usePlace(id, provider);
   const { saved, toggle, busy, error } = useSavedPlaces();
   const [confirm, setConfirm] = useState(false);
   const [linkError, setLinkError] = useState('');
@@ -50,9 +51,7 @@ export default function PlaceScreen() {
       {!!(error || linkError) && <Notice>{error || linkError}</Notice>}
       <View style={local.block}>
         <Section title="约朋友一起去" />
-        <InviteButton label="发个聚会提议"
-          message={sample ? `我在朋聊看到一个示例场所「${place.title}」，下次见面我们也找个类似的地方？`
-            : `下次一起去「${place.title}」？${place.city} · ${place.district}`} />
+        <PlaceShareButton place={place} />
       </View>
       {external && <Button label="前往合作方预订" icon="open-outline" variant="gradient" onPress={() => setConfirm(true)} />}
       {external && confirm && <Sheet title="前往合作方" onClose={() => setConfirm(false)}>

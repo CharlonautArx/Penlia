@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Switch, Text, TextInput, View, type ImageSourcePropType } from 'react-native';
 import { Avatar, Button, Empty, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
-import { GroupPortrait, pickGroupPortrait } from './GroupPortrait';
+import { GroupPortrait, useGroupPortraitPicker } from './GroupPortrait';
 import { ScanCode } from '../privacy/CodeSheet';
 import type { ChatGroup, Invite } from '../privacy/types';
 import { errorMessage } from '../../services/api';
@@ -13,6 +13,7 @@ export function GroupChats({ render }: { render?: (props: {
   actions: ReactNode; children: ReactNode; reload: () => void; refreshing: boolean;
 }) => ReactNode }) {
   const { request } = useSession();
+  const portraitPicker = useGroupPortraitPicker();
   const [groups, setGroups] = useState<ChatGroup[]>();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,7 +122,7 @@ export function GroupChats({ render }: { render?: (props: {
         >
           <Text style={styles.muted}>群聊建立后，你可以邀请好友。每位好友都需要确认加入。</Text>
           <ListRow title="选择群头像" left={<GroupPortrait name={name || '群'} avatar={avatar} />}
-            onPress={() => void run(async () => { const photo = await pickGroupPortrait(); if (photo) setAvatar(photo); })} />
+            onPress={() => void run(() => portraitPicker.choose(setAvatar))} />
           <TextInput
             accessibilityLabel="群聊名称"
             placeholder="给小群取个名字"
@@ -175,6 +176,7 @@ export function GroupChats({ render }: { render?: (props: {
           }}
         />
       )}
+    {portraitPicker.crop}
   </>;
   const reload = () => { void load(); };
   return render ? render({ actions, children, reload, refreshing }) :

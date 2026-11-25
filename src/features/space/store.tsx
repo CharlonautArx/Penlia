@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type ReactNode, useContext, useEffect, useMemo } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from 'react';
 
 import { isUiDemo } from '../../demo/mode';
 import { spaceSamples } from '../../demo/space';
@@ -59,12 +59,19 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
 }
 
 function useAccountSpace() {
-  const { session, demoAvatarKey } = useSession();
+  const { session, demoAvatarKey, saveProfile } = useSession();
   const { relationships, refresh } = useFriends();
   const me = session?.user;
   const samples = useMemo(() => isUiDemo ? spaceSamples() : undefined, []);
   const key = me && 'penlia.space.v1.' + me.id;
   const store = useLocalDocument(key, () => readSpace(key!, me!.id, samples));
+  const migratedRegion = useRef<string | undefined>(undefined);
+  const legacyRegion = store.value?.space.region;
+  useEffect(() => {
+    if (!me || me.region != null || !legacyRegion || migratedRegion.current === me.id) return;
+    migratedRegion.current = me.id;
+    void saveProfile({ region: legacyRegion, importRegion: true }).catch(() => {});
+  }, [me, legacyRegion, saveProfile]);
   const friends = useMemo(() => relationships?.filter((friend) => friend.status === 'accepted') ?? [], [relationships]);
 
   useEffect(() => { if (me) void refresh(); }, [me?.id, refresh]);
@@ -84,7 +91,7 @@ function useAccountSpace() {
   function card(id: string): SpaceCard {
     const state = store.value;
     const base = owns(id) ? state?.space : samples?.friendSpace[id];
-    const resolved = base ?? fallbackSpace;
+    const resolved = owns(id) && me?.region != null ? { ...(base ?? fallbackSpace), region: me.region } : base ?? fallbackSpace;
     const added = !owns(id) ? state?.guestNotes[id] : undefined;
     return added?.length ? { ...resolved, guestbook: [...resolved.guestbook, ...added] } : resolved;
   }

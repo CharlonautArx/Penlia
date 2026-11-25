@@ -4,6 +4,7 @@ import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Avatar, Button, IconButton, Notice, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
+import { useIdentityResolver } from '../../services/friends';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { createdTime } from '../space/model';
@@ -16,13 +17,14 @@ export function CommentList({ comments, owner, reply, remove, showEmpty, compact
   comments: MomentComment[]; owner: string; reply?: (comment: MomentComment) => void;
   remove?: (comment: MomentComment) => Promise<void>; showEmpty?: boolean; compact?: boolean;
 }) {
+  const identity = useIdentityResolver();
   const own = useSession().session?.user.id;
   const [menu, setMenu] = useState<MomentComment>();
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   if (!comments.length) return showEmpty ? <Text style={local.empty}>还没有评论</Text> : null;
-  const ordered = [...comments].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id));
+  const ordered = comments.map((comment) => ({ ...comment, author: identity(comment.authorId)?.name ?? comment.author })).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id));
   const byId = new Map(ordered.map((item) => [item.id, item]));
   const threads = new Map<string, MomentComment[]>();
   const root = (row: MomentComment) => {
@@ -103,6 +105,7 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
   initialReply?: MomentComment; focus: number; onSend: (body: string, reply?: string, photo?: LocalMedia) => Promise<void>;
   cancel: () => void;
 }) {
+  const identity = useIdentityResolver();
   const account = useSession().session?.user.id;
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const working = useRef(false);
@@ -126,7 +129,7 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
     try { await task(); } catch (failure) { setError(errorMessage(failure)); }
     finally { working.current = false; setBusy(false); }
   }
-  const placeholder = initialReply ? '回复：' + initialReply.author : '写评论…';
+  const placeholder = initialReply ? '回复：' + (identity(initialReply.authorId)?.name ?? initialReply.author) : '写评论…';
   return <View style={local.composer}>
     {!!error && <Notice>{error}</Notice>}
     {!!photo && <View style={styles.row}><DraftMediaTile item={photo} />

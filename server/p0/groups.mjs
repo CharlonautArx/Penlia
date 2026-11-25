@@ -1,3 +1,4 @@
+import { avatarOf } from './profile.mjs';
 import { assertAllowed } from '../p1/enforcement-access.mjs';
 import { unusedMedia } from '../p1/collection-access.mjs';
 import { randomBytes } from 'node:crypto';
@@ -65,9 +66,9 @@ export async function groupDetails(user, group) {
   return inTransaction(pool, async (db) => {
     const value = await groupMember(db, group, user, true);
     const members = await db.query(
-      `SELECT u.id,u.name FROM chat_group_members m JOIN users u ON u.id=m.user_id
+      `SELECT u.id,u.name,CASE WHEN NOT ${blocked('$2::uuid', 'u.id')} THEN ${avatarOf('u')} END AS avatar FROM chat_group_members m JOIN users u ON u.id=m.user_id
       WHERE m.group_id=$1 ORDER BY m.joined_at,u.id LIMIT 40`,
-      [group],
+      [group, user],
     );
     return { group: value, members: members.rows };
   });

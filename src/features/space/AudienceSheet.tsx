@@ -33,7 +33,7 @@ export function AudienceSheet({ title = '谁可以看', initial, friends, onSave
       {shown.length === 0 && <Text style={styles.muted}>{term ? '没有匹配的好友。' : '当前没有可以选择的好友。'}</Text>}
       <View style={local.options}>
         {shown.map((friend) => <Choice key={friend.userId} label={friend.name} picked={chosen.ids.includes(friend.userId)}
-          left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={34} />}
+          left={<Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={34} />}
           onPress={() => setAudience((current) => ({
             ...current, ids: current.ids.includes(friend.userId) ? current.ids.filter((id) => id !== friend.userId) : [...current.ids, friend.userId],
           }))} />)}

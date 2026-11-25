@@ -1,10 +1,11 @@
+import { handleAvailable, identityFields } from '../p0/profile.mjs';
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import {
   CODE_ERRORS, DAY, HOUR, MINUTE, PhoneError, SMS_COOLDOWN, cnBoundaries, equalDigest, invalidCode,
   invalidProof, keyedDigest, requestContext, tooMany, unavailable, validatedLimits,
 } from './policy.mjs';
 
-const publicFields = 'id, username, name, bio';
+const publicFields = identityFields('users');
 const hexToken = (value) => createHash('sha256').update(value).digest('hex');
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const lower = (a, b) => a < b ? a : b;
@@ -260,6 +261,7 @@ export function createPhoneAuth({ pool, secret, captcha, sms, limits: overrides,
       if (identity.rowCount) return new PhoneError(409, '请重新验证手机号后登录。');
       // This random, unguessable legacy slot has no user-known password.
       const passwordSlot = randomBytes(16).toString('hex') + ':' + randomBytes(64).toString('hex');
+      if (!await handleAvailable(db, username)) return new PhoneError(409, '这个朋聊号已被使用。');
       const { rows: [user] } = await db.query(`INSERT INTO users(username, password_hash, name) VALUES ($1, $2, $3)
         ON CONFLICT (username) DO NOTHING RETURNING ${publicFields}`, [username, passwordSlot, name]);
       if (!user) return new PhoneError(409, '这个朋聊号已被使用。');

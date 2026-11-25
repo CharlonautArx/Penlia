@@ -2,6 +2,8 @@ import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 import { Empty, Notice, Screen } from '../../../components/ui';
 import type { RecordEntry } from '../../../features/chat/MessageManagement';
+import { PlaceMessage } from '../../../features/play/PlaceMessage';
+import { parsePlaceCard } from '../../../features/play/place-card-model';
 import { MomentMediaGrid } from '../../../features/moments/media';
 import { useRecord } from '../../../features/social/ui';
 import { createdTime } from '../../../features/space/model';
@@ -19,11 +21,13 @@ function Content({ id }: { id: string }) {
   const { data, error, load } = useRecord<{ lines: RecordEntry[] }>('/chat-records/' + id, 10000);
   return error ? <Notice action="重试" onAction={() => void load()}>{error}</Notice> : !data
     ? <Empty busy>正在读取聊天记录…</Empty>
-    : <>{data.lines.map((line, index) => <View key={index} style={[styles.card, styles.divider]}>
+    : <>{data.lines.map((line, index) => {
+      const place = parsePlaceCard(line.body);
+      return <View key={index} style={[styles.card, styles.divider]}>
       <Text style={styles.strong}>{line.author}</Text>
       <Text style={styles.small}>{createdTime(line.time)}</Text>
       {!!line.quote && <Text style={styles.small}>{'引用：' + line.quote}</Text>}
-      {!!line.body && <Text style={styles.body}>{line.body}</Text>}
+      {place ? <PlaceMessage value={place} /> : !!line.body && <Text style={styles.body}>{line.body}</Text>}
       <MomentMediaGrid media={line.media} />
-    </View>)}</>;
+    </View>; })}</>;
 }

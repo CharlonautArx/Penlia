@@ -74,3 +74,5 @@ export type PlaceProvider = {
   search: (query: PlaceQuery, signal?: AbortSignal) => Promise<PlacePage>;
   detail: (id: string, signal?: AbortSignal) => Promise<Place | undefined>;
 };
+
+export const placeProvider = (place: Place) => place.origin.type === 'partner' ? place.origin.partnerId : 'local';

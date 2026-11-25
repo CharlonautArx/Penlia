@@ -1,3 +1,4 @@
+import { placeCaption } from '../play/place-card-model.ts';
 import { parseQuote, readRecordId, type MessageReferences } from '../chat/record-model.ts';
 import type { ChatMessage } from 'react-native-chat-sdk';
 import type { ImConnection, TextMessage } from '../../services/im';
@@ -18,7 +19,7 @@ export type PendingMessage = (
 
 export function summaryOf(message: RichMessage) {
   if (message.recordId) return '[聊天记录]';
-  if ('text' in message) return message.sticker ? '[表情] ' + message.text : message.text;
+  if ('text' in message) return message.sticker ? '[表情] ' + message.text : placeCaption(message.text);
   if (message.kind === 'image') return '[图片]';
   if (message.kind === 'video') return '[视频]';
   return message.kind === 'file' ? '[文件] ' + message.name : '[位置] ' + message.name;

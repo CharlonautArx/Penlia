@@ -65,7 +65,7 @@ export function MomentShareSheet({ item, onClose, onUpdate }: {
       <Text style={styles.muted}>只有原本可查看这条动态的好友，才能收到有效的引用。</Text>
       {!!friendsError && <Notice action="重试" onAction={() => void refresh()}>{friendsError}</Notice>}
       {friends.map((friend) => <ListRow key={friend.userId} title={friend.name}
-        left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={38} />}
+        left={<Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={38} />}
         onPress={() => void run(async () => {
           const { id } = await request<{ id: string }>(route + '/share-chat', { method: 'POST', body: { receiver: friend.userId } });
           const draft = momentShareCaption + '\n' + Linking.createURL(momentChatSharePath + id);

@@ -84,7 +84,7 @@ export default function MomentNotifications() {
     {rows?.map((item) => <View key={item.id}>
       <ListRow title={label(item)} detail={[item.comment, createdTime(Date.parse(item.createdAt)),
         item.kind === 'forward_request' && item.status ? forwardLabels[item.status] : ''].filter(Boolean).join(' · ')}
-        left={<Avatar name={item.actor} size={36} />} onPress={() => router.push({
+        left={<Avatar userId={item.actorId} name={item.actor} size={36} />} onPress={() => router.push({
           pathname: '/life/moment/[id]', params: { id: item.momentId },
         })} />
       {item.kind === 'forward_request' && item.status === 'pending' && <View style={local.actions}>

@@ -1,3 +1,4 @@
+import { avatarOf, handleOf } from './profile.mjs';
 import { revokeLifeContactGrants } from '../p2/contact-cleanup.mjs';
 import { revokeWorldContactGrants } from '../p3/contact-cleanup.mjs';
 import { activePenalty } from '../p1/enforcement-access.mjs';
@@ -173,7 +174,7 @@ export async function notificationPolicy(db, sender, recipient, requestedSilent)
 
 export async function searchPerson(userId, value, type, secret) {
   // A null result is identical for missing, undiscoverable, blocked and self.
-  const base = `SELECT u.id,u.username,u.name,'' AS bio FROM users u
+  const base = `SELECT u.id,${handleOf('u')} AS username,u.name,'' AS bio FROM users u
     LEFT JOIN privacy_preferences p ON p.user_id=u.id`;
   const visible = `u.id <> $1 AND coalesce(p.add_policy,'anyone')='anyone' AND NOT ${blocked('$1::uuid', 'u.id')}`;
   let result;
@@ -194,8 +195,8 @@ export async function searchPerson(userId, value, type, secret) {
     const username = typeof value === 'string' ? value.trim().toLowerCase().replace(/^[@＠]+/, '') : '';
     if (!username) return { person: null };
     result = await pool.query(
-      `${base} WHERE u.username IN ($2, '@'||$2, '＠'||$2) AND ${visible}
-      ORDER BY (u.username=$2) DESC,u.username LIMIT 1`,
+      `${base} WHERE ${handleOf('u')} IN ($2, '@'||$2, '＠'||$2) AND ${visible}
+      ORDER BY (${handleOf('u')}=$2) DESC,${handleOf('u')} LIMIT 1`,
       [userId, username],
     );
   }
@@ -287,7 +288,7 @@ export async function manageContact(userId, target, action) {
 
 export async function listBlocks(userId) {
   const { rows } = await pool.query(
-    `SELECT u.id,u.username,u.name FROM contact_blocks b JOIN users u ON u.id=b.other_id
+    `SELECT u.id,${handleOf('u')} AS username,u.name FROM contact_blocks b JOIN users u ON u.id=b.other_id
     WHERE b.user_id=$1 ORDER BY b.created_at DESC LIMIT 200`,
     [userId],
   );
@@ -296,7 +297,7 @@ export async function listBlocks(userId) {
 
 export async function listRestrictions(userId) {
   const { rows } = await pool.query(
-    `SELECT u.id,u.username,u.name FROM contact_restrictions r JOIN users u ON u.id=r.other_id
+    `SELECT u.id,${handleOf('u')} AS username,u.name FROM contact_restrictions r JOIN users u ON u.id=r.other_id
     WHERE r.user_id=$1 ORDER BY r.created_at DESC LIMIT 200`,
     [userId],
   );
@@ -383,7 +384,8 @@ export async function profile(userId, other) {
   const {
     rows: [row],
   } = await pool.query(
-    `SELECT u.id,u.username,u.name,
+    `SELECT u.id,${handleOf('u')} AS username,u.name,${avatarOf('u')} AS avatar,
+    CASE WHEN p.profile_policy IS DISTINCT FROM 'private' AND NOT ${restricted('u.id', '$1::uuid')} THEN u.profile_region ELSE NULL END AS region,
     CASE WHEN p.profile_policy IS DISTINCT FROM 'private' AND NOT ${restricted('u.id', '$1::uuid')} THEN u.bio ELSE '' END AS bio,
     ${restricted('u.id', '$1::uuid')} AS hide_resting
     FROM users u LEFT JOIN privacy_preferences p ON p.user_id=u.id WHERE u.id=$2 AND ${related('$1::uuid', 'u.id')}`,

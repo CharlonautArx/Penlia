@@ -11,12 +11,12 @@ import { isUiDemo } from '../../demo/mode';
 import { errorMessage } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, palette, radius, styles } from '../../theme';
-import { pickOnePhoto, type SelectedImage } from '../media/picker';
+import { pickOnePhoto } from '../media/picker';
 
-import { ProfileCropView, type CoverSource } from './ProfileCropView';
-import { centered, cropRect, type Framing } from './profile-crop';
+import { cropJpeg, FullImageCrop, type CropSource } from '../media/FullImageCrop';
+import { centered, type Framing } from './profile-crop';
 
-type Recipe = { source: CoverSource; frame: Framing };
+type Recipe = { source: { jpeg: string; width: number; height: number }; frame: Framing };
 type Saved = { photo: string | null; recipe?: Recipe };
 const maxBase64 = Math.floor(512 * 1024 / 3) * 4;
 
@@ -70,18 +70,17 @@ export function ProfileCoverImage({ photo, fades, height }: { photo: string | nu
   </View>;
 }
 
-async function compress(input: Pick<SelectedImage, 'uri' | 'width' | 'height'>, rect?: ReturnType<typeof cropRect>) {
-  const context = ImageManipulator.manipulate(input.uri);
+async function recipeSource(source: CropSource) {
+  const context = ImageManipulator.manipulate(source.uri);
   try {
-    if (rect) context.crop(rect);
-    else if (Math.max(input.width, input.height) > 1280) {
-      context.resize(input.width >= input.height ? { width: 1280 } : { height: 1280 });
-    }
+    if (Math.max(source.width, source.height) > 1280)
+      context.resize(source.width >= source.height ? { width: 1280 } : { height: 1280 });
     const image = await context.renderAsync();
     try {
-      for (const quality of [0.82, 0.65, 0.48]) {
-        const compressed = await image.saveAsync({ format: SaveFormat.JPEG, base64: true, compress: quality });
-        if (compressed.base64 && compressed.base64.length <= maxBase64) return { jpeg: compressed.base64, width: image.width, height: image.height };
+      for (const compress of [0.82, 0.65, 0.48]) {
+        const output = await image.saveAsync({ format: SaveFormat.JPEG, base64: true, compress });
+        if (output.base64 && output.base64.length <= maxBase64)
+          return { jpeg: output.base64, width: output.width, height: output.height };
       }
     } finally { image.release(); }
   } finally { context.release(); }
@@ -89,40 +88,44 @@ async function compress(input: Pick<SelectedImage, 'uri' | 'width' | 'height'>, 
 }
 
 export function EditProfileCover({ cover, ratio, onClose }: { cover: ReturnType<typeof useProfileCover>; ratio: number; onClose: () => void }) {
-  const [source, setSource] = useState<CoverSource | null>(cover.recipe?.source ?? null);
-  const [frame, setFrame] = useState(cover.recipe?.frame ?? centered);
-  const [changed, setChanged] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [draft, setDraft] = useState<{ photo: string | null; recipe?: Recipe }>();
+  const [selection, setSelection] = useState<{ source: CropSource; frame: Framing }>();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState('');
-
   async function act(operation: () => Promise<void>) {
-    setBusy(true);
-    setFailure('');
+    setBusy(true); setFailure('');
     try { await operation(); }
     catch (error) { setFailure(errorMessage(error)); }
     finally { setBusy(false); }
   }
-
-  return <Sheet scrollEnabled={!dragging} title="个人主页背景" onClose={() => { if (!busy) onClose(); }} tone="neutral">
-    <View style={local.preview}>{source ? <ProfileCropView ratio={ratio} source={source} frame={frame} onDrag={setDragging}
-      onFrame={value => { setFrame(value); setChanged(true); }} /> : <View style={{aspectRatio: ratio}}>
-      <ProfileCoverImage height="100%" photo={changed ? null : cover.photo} /></View>}</View>
-    {source && <Text style={styles.small}>拖动照片调整位置，双指缩放。</Text>}
-    {!!failure && <Notice>{failure}</Notice>}
-    <Button label="从手机相册选择" icon="images-outline" variant="soft" disabled={busy} onPress={() => void act(async () => {
-      const input = await pickOnePhoto();
-      if (input) { setSource(await compress(input)); setFrame(centered); setChanged(true); }
-    })} />
-    {!!(source || (!changed && cover.photo)) && <Button label="使用默认背景" variant="quiet" disabled={busy} onPress={() => { setSource(null); setChanged(true); }} />}
-    <Button label="保存主页背景" disabled={busy || !changed} onPress={() => void act(async () => {
-      if (source) {
-        const cropped = await compress({ ...source, uri: 'data:image/jpeg;base64,' + source.jpeg }, cropRect(source.width,source.height,ratio,frame));
-        await cover.save(cropped.jpeg, { source, frame });
-      } else await cover.save(null);
-      onClose();
-    })} />
-  </Sheet>;
+  const recipe = draft ? draft.recipe : cover.recipe;
+  return <>
+    <Sheet title="个人主页背景" onClose={() => { if (!busy) onClose(); }} tone="neutral">
+      <View style={[local.preview, { aspectRatio: ratio }]}>
+        <ProfileCoverImage height="100%" photo={draft ? draft.photo : cover.photo} />
+      </View>
+      {!!failure && <Notice>{failure}</Notice>}
+      <Button label="从手机相册选择" icon="images-outline" variant="soft" disabled={busy} onPress={() => void act(async () => {
+        const input = await pickOnePhoto();
+        if (input) setSelection({ source: input, frame: centered });
+      })} />
+      {!!recipe && <Button label="重新构图" variant="soft" disabled={busy} onPress={() => setSelection({
+        source: { ...recipe.source, uri: 'data:image/jpeg;base64,' + recipe.source.jpeg }, frame: recipe.frame,
+      })} />}
+      {!!(draft ? draft.photo : cover.photo) && <Button label="使用默认背景" variant="quiet" disabled={busy} onPress={() => setDraft({ photo: null })} />}
+      <Button label="保存主页背景" disabled={busy || !draft} onPress={() => void act(async () => {
+        if (!draft) return;
+        await cover.save(draft.photo, draft.recipe);
+        onClose();
+      })} />
+    </Sheet>
+    {selection && <FullImageCrop source={selection.source} initial={selection.frame} ratio={ratio}
+      onClose={() => setSelection(undefined)} onConfirm={async (source, frame) => {
+        const output = await cropJpeg(source, ratio, frame, 1280, 512 * 1024);
+        setDraft({ photo: output.base64, recipe: { source: await recipeSource(source), frame } });
+        setSelection(undefined);
+      }} />}
+  </>;
 }
 
 const local = StyleSheet.create({

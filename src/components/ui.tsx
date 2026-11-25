@@ -7,8 +7,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { demoPortrait } from '../demo/visuals';
 import { useLocalPhotoUri } from '../features/space/media';
-import { useAccountPhoto } from '../services/session';
+import { useIdentityResolver } from '../services/friends';
+import { useAccountDemoPortrait, useAccountPhoto } from '../services/session';
 import { colors, contentWidth, fixed, motion, radius, space, styles, touch, type, weight } from '../theme';
 import { useFontScale } from './Typography';
 import { useAppearance } from './appearance';
@@ -85,7 +87,9 @@ export function Avatar({ name, source, size = 46, userId, localPhotoId }: {
 }) {
   const accountPhoto = useAccountPhoto(userId);
   const uri = useLocalPhotoUri(localPhotoId ?? accountPhoto);
-  const imageSource = uri ? { uri } : source;
+  const identity = useIdentityResolver()(userId);
+  const sample = useAccountDemoPortrait(userId);
+  const imageSource = uri ? { uri } : identity?.avatar ? { uri: 'data:image/jpeg;base64,' + identity.avatar } : sample ? demoPortrait(sample) ?? source : source;
   const shades = [colors.tint, colors.lavender, colors.ice, colors.search];
   const color = shades[(name.codePointAt(0) ?? 0) % shades.length];
   const frame = { width: size, height: size, borderRadius: size / 2 };

@@ -1,3 +1,5 @@
+import { usePlaceDelivery } from '../play/PlaceShare';
+import { parsePlaceCard, placeCaption } from '../play/place-card-model';
 import type { MessageLongPress } from './record-model';
 import { setStringAsync } from 'expo-clipboard';
 import { randomUUID } from 'expo-crypto';
@@ -195,6 +197,7 @@ function useRecordDelivery() {
   const { request, session } = useSession();
   const { connection, online, changed } = useIm();
   const demo = useDemo();
+  const deliverPlace = usePlaceDelivery();
   const saved = useRef(new Map<string, { clientId: string; files: Map<string, string>; recordId?: string; sent?: boolean; uncertain?: boolean }>());
   async function send(input: ManagedMessage[], merge: boolean, target?: Target, progress?: (done: number) => void) {
     const batches = merge ? [sortedRecords(input)] : sortedRecords(input).map((item) => [item]);
@@ -208,6 +211,14 @@ function useRecordDelivery() {
       if (!operation) { operation = { clientId: randomUUID(), files: new Map() }; saved.current.set(key, operation); }
       if (operation.uncertain) throw new Error('暂未确认送达，请先查看目标会话。');
       if (operation.sent) { progress?.(index + 1); continue; }
+      const single = batch.length === 1 && !batch[0].recordId ? batch[0] : undefined;
+      if (target && single && parsePlaceCard(single.body) && (!merge || input.length === 1)) {
+        try { await deliverPlace(target, single.body, operation.clientId); }
+        catch (failure) { if (failure instanceof UnknownDelivery) operation.uncertain = true; throw failure; }
+        operation.sent = true;
+        progress?.(index + 1);
+        continue;
+      }
       let recordId = operation.recordId;
       if (!recordId) {
         const lines: Payload[] = [];
@@ -236,7 +247,7 @@ function useRecordDelivery() {
         operation.recordId = recordId;
       }
       if (!target) {
-        await request('/chat-favorites', { method: 'POST', body: { recordId, title: ('聊天 · ' + batch[0].author + ' · ' + shareSafeText(batch[0].body)).slice(0, 120) } });
+        await request('/chat-favorites', { method: 'POST', body: { recordId, title: ('聊天 · ' + batch[0].author + ' · ' + placeCaption(shareSafeText(batch[0].body))).slice(0, 120) } });
       } else if (target.kind === 'group') {
         await request('/groups/' + target.id + '/messages', { method: 'POST',
           body: { clientId: operation.clientId, content: '', recordId } });

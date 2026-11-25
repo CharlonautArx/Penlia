@@ -1,18 +1,16 @@
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Empty, Notice, Screen, Section, Sheet } from '../components/ui';
+import { Avatar, Button, Empty, Notice, Screen, Sheet } from '../components/ui';
 import { isUiDemo } from '../demo/mode';
 import { demoPortrait } from '../demo/visuals';
-import type { FriendCode, PublicIntro } from '../features/friends/invitations';
+import type { FriendCode } from '../features/friends/invitations';
 import { InviteQr, type QrOutput } from '../features/privacy/InviteQr';
 import { back, Field, formatTime } from '../features/social/ui';
-import { useLocalPhotoUri } from '../features/space/media';
 import { errorMessage, type User } from '../services/api';
-import { useAccountPhoto, useSession } from '../services/session';
+import { useSession } from '../services/session';
 import { colors, radius, space, styles } from '../theme';
 
 async function readCode(key: string) {
@@ -25,19 +23,6 @@ async function writeCode(key: string, code?: string) {
   } else if (code) await SecureStore.setItemAsync(key, code);
   else await SecureStore.deleteItemAsync(key);
 }
-async function sharingAvatar(uri: string) {
-  const context = ImageManipulator.manipulate(uri);
-  try {
-    context.resize({ width: 144 });
-    const resized = await context.renderAsync();
-    try {
-      const photo = await resized.saveAsync({ compress: 0.65, format: SaveFormat.JPEG, base64: true });
-      if (!photo.base64 || photo.base64.length > 32768) throw new Error('头像暂时无法用于公开资料，请更换头像后重试。');
-      return photo.base64;
-    } finally { resized.release(); }
-  } finally { context.release(); }
-}
-
 export default function MyQrScreen() {
   const { session } = useSession();
   return session ? <MyQr key={session.user.id} user={session.user} /> : null;
@@ -45,13 +30,10 @@ export default function MyQrScreen() {
 
 function MyQr({ user }: { user: User }) {
   const { request, demoAvatarKey } = useSession();
-  const photo = useLocalPhotoUri(useAccountPhoto(user.id));
   const key = 'penlia-invite-code.' + user.id;
   const qr = useRef<QrOutput>(null);
   const [active, setActive] = useState<FriendCode>();
   const [days, setDays] = useState('1');
-  const [intro, setIntro] = useState<PublicIntro>();
-  const [editIntro, setEditIntro] = useState(false);
   const [askedToRevoke, setAskedToRevoke] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -130,7 +112,7 @@ function MyQr({ user }: { user: User }) {
         <Text style={[styles.small, local.center]}>有效至 {formatTime(active.expiresAt)}</Text>
       </> : <Empty icon="qr-code-outline">暂无有效的好友二维码。</Empty>}
     </View>
-    {!editIntro && !askedToRevoke && !!error && <Notice>{error}</Notice>}
+    {!askedToRevoke && !!error && <Notice>{error}</Notice>}
     {!!notice && <Notice>{notice}</Notice>}
     {!!active && <View style={local.actions}>
       <View style={styles.grow}><Button label={Platform.OS === 'web' ? '下载二维码' : '保存至相册'} icon="download-outline" variant="soft"
@@ -142,26 +124,7 @@ function MyQr({ user }: { user: User }) {
     {!!days && !validDays && <Text style={styles.muted}>请输入 1 至 30 之间的整数。</Text>}
     <Button label={active ? '重新生成二维码' : '生成二维码'} variant="gradient" disabled={busy || loading || !validDays} onPress={generate} />
     {!!active && <Button label="使当前二维码失效" variant="danger" disabled={busy} onPress={() => setAskedToRevoke(true)} />}
-    <Button label="管理公开资料" icon="person-outline" variant="quiet" disabled={busy} onPress={() => void run(async () => {
-      setIntro(await request<PublicIntro>('/me/public-intro'));
-      setEditIntro(true);
-    })} />
     <Text style={styles.muted}>{isUiDemo ? '预览版在本机校验识别码。' : '扫码后仍需发送好友申请，并由你主动接受。'}</Text>
-    {editIntro && intro && <Sheet title="公开资料" avoidKeyboard onClose={() => { if (!busy) setEditIntro(false); }}>
-      <View style={styles.row}>
-        <Text style={[styles.strong, styles.grow]}>公开头像、签名和地区</Text>
-        <Switch accessibilityLabel="公开头像、签名和地区" value={intro.enabled} disabled={busy}
-          onValueChange={(enabled) => setIntro({ ...intro, enabled })} />
-      </View>
-      <Text style={styles.small}>签名来自你的个人资料。头像使用保存时的头像。非好友仅在好友申请或有效二维码中查看你授权公开的资料。</Text>
-      <Field title="地区（选填）" value={intro.region} onChangeText={(region) => setIntro({ ...intro, region })} maxLength={30} editable={!busy && intro.enabled} />
-      {!!error && <Notice>{error}</Notice>}
-      <Button label="保存公开资料" variant="gradient" disabled={busy} onPress={() => void run(async () => {
-        const avatar = intro.enabled && photo ? await sharingAvatar(photo) : null;
-        await request('/me/public-intro', { method: 'PATCH', body: { ...intro, avatar } });
-        setEditIntro(false);
-      })} />
-    </Sheet>}
     {askedToRevoke && <Sheet title="使二维码失效" onClose={() => { if (!busy) setAskedToRevoke(false); }}>
       <Text style={styles.body}>已保存或分享的这个二维码会立即失效。此前已经发送的好友申请仍可处理。</Text>
       {!!error && <Notice>{error}</Notice>}

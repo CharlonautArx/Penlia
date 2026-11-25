@@ -5,7 +5,7 @@ import { createContext, type ReactNode, useCallback, useContext, useRef } from '
 import { useLocalDocument } from '../features/local/document';
 import type { FileItem, ImageItem, LocationItem, PendingMessage, VideoItem } from '../features/media/messages';
 import type { TextMessage } from '../services/im';
-import type { FriendCode, PublicIntro } from '../features/friends/invitations';
+import type { FriendCode } from '../features/friends/invitations';
 import { offlineRequest } from './life';
 import { seed, type Rows } from './life-fixtures';
 import { demoMessages, demoPeople, demoRelationship, demoRelationships, demoUnread } from './data';
@@ -44,8 +44,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const stored = useLocalDocument(key, async () => {
     const existing = await AsyncStorage.getItem(key);
     const initial = { rows: seed() as Rows, messages: demoMessages, unread: demoUnread as Record<string, number>, relationships: demoRelationships,
-      declines: [] as typeof demoRelationships, friendCode: null as FriendCode | null,
-      publicIntro: { enabled: false, region: '' } as PublicIntro };
+      declines: [] as typeof demoRelationships, friendCode: null as FriendCode | null };
     return existing ? { ...initial, ...JSON.parse(existing) } as typeof initial : initial;
   });
   const store = useRef(stored);
@@ -108,12 +107,6 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     if (path === '/friends/code/status' && method === 'POST') {
       const current = snapshot?.friendCode;
       return { expiresAt: current && body?.code === current.code && Date.parse(current.expiresAt) > Date.now() ? current.expiresAt : null } as T;
-    }
-    if (path === '/me/public-intro' && method === 'GET') return snapshot?.publicIntro as T;
-    if (path === '/me/public-intro' && method === 'PATCH') {
-      const publicIntro = { enabled: body?.enabled === true, region: String(body?.region ?? '').slice(0, 30) };
-      await store.current.save((value) => ({ ...value, publicIntro }));
-      return publicIntro as T;
     }
     const rejected = snapshot?.declines ?? [];
     const publicPerson = (person: typeof demoPeople[number], isFriend: boolean) => ({

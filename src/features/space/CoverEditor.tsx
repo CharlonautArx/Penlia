@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { Image, Platform, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button, Notice, Sheet } from '../../components/ui';
-import { nativePhotoUri, readLocalPhoto, selectPhotos } from './media';
+import { savePreparedPhoto } from './media';
+import { cropJpeg, FullImageCrop } from '../media/FullImageCrop';
+import { pickOnePhoto, type SelectedImage } from '../media/picker';
 import type { SpaceCard } from './model';
 import { ImmersiveCover } from './ImmersiveCover';
 import { CoverPreview } from './SpaceHeader';
@@ -11,7 +13,7 @@ import { useSpace } from './store';
 export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard; framing?: { width: number; resting: number; reserve: number }; onClose: () => void }) {
   const state = useSpace();
   const [cover, setCover] = useState(initial.cover);
-  const [dragging, setDragging] = useState(false);
+  const [selection, setSelection] = useState<SelectedImage>();
   const [previewWidth, setPreviewWidth] = useState(0);
   const previewScale = framing ? previewWidth / framing.width : 1;
   const [error, setError] = useState('');
@@ -28,11 +30,7 @@ export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard;
     pending.current = 'pick';
     setOperation('pick');
     try {
-      const [photo] = await selectPhotos(state.me.id, 1);
-      if (photo) {
-        await checkPhoto(photo.id);
-        setCover({ tone: cover.tone, photo });
-      }
+      setSelection(await pickOnePhoto());
     } catch {
       setError('暂时无法读取这张照片，请重新选择。');
     } finally {
@@ -57,30 +55,29 @@ export function CoverEditor({ initial, onClose, framing }: { initial: SpaceCard;
     }
   }
 
-  return <Sheet scrollEnabled={!dragging} title="编辑封面" onClose={() => {
+  const ratio = framing ? framing.width / (framing.resting + framing.reserve) : Math.max(1, previewWidth) / 158;
+  return <><Sheet title="编辑封面" onClose={() => {
     if (pending.current !== 'save') onClose();
   }}>
     {framing ? <View onLayout={({ nativeEvent }) => setPreviewWidth(nativeEvent.layout.width)}
       style={{ aspectRatio: framing.width / framing.resting }}>
       {previewWidth > 0 && <ImmersiveCover cover={cover} width={previewWidth} resting={framing.resting * previewScale}
-        reserve={framing.reserve * previewScale} onDrag={setDragging}
-        onFocus={!operation ? (focus) => setCover((current) => ({ ...current, focus })) : undefined} />}
-    </View> : <CoverPreview cover={cover} />}
+        reserve={framing.reserve * previewScale} />}
+    </View> : <View onLayout={({ nativeEvent }) => setPreviewWidth(nativeEvent.layout.width)}><CoverPreview cover={cover} /></View>}
     <Button label={operation === 'pick' ? '正在读取…' : '选择自定义封面'}
       icon="image-outline" variant="soft" disabled={!!operation} onPress={() => void pick()} />
     {!!error && <Notice>{error}</Notice>}
     <Button label={operation === 'save' ? '正在保存…' : '保存封面'} variant="gradient"
       disabled={!!operation || !changed} onPress={() => void save()} />
-  </Sheet>;
-}
-
-async function checkPhoto(id: string) {
-  const blob = Platform.OS === 'web' ? await readLocalPhoto(id) : undefined;
-  const uri = blob ? URL.createObjectURL(blob) : nativePhotoUri(id);
-  if (!uri) throw new Error('无法读取照片。');
-  try {
-    await new Promise<void>((resolve, reject) => Image.getSize(uri, () => resolve(), reject));
-  } finally {
-    if (blob) URL.revokeObjectURL(uri);
-  }
+  </Sheet>
+    {selection && state.me && <FullImageCrop source={selection} ratio={ratio > 0.1 ? ratio : 2.2}
+      revealFraction={framing && framing.reserve / (framing.resting + framing.reserve)}
+      onClose={() => setSelection(undefined)} onConfirm={async (source, frame) => {
+        if (!state.me) return;
+        const output = await cropJpeg(source, ratio > 0.1 ? ratio : 2.2, frame, 1920);
+        const photo = await savePreparedPhoto(output.uri, state.me.id);
+        setCover({ tone: cover.tone, photo, focus: { x: 0.5, y: 0.5 } });
+        setSelection(undefined);
+      }} />}
+  </>;
 }

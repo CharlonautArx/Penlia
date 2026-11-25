@@ -1,12 +1,14 @@
 import { isUiDemo } from '../demo/mode';
 
-export type User = { id: string; username: string; name: string; bio: string };
+export type User = { id: string; username: string; name: string; bio: string; region?: string | null;
+  avatar?: string | null; avatarUpdatedAt?: string | null; nextHandleChangeAt?: string | null };
 export type Relationship = {
   id: string;
   userId: string;
   username: string;
   name: string;
   bio: string;
+  avatar?: string | null;
   status: 'pending' | 'accepted';
   outgoing: boolean;
   chatReady: boolean;

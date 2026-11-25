@@ -1,11 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
-import { pickOnePhoto } from '../../media/picker';
 import {
   assignBackground, blankBackgrounds, chatBackground, readBackgrounds, usedFiles, wallpaperFile,
   type Backgrounds, type LocalPicture,
@@ -30,22 +28,6 @@ function clean(folder: Directory, value: Backgrounds) {
 export function deletePicture(uri: string) {
   try { const file = new File(uri); if (file.exists) file.delete(); }
   catch { /* Files that could not be removed can be swept on the next load. */ }
-}
-
-export async function pickBackground(): Promise<LocalPicture | undefined> {
-  const input = await pickOnePhoto();
-  if (!input) return;
-  const editor = ImageManipulator.manipulate(input.uri);
-  try {
-    if (Math.max(input.width, input.height) > 1920) {
-      editor.resize(input.width >= input.height ? { width: 1920 } : { height: 1920 });
-    }
-    const image = await editor.renderAsync();
-    try {
-      const result = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.84 });
-      return { ...result, x: 0.5, y: 0.5 };
-    } finally { image.release(); }
-  } finally { editor.release(); }
 }
 
 type Store = {

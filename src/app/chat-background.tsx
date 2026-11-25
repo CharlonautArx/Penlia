@@ -6,8 +6,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Button, Icon, ListRow, Notice, SettingGroup, TopBar } from '../components/ui';
 import { WallpaperImage } from '../features/chat/background/WallpaperImage';
 import type { LocalPicture } from '../features/chat/background/model';
-import { deletePicture, nativeChatBackgrounds, pickBackground, useChatBackgrounds } from '../features/chat/background/store';
+import { deletePicture, nativeChatBackgrounds, useChatBackgrounds } from '../features/chat/background/store';
 import { useFriends } from '../services/friends';
+import { cropJpeg, FullImageCrop } from '../features/media/FullImageCrop';
+import { pickOnePhoto, type SelectedImage } from '../features/media/picker';
 import { colors, contentWidth, radius, space, styles } from '../theme';
 
 export default function ChatBackgroundScreen() {
@@ -18,7 +20,7 @@ export default function ChatBackgroundScreen() {
   const peer = voice ? undefined : friend?.userId;
   const store = useChatBackgrounds();
   const [draft, setDraft] = useState<LocalPicture>();
-  const [dragging, setDragging] = useState(false);
+  const [selection, setSelection] = useState<SelectedImage>();
   const [operation, setOperation] = useState<'pick' | 'save'>();
   const [notice, setNotice] = useState('');
   const active = useRef(true);
@@ -27,7 +29,8 @@ export default function ChatBackgroundScreen() {
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const available = Math.max(1, Math.min(contentWidth, window.width - insets.left - insets.right));
-  const aspect = available / Math.max(1, window.height - insets.top - insets.bottom);
+  const aspect = voice ? window.width / Math.max(1, window.height)
+    : (window.width - insets.left - insets.right) / Math.max(1, window.height - insets.top - insets.bottom);
   const previewWidth = Math.min(Math.max(1, available - space.md * 2), aspect * Math.min(360, window.height * 0.43));
 
   useEffect(() => {
@@ -50,12 +53,8 @@ export default function ChatBackgroundScreen() {
     setOperation('pick');
     setNotice('');
     try {
-      const selected = await pickBackground();
-      if (!selected) return;
-      if (!active.current) { deletePicture(selected.uri); return; }
-      discard();
-      staging.current = selected.uri;
-      setDraft(selected);
+      const selected = await pickOnePhoto();
+      if (selected && active.current) setSelection(selected);
     } catch (failure) {
       if (active.current) setNotice(failure instanceof Error ? failure.message : '暂时无法读取这张照片。');
     } finally {
@@ -94,7 +93,7 @@ export default function ChatBackgroundScreen() {
       if (router.canGoBack()) router.back();
       else router.replace('/me');
     }} />
-    <ScrollView scrollEnabled={!dragging} contentContainerStyle={local.content}>
+    <ScrollView contentContainerStyle={local.content}>
       {store.error ? <Notice action="重试" onAction={store.retry}>暂时无法读取聊天背景。</Notice>
         : store.loading ? <Text style={styles.muted}>正在读取聊天背景…</Text>
           : !ready ? <Notice>当前无法设置聊天背景。</Notice>
@@ -103,8 +102,7 @@ export default function ChatBackgroundScreen() {
               {!!notice && <Notice>{notice}</Notice>}
               <View style={local.previewStage}>
                 <View style={[local.preview, voice && { backgroundColor: '#000000' }, { width: previewWidth, aspectRatio: aspect }]}>
-                  {picture && <WallpaperImage picture={picture} style={StyleSheet.absoluteFill}
-                    onDrag={setDragging} onPosition={draft && ((position) => setDraft((current) => current && { ...current, ...position }))} />}
+                  {picture && <WallpaperImage picture={picture} style={StyleSheet.absoluteFill} />}
                   {voice ? <View pointerEvents="none" style={local.voiceSample}><Icon name="person-circle-outline" size={36} color="#FFFFFF" /></View> : <View style={local.previewMessages} pointerEvents="none" accessible={false}
                     importantForAccessibility="no-hide-descendants" aria-hidden>
                     <Text style={[local.sample, local.received]}>在这里预览聊天效果</Text>
@@ -113,7 +111,6 @@ export default function ChatBackgroundScreen() {
                 </View>
               </View>
               {draft ? <>
-                <Text style={styles.muted}>拖动照片调整取景</Text>
                 {peer && <Button label="应用到当前聊天" disabled={!!operation} onPress={() => void apply(peer, draft, '已应用到当前聊天。')} />}
                 {!currentOnly && <Button label={voice ? '应用到语音通话' : '应用到所有聊天'} variant={peer ? 'soft' : 'primary'} disabled={!!operation}
                   onPress={() => void apply(undefined, draft, voice ? '已应用到语音通话。' : '已更新全局聊天背景，单独设置优先。')} />}
@@ -131,6 +128,15 @@ export default function ChatBackgroundScreen() {
               {!draft && <Text style={styles.small}>{inherited ? '当前聊天跟随全局背景。' : '背景只保存在这台设备上。'}</Text>}
             </>}
     </ScrollView>
+    {selection && <FullImageCrop source={selection} ratio={aspect} onClose={() => setSelection(undefined)}
+      onConfirm={async (source, frame) => {
+        const output = await cropJpeg(source, aspect, frame, 1920);
+        if (!active.current) { deletePicture(output.uri); return; }
+        discard();
+        staging.current = output.uri;
+        setDraft({ uri: output.uri, width: output.width, height: output.height, x: 0.5, y: 0.5 });
+        setSelection(undefined);
+      }} />}
   </SafeAreaView>;
 }
 

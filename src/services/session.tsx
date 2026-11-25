@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { nativePhotoUri } from '../features/space/media';
 import * as SecureStore from 'expo-secure-store';
 import { AppState } from 'react-native';
 import {
@@ -6,9 +8,10 @@ import {
 } from 'react';
 
 import { useLocalDocument } from '../features/local/document';
-import { demoUser } from '../demo/data';
+import { demoPeople, demoUser } from '../demo/data';
 import { isUiDemo } from '../demo/mode';
 import { DemoProvider, useDemo } from '../demo/state';
+import { handlePattern, normalizeHandle, nextHandleChange, presentLocalIdentity, type ProfilePatch } from './profile-model';
 import { api, ApiError, errorMessage, type Session, type User } from './api';
 
 const key = 'penlia.session.v1';
@@ -20,14 +23,14 @@ const SessionContext = createContext<{
   completeDemoProfile?: (profile: { name: string; username: string; avatarKey: string; avatarPhoto?: string }) => Promise<void>;
   localAvatar?: string;
   avatarNotice: string;
-  changeLocalAvatar: (photo: string | null) => Promise<void>;
+  changeLocalAvatar: (photo: string | null, jpeg?: string) => Promise<void>;
   demoAvatarKey?: string;
   loading: boolean;
   restoreError: string;
   restore: () => Promise<void>;
   authenticate: (register: boolean, fields: Record<string, string>, avatarPhoto?: string) => Promise<void>;
   request: <T>(path: string, options?: ApiOptions) => Promise<T>;
-  updateProfile: (name: string, bio: string) => Promise<void>;
+  saveProfile: (patch: ProfilePatch) => Promise<void>;
   logout: () => Promise<void>;
 } | null>(null);
 
@@ -90,13 +93,39 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
     await avatar.saveOnSignup(demoUser.id, avatarPhoto);
     profileDoc.update(() => ({ user: { ...demoUser, ...profile }, avatarKey, active: true }));
   }
-  const updateProfile = async (name: string, bio: string) => {
-    profileDoc.update((stored) => ({ ...stored, user: { ...stored.user, name, bio } }));
-  };
+  const saveProfile = useCallback(async (patch: ProfilePatch) => {
+    await profileDoc.save((stored) => {
+      const { username, name, bio, region, importRegion } = patch;
+      const user = { ...stored.user };
+      if (name !== undefined) user.name = name.trim();
+      if (bio !== undefined) user.bio = bio.trim();
+      if (region !== undefined && (!importRegion || user.region == null)) user.region = region.trim();
+      if (username !== undefined && normalizeHandle(username) !== user.username) {
+        const handle = normalizeHandle(username);
+        if (!handlePattern.test(handle)) throw new Error('朋聊号须为 3–24 位字母、数字或下划线。');
+        if (user.nextHandleChangeAt && Date.parse(user.nextHandleChangeAt) > Date.now())
+          throw new Error('上次修改满一年后才能更换朋聊号。');
+        if (demoPeople.some((person) => person.username === handle)) throw new Error('该朋聊号已被使用。');
+        user.username = handle;
+        user.nextHandleChangeAt = nextHandleChange(new Date());
+      }
+      return { ...stored, user };
+    });
+  }, [profileDoc.save]);
+  const current = useRef(profile?.user);
+  current.current = profile?.user;
+  const demoRequest = demo.request;
+  const request = useCallback(async <T,>(path: string, options?: ApiOptions) => {
+    const result = await demoRequest<T>(path, options);
+    const user = current.current;
+    return user && (!options?.method || options.method === 'GET')
+      && !/^\/(p1\/(boundary|reports|reviews|appeals)|chat-records)(?:\W|$)/.test(path)
+      ? presentLocalIdentity(result, user) : result;
+  }, [demoRequest]);
 
   return (
     <SessionContext.Provider value={{
-      ...avatar, session, enterDemo, completeDemoProfile, demoAvatarKey: profile?.avatarKey, request: demo.request, updateProfile, loading: profileDoc.loading || demo.loading, restoreError: profileDoc.error || demo.storageError,
+      ...avatar, session, enterDemo, completeDemoProfile, demoAvatarKey: profile?.avatarKey ?? demoUser.username, request, saveProfile, loading: profileDoc.loading || demo.loading, restoreError: profileDoc.error || demo.storageError,
       restore: async () => { profileDoc.retry(); demo.retryStorage(); }, authenticate: async () => enterDemo(), logout: async () => profileDoc.update((value) => ({ ...value, active: false })),
     }}>
       {children}
@@ -108,6 +137,7 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const avatar = useAccountAvatar(session?.user.id);
   const activeToken = useRef<string | undefined>(undefined);
+  const version = useRef(0);
   const [loading, setLoading] = useState(true);
   const [restoreError, setRestoreError] = useState('');
 
@@ -163,7 +193,13 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
     async function verify() {
       if (pending || AppState.currentState === 'background') return;
       pending = true;
-      try { await request('/me'); } catch { /* Request handles session revocation. */ }
+      const reading = version.current;
+      const token = session?.token;
+      try {
+        const { user } = await request<{ user: User }>('/me');
+        if (reading === version.current && token === activeToken.current)
+          setSession((value) => value && JSON.stringify(value.user) !== JSON.stringify(user) ? { ...value, user } : value);
+      } catch { /* Request handles session revocation. */ }
       finally { pending = false; }
     }
     const timer = setInterval(() => void verify(), 45_000);
@@ -171,10 +207,31 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
     return () => { clearInterval(timer); lifecycle.remove(); };
   }, [request, session?.token]);
 
-  const updateProfile = async (name: string, bio: string) => {
-    const { user } = await request<{ user: User }>('/me', { method: 'PATCH', body: { name, bio } });
-    setSession((current) => current?.token === session?.token && current ? { ...current, user } : current);
-  };
+  const saveProfile = useCallback(async (patch: ProfilePatch) => {
+    const token = session?.token;
+    version.current++;
+    const { user } = await request<{ user: User }>('/me', { method: 'PATCH', body: patch });
+    version.current++;
+    setSession((current) => current?.token === token && token === activeToken.current && current ? { ...current, user } : current);
+  }, [request, session?.token]);
+
+  const imported = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const id = session?.user.id;
+    const photo = avatar.localAvatar;
+    if (!id || !photo || session.user.avatarUpdatedAt || imported.current === id + ':' + photo) return;
+    imported.current = id + ':' + photo;
+    void encodeLegacyAvatar(photo).then((jpeg) => {
+      if (jpeg && activeToken.current === session.token) return saveProfile({ avatar: jpeg, importAvatar: true });
+    }).catch(() => { /* The existing local portrait remains available for this device. */ });
+  }, [avatar.localAvatar, saveProfile, session]);
+
+  async function changeLocalAvatar(photo: string | null, jpeg?: string) {
+    const encoded = photo && (jpeg ?? await encodeLegacyAvatar(photo));
+    if (photo && !encoded) throw new Error('暂时无法读取头像。');
+    await saveProfile({ avatar: encoded || null });
+    await avatar.changeLocalAvatar(photo).catch(() => {});
+  }
 
   const logout = async () => {
     await request('/logout', { method: 'POST' });
@@ -184,7 +241,7 @@ function RealSessionProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SessionContext.Provider value={{ ...avatar, session, loading, restoreError, restore, authenticate, request, updateProfile, logout }}>
+    <SessionContext.Provider value={{ ...avatar, session, loading, restoreError, restore, authenticate, request, saveProfile, changeLocalAvatar, logout }}>
       {children}
     </SessionContext.Provider>
   );
@@ -198,5 +255,31 @@ export function useSession() {
 
 export function useAccountPhoto(userId?: string) {
   const state = useContext(SessionContext);
-  return userId && state?.session?.user.id === userId ? state.localAvatar : undefined;
+  return userId && state?.session?.user.id === userId
+    && (isUiDemo || !state.session.user.avatarUpdatedAt) ? state.localAvatar : undefined;
+}
+
+export function useAccountIdentity() {
+  return useContext(SessionContext)?.session?.user;
+}
+
+export function useAccountDemoPortrait(userId?: string) {
+  const context = useContext(SessionContext);
+  return isUiDemo && userId && context?.session?.user.id === userId ? context.demoAvatarKey : undefined;
+}
+
+async function encodeLegacyAvatar(photo: string) {
+  const uri = nativePhotoUri(photo);
+  if (!uri) return;
+  const context = ImageManipulator.manipulate(uri);
+  try {
+    context.resize({ width: 224 });
+    const image = await context.renderAsync();
+    try {
+      for (const compress of [0.74, 0.57, 0.42]) {
+        const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress, base64: true });
+        if (saved.base64 && saved.base64.length <= Math.floor(32768 / 3) * 4) return saved.base64;
+      }
+    } finally { image.release(); }
+  } finally { context.release(); }
 }

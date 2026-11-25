@@ -1,3 +1,4 @@
+import { handleOf } from './profile.mjs';
 import { recordReadable } from './chat-records.mjs';
 import { p2MediaVisible } from '../p2/access.mjs';
 import { p3MediaVisible } from '../p3/access.mjs';
@@ -14,7 +15,7 @@ const notFound = () => new HttpError(404, '找不到可查看的内容。');
 const canRead = momentVisible('p', '$1::uuid');
 const participantVisible = (actor) => `${momentVisible('p', actor)}
   AND NOT ${blocked(actor, '$1::uuid')} AND NOT ${restricted(actor, '$1::uuid')}`;
-const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clientId",p.author_id AS "authorId",u.name AS author,u.username AS "authorUsername",p.body,p.location,p.revision,p.created_at AS "createdAt",
+const projection = `p.id,CASE WHEN p.author_id=$1 THEN p.client_id END AS "clientId",p.author_id AS "authorId",u.name AS author,${handleOf('u')} AS "authorUsername",p.body,p.location,p.revision,p.created_at AS "createdAt",
   (p.source_moment_id IS NOT NULL) AS forwarded,
   ${forwardableMoment('p')} AS "canForward",
   CASE WHEN p.author_id=$1 THEN p.allow_forward END AS "allowForward",
@@ -123,7 +124,7 @@ export async function listMomentComments(userId, id, before) {
   if (before !== null) readId(before);
   const { rows: [row] } = await pool.query(`SELECT coalesce((
     SELECT jsonb_agg(to_jsonb(page) ORDER BY page."createdAt" DESC,page.id DESC) FROM (
-      SELECT c.id,c.user_id AS "authorId",u.name AS author,u.username AS "authorUsername",c.body,c.created_at AS "createdAt",
+      SELECT c.id,c.user_id AS "authorId",u.name AS author,${handleOf('u')} AS "authorUsername",c.body,c.created_at AS "createdAt",
         (SELECT parent.id FROM moment_comments parent WHERE parent.moment_id=p.id AND parent.id=c.reply_to
           AND ${participantVisible('parent.user_id')}) AS "replyTo",
         (SELECT jsonb_build_object('id',m.id,'mime',m.mime) FROM private_media m WHERE m.comment_id=c.id) AS photo

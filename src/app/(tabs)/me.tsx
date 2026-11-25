@@ -8,7 +8,6 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Icon, IconButton, ListRow, Notice, Screen, SettingGroup, Sheet, type IconName } from '../../components/ui';
-import { ProfileEditor } from '../../features/space/ProfileEditor';
 import { nativeChatBackgrounds } from '../../features/chat/background/store';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
@@ -20,7 +19,7 @@ export default function MeScreen() {
   const { session, logout, demoAvatarKey, avatarNotice } = useSession();
   const { preference, scheme, setPreference } = useAppearance();
   const { size } = useFontSize();
-  const [sheet, setSheet] = useState<'资料' | '主题与外观' | '通用设置'>();
+  const [sheet, setSheet] = useState<'主题与外观' | '通用设置'>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   if (!session) return null;
@@ -54,7 +53,7 @@ export default function MeScreen() {
       </View>
       <View style={styles.row}>
         <IconButton label="我的二维码" icon="qr-code-outline" onPress={() => router.push('/my-qr')} />
-        <IconButton label="编辑资料" icon="create-outline" onPress={() => setSheet('资料')} disabled={busy} />
+        <IconButton label="编辑资料" icon="create-outline" onPress={() => router.push('/profile')} disabled={busy} />
       </View>
       {!!user.bio && <View pointerEvents="none" style={local.bio}><Text style={styles.body}>{user.bio}</Text></View>}
     </View>
@@ -83,8 +82,7 @@ export default function MeScreen() {
     {!!avatarNotice && !sheet && <Notice>{avatarNotice}</Notice>}
     {!!error && !sheet && <Notice>{error}</Notice>}
     <Button label="退出登录" variant="danger" disabled={busy} onPress={() => void run(logout)} />
-    {sheet === '资料' && <ProfileEditor onClose={() => setSheet(undefined)} />}
-    {sheet && sheet !== '资料' && <Sheet title={sheet} onClose={() => { if (!busy) setSheet(undefined); }}>
+    {sheet && <Sheet title={sheet} onClose={() => { if (!busy) setSheet(undefined); }}>
       {sheet === '主题与外观' && <>
         {([
           ['system', '跟随系统', 'contrast-outline'],

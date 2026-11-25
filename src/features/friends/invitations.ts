@@ -21,7 +21,6 @@ export type PublicPerson = {
   demoPortraitKey?: string;
   isFriend: boolean;
 };
-export type PublicIntro = { enabled: boolean; region: string };
 export type FriendCode = { code: string; expiresAt: string };
 export const requestStatuses: Record<FriendRequestStatus, string> = {
   pending: '待处理', accepted: '已接受', declined: '已拒绝',

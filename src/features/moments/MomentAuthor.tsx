@@ -1,3 +1,4 @@
+import { useIdentityResolver } from '../../services/friends';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { Avatar } from '../../components/ui';
@@ -7,6 +8,7 @@ export function MomentAuthor({ id, name, photo, stamp, visibility, onPress, chil
   id: string; name: string; photo?: ImageSourcePropType; stamp: string; visibility: string;
   onPress?: () => void; children?: ReactNode;
 }) {
+  name = useIdentityResolver()(id)?.name ?? name;
   const avatar = <Avatar userId={id} name={name} source={photo} size={36} />;
   return <View style={local.row}>
     {onPress ? <Pressable accessibilityRole="button" accessibilityLabel={name + '的动态'} onPress={onPress}

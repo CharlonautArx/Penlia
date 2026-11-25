@@ -31,7 +31,7 @@ export function InviteRecipients({ message, onChoose, empty = '先添加好友�
   return <>
     {!!error && <Notice action="重试" onAction={() => void refresh()}>{error}</Notice>}
     {friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={formatHandle(friend.username)}
-      left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={40} />}
+      left={<Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={40} />}
       onPress={() => {
         onChoose();
         router.push({ pathname: '/chat/[id]', params: { id: friend.userId, draft: message } });

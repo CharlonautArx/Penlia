@@ -191,8 +191,8 @@ export default function ChatsScreen() {
           </View>
           {preferences.value && filtered.map((thread) => {
             const { person, last, unread, pinned, manualUnread, hidden } = thread;
-            const row = <ConversationRow name={person.name}
-              avatar={<Avatar name={person.name} source={demoPortrait(person.username)} size={48} />}
+            const row = <ConversationRow name={directory?.remarks[person.userId] || person.name}
+              avatar={<Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={48} />}
               preview={threadSummary(last).replace(/\s+/g, ' ')}
               time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={'silent' in last && last.silent} noReply={'noReply' in last && last.noReply}
               manualUnread={manualUnread} signal={<PetSignal peer={person.userId} />}

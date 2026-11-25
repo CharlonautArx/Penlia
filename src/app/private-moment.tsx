@@ -7,6 +7,7 @@ import { Button, Empty, Icon, ListRow, Notice, Screen, Sheet } from '../componen
 import { scopes, type Audience, type Moment } from '../features/moments/Feed';
 import {
   chooseMomentPhotos,
+  MomentMediaLimit,
   chooseMomentDraftVideo,
   removeMomentDraftMedia,
   EditorMediaPreview,
@@ -32,6 +33,7 @@ export default function PrivateMoment() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { request, session } = useSession();
   const { relationships, refresh } = useFriends();
+  const [limitMessage, setLimitMessage] = useState('');
   const [previous, setPrevious] = useState<Moment>();
   const draft = useMomentDraft();
   const [editing, setEditing] = useState<Form>(emptyMomentDraft);
@@ -101,7 +103,8 @@ export default function PrivateMoment() {
     try {
       await task();
     } catch (failure) {
-      setError(errorMessage(failure));
+      if (failure instanceof MomentMediaLimit) setLimitMessage(failure.message);
+      else setError(errorMessage(failure));
     } finally {
       guard.current = false;
       setBusy(false);
@@ -226,7 +229,6 @@ export default function PrivateMoment() {
                 if (item) append([item]);
               })} />
           </View>}
-          <Text style={styles.small}>最多 20 张照片，或一段 4 MB、30 秒以内的 MP4。</Text>
           <View style={local.location}>
             <Icon name="location-outline" color={colors.quiet} size={19} />
             <TextInput accessibilityLabel="标注地点" placeholder="标注地点" placeholderTextColor={colors.quiet}
@@ -354,6 +356,10 @@ export default function PrivateMoment() {
           />
         </Sheet>
       )}
+      {!!limitMessage && <Sheet title="媒体限制" onClose={() => setLimitMessage('')} tone="neutral">
+        <Text style={styles.body}>{limitMessage}</Text>
+        <Button label="知道了" variant="soft" onPress={() => setLimitMessage('')} />
+      </Sheet>}
     </Screen>
     </GestureHandlerRootView>
   );

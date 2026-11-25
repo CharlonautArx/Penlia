@@ -1,4 +1,4 @@
-import { findApplicant, findFriendRequests, friendCodeStatus, publicIntro, resolveFriendCode, revokeFriendCode } from './friend-requests.mjs';
+import { findApplicant, findFriendRequests, friendCodeStatus, resolveFriendCode, revokeFriendCode } from './friend-requests.mjs';
 import { readMomentSpace, writeMomentSpace } from './moment-space.mjs';
 import { getChatRecord, saveChatRecord, saveChatFavorite } from './chat-records.mjs';
 import { cleanText, hash, HttpError, readId } from '../core.mjs';
@@ -103,11 +103,6 @@ export async function p0Routes(route, { user, tokenHash, query, headers, sourceI
       return result(await revokeFriendCode(id));
     case 'GET /v1/friend-requests':
       return result(await findFriendRequests(id));
-    case 'GET /v1/me/public-intro':
-      return result(await publicIntro(id));
-    case 'PATCH /v1/me/public-intro':
-      await rateLimit('public-intro:' + id, 12, 60);
-      return result(await publicIntro(id, await readBody()));
     case 'POST /v1/friends/remove':
     case 'POST /v1/friends/block':
     case 'POST /v1/friends/unblock':

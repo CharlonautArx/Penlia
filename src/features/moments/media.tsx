@@ -1,4 +1,4 @@
-import { momentPhotoGrid } from './photo-grid';
+import { momentPhotoGrid, momentPhotoLimit } from './photo-grid';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { MessageLongPress } from '../chat/record-model';
 import { randomUUID } from 'expo-crypto';
@@ -15,7 +15,7 @@ import { spaceSamplePhoto } from '../../demo/visuals';
 import { useSession } from '../../services/session';
 import { colors, fixed, radius, space, styles } from '../../theme';
 import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/MediaViewer';
-import { pickPhotos, preparePhoto } from '../media/picker';
+import { PhotoSelectionLimit, pickPhotos, preparePhoto } from '../media/picker';
 import { nativePhotoUri, readLocalPhoto, removeSpaceMedia, saveSpaceMedia, useLocalPhotoUri } from '../space/media';
 
 export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4'; demoAsset?: string; demoUri?: string; thumbnail?: boolean; demoThumbnail?: string };
@@ -24,9 +24,13 @@ export type LocalMedia =
   | { id: string; mime: 'video/mp4'; uri?: string; videoId?: string; bytes: number; duration?: number };
 export type EditorMedia = LocalMedia | (Media & { published: true });
 const maxVideo = 4 * 1024 * 1024;
+export class MomentMediaLimit extends Error {}
 
 export async function chooseMomentPhotos(owner: string, limit: number, thumbnails = false) {
-  const inputs = await pickPhotos(limit);
+  const inputs = await pickPhotos(limit).catch((failure) => {
+    if (failure instanceof PhotoSelectionLimit && thumbnails) throw new MomentMediaLimit('最多选择 ' + momentPhotoLimit + ' 张图片。');
+    throw failure;
+  });
   const assets: LocalMedia[] = [];
   try {
     for (const input of inputs) {
@@ -68,14 +72,10 @@ export async function chooseMomentVideo(): Promise<(Extract<LocalMedia,{mime:'vi
     asset.fileSize ??
     asset.file?.size ??
     (Platform.OS === 'web' ? (await (await fetch(asset.uri)).blob()).size : new File(asset.uri).size);
-  if (
-    !size ||
-    size > maxVideo ||
-    (asset.duration && asset.duration > 30_000) ||
-    (asset.mimeType && asset.mimeType !== 'video/mp4')
-  ) {
-    throw new Error('请选择 4 MB、30 秒以内的 MP4 视频。');
-  }
+  if (!size) throw new Error('暂时无法读取这段视频，请重新选择。');
+  if (asset.mimeType && asset.mimeType !== 'video/mp4') throw new MomentMediaLimit('视频格式须为 MP4。');
+  if (asset.duration && asset.duration > 30_000) throw new MomentMediaLimit('视频时长不能超过 30 秒。');
+  if (size > maxVideo) throw new MomentMediaLimit('视频文件大小不能超过 4 MB。');
   return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri, bytes:size, duration:asset.duration?asset.duration/1000:undefined };
 }
 

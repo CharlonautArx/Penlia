@@ -32,7 +32,7 @@ export default function FriendRequests() {
       {items.map((item, index) => <ListRow key={item.id} title={item.name}
         detail={[requestStatuses[item.status], item.verificationMessage].filter(Boolean).join(' · ')}
         separator={index !== items.length - 1}
-        left={<Avatar name={item.name} size={40} source={item.avatar ? { uri: 'data:image/jpeg;base64,' + item.avatar } : demoPortrait(item.demoPortraitKey ?? '')} />}
+        left={<Avatar userId={item.friendId} name={item.name} size={40} source={item.avatar ? { uri: 'data:image/jpeg;base64,' + item.avatar } : demoPortrait(item.demoPortraitKey ?? '')} />}
         onPress={!item.outgoing ? () => router.push({ pathname: '/friend-requests/[id]', params: { id: item.id } }) :
           item.friendId ? () => router.push({ pathname: '/person/[id]', params: { id: item.friendId! } }) : undefined}
         trailing={!item.outgoing && item.status === 'pending' ? <View style={styles.row}>

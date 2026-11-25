@@ -92,7 +92,7 @@ export default function PrivacyScreen() {
       </Sheet>}
       {panel === 'viewer' && <Sheet title="选择预览好友" onClose={() => setPanel(undefined)}>
         {state.friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={formatHandle(friend.username)}
-          left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={35} />} onPress={() => {
+          left={<Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={35} />} onPress={() => {
             if (!state.me) return;
             setPanel(undefined);
             router.push({ pathname: '/space/[id]', params: { id: state.me.id, viewer: friend.userId } });

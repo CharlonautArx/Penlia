@@ -1,3 +1,5 @@
+import { PlaceMessage } from '../play/PlaceMessage';
+import { parsePlaceCard } from '../play/place-card-model';
 import type { MessageLongPress } from './record-model';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
@@ -93,6 +95,8 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
 }
 
 export function MessageBody({ text, onLongPress }: { text: string; onLongPress?: MessageLongPress }) {
+  const place = parsePlaceCard(text);
+  if (place) return <PlaceMessage value={place} onLongPress={onLongPress} />;
   const [caption, link, extra] = text.split('\n', 3);
   if (caption === momentShareCaption && link && extra === undefined) {
     const id = link.slice(-36);

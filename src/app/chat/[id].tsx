@@ -1,3 +1,5 @@
+import { parsePlaceCard } from '../../features/play/place-card-model';
+import { useDirectory } from '../../features/friends/store';
 import { useFontScale } from '../../components/Typography';
 import { useHistoryJump } from '../../features/chat/history';
 import { useRecalls } from '../../features/chat/recalls';
@@ -318,7 +320,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     } : undefined;
     return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
       body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : message.kind === 'file' ? '[文件] ' + message.name : '',
-      canCopy: (text && !message.recordId) || kind === 'location', recordId: message.recordId,
+      canCopy: (text && !message.recordId && !parsePlaceCard(message.text)) || kind === 'location', recordId: message.recordId,
       quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
   }
   const selected = manage.selected && items.filter((message): message is RichMessage => !isRecalled(message) && !!manage.selected?.has(message.id)).map(managed);
@@ -492,7 +494,9 @@ export default function ConversationScreen() {
   const chromeHeight = fontScale <= 1 ? headerHeight : Math.max(headerHeight, 2 * Math.ceil(24 * fontScale) + 4);
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
   const { relationships, refresh, error } = useFriends();
+  const { value: directory } = useDirectory();
   const person = relationships?.find((item) => item.userId === id && item.status === 'accepted');
+  const title = person && (directory?.remarks[person.userId] || person.name);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   function goBack() {
@@ -513,10 +517,10 @@ export default function ConversationScreen() {
           <PeerChatFog ready={!!person} />
           <View style={[local.header, { height: chromeHeight }]} pointerEvents="box-none">
             <IconButton label="返回" icon="chevron-back" onPress={goBack} />
-            {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的个人主页'}
+            {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + title + '的个人主页'}
               style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
               onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
-              <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={fontScale > 1 ? 2 : 1}>{person.name}</Text>
+              <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={fontScale > 1 ? 2 : 1}>{title}</Text>
             </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
             {person && <>
               <PetShortcut peer={person.userId} />

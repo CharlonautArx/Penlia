@@ -1,3 +1,4 @@
+import { avatarOf, editProfile, handleAvailable, handleOf, identityFields } from './p0/profile.mjs';
 import { codeOwner } from './p0/friend-requests.mjs';
 import { afterImSend, listRecalls, recallPeerMessage } from './p0/peer-recall.mjs';
 import { randomBytes, scrypt as derive, timingSafeEqual } from 'node:crypto';
@@ -18,7 +19,7 @@ import { runEnforcement, workerAuthorized } from './p1/moderation.mjs';
 export { HttpError } from './core.mjs';
 
 const scrypt = promisify(derive);
-const publicFields = 'id, username, name, bio';
+const publicFields = identityFields('users');
 const usernamePattern = /^[a-z0-9_]{3,24}$/;
 function readUsername(value) {
   const username = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -63,7 +64,9 @@ async function register(body, sourceIp) {
   const name = cleanText(body.name, 16, true);
   const credential = await passwordHash(password);
   const token = randomBytes(32).toString('base64url');
-  const { rows: [user] } = await pool.query(
+  const user = await inTransaction(pool, async (db) => {
+    if (!await handleAvailable(db, username)) return;
+    const { rows: [registered] } = await db.query(
     `WITH registered AS (
        INSERT INTO users (username, password_hash, name) VALUES ($1, $2, $3)
        ON CONFLICT (username) DO NOTHING RETURNING ${publicFields}
@@ -72,6 +75,8 @@ async function register(body, sourceIp) {
        SELECT $4, id, now() + interval '30 days' FROM registered
      )
      SELECT * FROM registered`, [username, credential, name, hash(token)]);
+    return registered;
+  });
   if (!user) throw new HttpError(409, '这个账号已被注册。');
   return { token, user };
 }
@@ -89,7 +94,7 @@ async function login(body, sourceIp) {
   const password = readPassword(body.password);
   await rateLimit('login:' + sourceIp + ':' + username, 8, 15);
   await rateLimit('login-account:' + username, 30, 15);
-  const { rows: [row] } = await pool.query(`SELECT ${publicFields}, password_hash FROM users WHERE username = $1`, [username]);
+  const { rows: [row] } = await pool.query(`SELECT ${publicFields}, password_hash FROM users WHERE username=$1 OR profile_handle=$1`, [username]);
   const { password_hash: stored, ...user } = row ?? {};
   if (!await matchesPassword(password, stored)) throw new HttpError(401, '账号或密码不正确。');
   return createSession(user);
@@ -100,7 +105,7 @@ async function requireSession(authorization) {
   if (!token) throw new HttpError(401, '请登录后继续。');
   const tokenHash = hash(token);
   const { rows: [user] } = await pool.query(
-    `SELECT users.id, username, name, bio FROM sessions JOIN users ON users.id = sessions.user_id
+    `SELECT users.id, ${handleOf('users')} AS username, users.name, users.bio FROM sessions JOIN users ON users.id = sessions.user_id
      WHERE token_hash = $1 AND expires_at > now()`, [tokenHash]);
   if (!user) throw new HttpError(401, '登录已过期，请重新登录。');
   return { user, tokenHash };
@@ -109,7 +114,8 @@ async function requireSession(authorization) {
 async function friendships(userId) {
   const { rows } = await pool.query(
     `SELECT f.id, f.status, f.requested_by = $1 AS outgoing, f.im_synced AS "chatReady",
-            u.id AS "userId", CASE WHEN f.status='accepted' THEN u.username ELSE '' END AS username, u.name,
+            u.id AS "userId", CASE WHEN f.status='accepted' THEN ${handleOf('u')} ELSE '' END AS username, u.name,
+            CASE WHEN f.status='accepted' THEN ${avatarOf('u')} END AS avatar,
             CASE WHEN f.status='accepted' AND p.profile_policy IS DISTINCT FROM 'private' AND NOT ${restricted('u.id','$1::uuid')} THEN u.bio ELSE '' END AS bio,
             n.note AS "verificationMessage"
      FROM friendships f
@@ -304,15 +310,13 @@ export async function handle({ method, path, headers, query, sourceIp, readBody 
         });
         return json(200,{});
       }
-      case 'GET /v1/me':
-        return json(200, { user });
-      case 'PATCH /v1/me': {
-        const { name, bio } = await readBody();
-        const { rows: [profile] } = await pool.query(
-          `UPDATE users SET name = $1, bio = $2 WHERE id = $3 RETURNING ${publicFields}`,
-          [cleanText(name, 16, true), cleanText(bio, 60), user.id]);
-        return json(200, { user: profile });
+      case 'GET /v1/me': {
+        const { rows: [current] } = await pool.query(`SELECT ${publicFields} FROM users WHERE id=$1`, [user.id]);
+        return json(200, { user: current });
       }
+      case 'PATCH /v1/me':
+        await rateLimit('edit-profile:' + user.id, 30, 60);
+        return json(200, { user: await editProfile(user.id, await readBody()) });
       case 'GET /v1/people':
         await rateLimit('lookup:' + user.id, 60, 1);
         return json(200, await searchPerson(user.id, query.get('username'),'username'));

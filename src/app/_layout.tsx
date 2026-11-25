@@ -48,6 +48,7 @@ function AppNavigation() {
                   <Stack.Screen name="chat-background" />
                   <Stack.Screen name="privacy" />
                   <Stack.Screen name="profile" />
+                  <Stack.Screen name="profile-field/[field]" />
                   <Stack.Screen name="groups" />
                   <Stack.Screen name="group/[id]" />
                   <Stack.Screen name="group-settings/[id]" />

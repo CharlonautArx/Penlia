@@ -60,7 +60,7 @@ export default function PetScreen() {
           </View>
           <View style={local.partners}>
             <Avatar userId={session.user.id} name={session.user.name} source={demoPortrait(demoAvatarKey ?? session.user.username)} size={32} />
-            <View style={local.second}><Avatar name={friend.name} source={demoPortrait(friend.username)} size={32} /></View>
+            <View style={local.second}><Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={32} /></View>
           </View>
         </View>
       </View>

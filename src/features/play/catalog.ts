@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { samplePlaces } from '../../demo/places';
 import { isUiDemo } from '../../demo/mode';
+import { placeProvider } from './places';
 import type { Place, PlacePage, PlaceProvider, PlaceQuery } from './places';
 
 export function discoveryCatalog(): Place[] {
@@ -69,13 +70,14 @@ export function usePlaces(city: PlaceQuery['city'], category: PlaceQuery['catego
   return { places: page?.places ?? [], loading, error };
 }
 
-export function usePlace(id: string) {
-  const [result, setResult] = useState<{ id: string; place?: Place }>();
+export function usePlace(id: string, provider?: string) {
+  const [result, setResult] = useState<{ key: string; place?: Place }>();
+  const key = (provider ?? '') + ':' + id;
   useEffect(() => {
     const abort = new AbortController();
-    void catalog.detail(id, abort.signal).then((place) => setResult({ id, place }))
-      .catch(() => { if (!abort.signal.aborted) setResult({ id }); });
+    void catalog.detail(id, abort.signal).then((place) => setResult({ key, place: !provider || place && placeProvider(place) === provider ? place : undefined }))
+      .catch(() => { if (!abort.signal.aborted) setResult({ key }); });
     return () => abort.abort();
-  }, [id]);
-  return result?.id === id ? { place: result.place, loading: false } : { place: undefined, loading: true };
+  }, [id, provider, key]);
+  return result?.key === key ? { place: result.place, loading: false } : { place: undefined, loading: true };
 }

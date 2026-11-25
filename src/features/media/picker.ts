@@ -12,13 +12,15 @@ const maxChatBytes = 2 * 1024 * 1024;
 export type SelectedImage = ImagePicker.ImagePickerAsset;
 export type PreparedPhoto = { id: string; width: number; height: number; bytes: number };
 
+export class PhotoSelectionLimit extends Error {}
+
 export async function pickPhotos(selectionLimit = 1): Promise<SelectedImage[]> {
   try {
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'], selectionLimit, allowsMultipleSelection: selectionLimit > 1, exif: false,
     });
     if (picked.canceled) return [];
-    if (picked.assets.length > selectionLimit) throw new Error('每次最多选择 ' + selectionLimit + ' 张照片。');
+    if (picked.assets.length > selectionLimit) throw new PhotoSelectionLimit('每次最多选择 ' + selectionLimit + ' 张照片。');
     for (const item of picked.assets) {
       const bytes = item.fileSize ?? item.file?.size ?? (Platform.OS !== 'web' ? new File(item.uri).size : 0);
       if (bytes > maxInputBytes || item.width * item.height > maxInputPixels) {

@@ -48,8 +48,10 @@ test('friend invitations and personal report records use server authorization', 
     assert.match(first.code, /^penlia:add:[A-Za-z0-9_-]{32}$/);
     assert.ok(Math.abs(Date.parse(first.expiresAt) - Date.now() - 30 * 86400000) < 30000);
     const found = (await call(alice, '/people/code', 'POST', { code: first.code })).person;
-    assert.deepEqual(found, { id: bob.user.id, name: 'Bob', bio: '', region: '', avatar: null, isFriend: false });
-    await call(bob, '/me/public-intro', 'PATCH', { enabled: true, region: '上海', avatar: photo });
+    assert.deepEqual(found, { id: bob.user.id, name: 'Bob', bio: '原有签名', region: '', avatar: null, isFriend: false });
+    await call(bob, '/me/public-intro', 'GET', undefined, 404);
+    await call(bob, '/me', 'PATCH', { region: '上海', avatar: photo });
+    await call(bob, '/privacy', 'PATCH', { profilePolicy: 'private', version: 0 });
     const visible = (await call(alice, '/people/code', 'POST', { code: first.code })).person;
     assert.equal(visible.bio, '原有签名');
     assert.equal(visible.region, '上海');
@@ -68,7 +70,9 @@ test('friend invitations and personal report records use server authorization', 
 
   await t.test('a valid invitation produces a private request and only the recipient can accept it', async () => {
     const { code } = await call(bob, '/friends/code', 'POST', { days: 7 });
-    await call(alice, '/me', 'PATCH', { name: 'Alice', bio: '仅好友资料' });
+    await call(alice, '/me', 'PATCH', { name: 'Alice', bio: '个人简介', region: '杭州', avatar: photo });
+    await call(alice, '/privacy', 'PATCH', { profilePolicy: 'private', version: 0 });
+    const privateMoment = await call(alice, '/moments', 'POST', { clientId: randomUUID(), scope: 'private', body: '私有内容', mediaIds: [] }, 201);
     const application = await call(alice, '/friends', 'POST', { code, note: '我们在展览见过。' });
     await call(bob, '/friends/code', 'DELETE');
     const incoming = (await call(bob, '/friend-requests')).requests.find((row) => row.id === application.id);
@@ -80,7 +84,14 @@ test('friend invitations and personal report records use server authorization', 
     const path = '/friend-requests/' + application.id;
     const profile = await call(bob, path);
     assert.equal(profile.verificationMessage, '我们在展览见过。');
-    assert.equal(profile.person.bio, '');
+    assert.equal(profile.person.bio, '个人简介');
+    assert.equal(profile.person.region, '杭州');
+    assert.equal(profile.person.avatar, photo);
+    await call(bob, '/moments/' + privateMoment.id, 'GET', undefined, 404);
+    await call(alice, '/me', 'PATCH', { name: 'Alice 更新', avatar: null });
+    const newest = (await call(bob, path)).person;
+    assert.equal(newest.name, 'Alice 更新');
+    assert.equal(newest.avatar, null);
     assert.equal(profile.person.username, undefined);
     const pending = (await call(bob, '/friends')).relationships.find(({ id }) => id === application.id);
     assert.equal(pending.username, '');
@@ -98,6 +109,31 @@ test('friend invitations and personal report records use server authorization', 
       assert.equal(item.status, 'declined');
       assert.equal(item.friendId, null);
     }
+  });
+
+  await t.test('handle changes preserve original login, relationships, old posts and QR ownership', async () => {
+    const moment = await call(alice, '/moments', 'POST', { clientId: randomUUID(), body: '原稿内容', scope: 'friends', mediaIds: [] }, 201);
+    const active = await call(alice, '/friends/code', 'POST', { days: 30 });
+    const oldUsername = (await call(alice, '/me')).user.username;
+    await call(alice, '/me', 'PATCH', { username: 'invalid-handle' }, 400);
+    await call(alice, '/me', 'PATCH', { username: bob.user.username }, 409);
+    const edited = await call(alice, '/me', 'PATCH', { username: 'updated_handle', name: '实时昵称' });
+    assert.equal(edited.user.id, alice.user.id);
+    assert.equal(edited.user.username, 'updated_handle');
+    assert.ok(Date.parse(edited.user.nextHandleChangeAt) > Date.now() + 360 * 86400000);
+    await call(alice, '/me', 'PATCH', { username: 'another_handle' }, 409);
+    const auth = (username) => call(null, '/login', 'POST', { username, password: 'synthetic-test-password-only!' });
+    assert.equal((await auth(oldUsername)).user.id, alice.user.id);
+    assert.equal((await auth('updated_handle')).user.id, alice.user.id);
+    await call(null, '/register', 'POST', { username: 'updated_handle', name: '冲突', password: 'synthetic-test-password-only!' }, 409);
+    assert.equal((await call(stranger, '/people/code', 'POST', { code: active.code })).person.id, alice.user.id);
+    assert.equal((await call(bob, '/people?username=updated_handle')).person.id, alice.user.id);
+    const after = (await call(bob, '/moments/' + moment.id)).moment;
+    assert.equal(after.author, '实时昵称');
+    assert.equal(after.authorUsername, 'updated_handle');
+    assert.equal(after.body, '原稿内容');
+    await pool.query("UPDATE users SET handle_updated_at=clock_timestamp()-interval '1 year'-interval '1 second' WHERE id=$1", [alice.user.id]);
+    assert.equal((await call(alice, '/me', 'PATCH', { username: 'another_handle' })).user.username, 'another_handle');
   });
 
   await t.test('only selected report evidence is persisted and hidden records cannot be reopened', async () => {

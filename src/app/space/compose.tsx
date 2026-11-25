@@ -171,7 +171,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
     </Sheet>}
     {panel === 'mention' && <Sheet title="@好友" onClose={() => setPanel(undefined)}>
       {state.friends.map((friend) => <ListRow key={friend.userId} title={friend.name} detail={formatHandle(friend.username)}
-        left={<Avatar name={friend.name} source={demoPortrait(friend.username)} size={34} />}
+        left={<Avatar userId={friend.userId} name={friend.name} source={demoPortrait(friend.username)} size={34} />}
         onPress={() => {
           const next = draft.text.trimEnd() + (draft.text.length ? ' ' : '') + '@' + friend.username + ' ';
           if (next.length <= limit) setDraft({ ...draft, text: next, mentions: [...new Set([...draft.mentions, friend.userId])] });
