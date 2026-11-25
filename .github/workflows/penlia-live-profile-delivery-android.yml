@@ -1,0 +1,76 @@
+name: Penlia 0.1.8 Android Release
+on:
+  push:
+    tags: [penlia-live-profile-delivery-android]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [x86_64, arm64-v8a]
+    env:
+      EAS_BUILD_PROFILE: ui-demo
+      EXPO_PUBLIC_PENLIA_UI_DEMO: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
+      - name: Install SDK, build tools and NDK
+        run: sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+      - run: npm ci && npm ci --prefix server && npm run typecheck && node --test --test-isolation=none tests/*.test.mjs
+      - name: Verify source commit
+        run: |
+          git rev-parse HEAD^
+          git diff-tree --no-commit-id --name-only -r HEAD^
+      - name: Compile Android Release with R8
+        run: |
+          npx expo prebuild --platform android --no-install
+          (
+            cd android
+            ./gradlew :app:assembleRelease --max-workers=3 -PreactNativeArchitectures=${{ matrix.abi }} -Pandroid.enableMinifyInReleaseBuilds=true
+          )
+          mkdir out
+          cp android/app/build/outputs/apk/release/app-release.apk out/Penlia-${{ matrix.abi }}.apk
+      - name: Verify the packaged PNG matches the repository asset
+        run: |
+          cmp assets/startup/pale-blue-dot.png android/app/src/main/res/raw/penlia_launch_art.png
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          from zipfile import ZipFile
+          image = Path('assets/startup/pale-blue-dot.png').read_bytes()
+          with ZipFile('out/Penlia-${{ matrix.abi }}.apk') as apk:
+              matches = [name for name in apk.namelist() if name.startswith('res/') and apk.getinfo(name).file_size == len(image) and apk.read(name) == image]
+              assert len(matches) == 1, matches
+              print('Original PNG in APK:', matches[0], len(image), 'bytes')
+          PYTHON
+      - name: Validate Release signature, ABI and package
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/Penlia-${{ matrix.abi }}.apk | tee out/signer.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-${{ matrix.abi }}.apk | tee out/badging.txt
+          grep -Fx "application-label:'朋聊'" out/badging.txt
+          ! grep -F "朋聊演示" out/badging.txt
+          grep -Fx "native-code: '${{ matrix.abi }}'" out/badging.txt
+          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 4 out/Penlia-${{ matrix.abi }}.apk
+          sha256sum out/Penlia-${{ matrix.abi }}.apk | tee out/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: penlia-live-profile-delivery-${{ matrix.abi }}-release
+          path: out/
+          retention-days: 30
