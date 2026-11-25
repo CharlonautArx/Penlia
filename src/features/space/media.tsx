@@ -9,6 +9,7 @@ import { localId } from '../local/document';
 import type { Photo } from './model';
 
 const maxBytes = 8 * 1024 * 1024;
+const durableMediaId = /^[a-z\d_-]+\.(?:[a-z]+|mp4)$/i;
 
 function imageDirectory() {
   return new Directory(Paths.document, 'penlia-space-media');
@@ -59,7 +60,7 @@ export async function selectPhotos(account: string, remaining: number): Promise<
 }
 
 export function nativePhotoUri(id: string): string | undefined {
-  if (Platform.OS === 'web' || !/^[a-z\d_-]+\.[a-z]+$/i.test(id)) return undefined;
+  if (Platform.OS === 'web' || !durableMediaId.test(id)) return undefined;
   try {
     const file = new File(imageDirectory(), id);
     return file.exists ? file.uri : undefined;
@@ -129,7 +130,7 @@ export function SpacePhoto({ photo, style, label = '照片', resizeMode = 'cover
 }
 
 export async function readLocalPhoto(id: string): Promise<Blob | undefined> {
-  if (Platform.OS !== 'web' || !/^[a-z\d_-]+\.[a-z]+$/i.test(id)) return undefined;
+  if (Platform.OS !== 'web' || !durableMediaId.test(id)) return undefined;
   const value = await mediaStore<Blob | undefined>('readonly', (store) => store.get(id));
   return value instanceof Blob ? value : undefined;
 }

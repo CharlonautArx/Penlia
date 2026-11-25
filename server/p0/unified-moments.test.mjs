@@ -130,6 +130,8 @@ test('unified moments and persistent status on PostgreSQL 17 with the applicatio
     await call(alice, '/moment-media/' + image, 'GET', undefined, 404);
   });
   await t.test('the mixed feed uses publish time and preserves owner and friend permissions', async () => {
+    const invitation = await call(claire, '/friends', 'POST', { userId: bob.user.id, note: '测试好友' });
+    await call(bob, '/friends/accept', 'POST', { id: invitation.id });
     const privatePhoto = await upload(claire);
     const ownPrivate = (await post(claire, '私密动态', 'private', [privatePhoto])).id;
     const newest = (await post(bob, '好友的新动态')).id;
