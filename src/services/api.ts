@@ -13,6 +13,7 @@ export type Relationship = {
   outgoing: boolean;
   chatReady: boolean;
   verificationMessage?: string | null;
+  requestedAt?: string;
 };
 export type Session = { token: string; user: User };
 
@@ -38,7 +39,7 @@ export async function api<T>(path: string, { token, method = 'GET', body }: {
 } = {}): Promise<T> {
   const base = apiOrigin();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), path === '/moment-media' && body?.mime === 'video/mp4' ? 120000 : 25000);
   let response: Response;
   let result: { error?: unknown } | null;
   try {

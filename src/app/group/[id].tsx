@@ -267,7 +267,8 @@ export default function GroupConversation() {
           return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(item.id)}
             toggle={() => report.selected ? report.toggle(item.id) : manage.toggle(item.id)}><View>
             {block && <ChatTimestamp value={timestamp} />}
-            <ChatBubble bare={!item.recordId && !item.content && item.media.length > 0 && item.media.every(({ mime }) => mime.startsWith('image/'))} mine={mine} first={block || item.senderId !== older?.senderId}
+            <ChatBubble bare={!item.recordId && (!item.content && item.media.length > 0 &&
+              item.media.every(({ mime }) => mime.startsWith('image/')) || !!parsePlaceCard(item.content))} mine={mine} first={block || item.senderId !== older?.senderId}
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
               author={identity(item.senderId)?.name ?? item.name}
               avatar={<Avatar userId={item.senderId} name={item.name} source={picture(item.senderId)} size={31} />} onActions={(anchor) => manage.setMenu(managed(item), anchor)}>

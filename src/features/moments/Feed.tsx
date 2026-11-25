@@ -9,7 +9,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppearance } from '../../components/appearance';
-import { Button, Empty, Icon, IconButton, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar } from '../../components/ui';
+import { Button, Empty, Icon, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar, type IconName } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { ApiError, errorMessage, type User } from '../../services/api';
 import { useSession } from '../../services/session';
@@ -167,10 +167,10 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
       {home ? <BlurTargetView ref={bellTarget}>{spaceHeader}</BlurTargetView> : spaceHeader}
       {home ? <HomeNotificationBell target={bellTarget} photo={!!card.cover.photo} top={insets.top + space.xs} />
         : <View pointerEvents="box-none" style={[local.timelineNav, { top: insets.top + space.xs }]}>
-          <IconButton label="返回" icon="chevron-back" tinted onPress={goBack} />
+          <CoverAction label="返回" icon="chevron-back" onPress={goBack} />
           <View style={styles.grow} />
-          <IconButton label="动态选项" icon="ellipsis-horizontal" tinted onPress={() => setPanel('timelineActions')} />
-          <IconButton label="发布私密动态" icon="create-outline" tinted onPress={() => openPublish()} />
+          <CoverAction label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
+          <CoverAction label="发布私密动态" icon="create-outline" onPress={() => openPublish()} />
         </View>}
     </View> : spaceHeader}
     <View style={home ? [local.column, local.homeBody] : mine ? local.timelineBody : local.body}>
@@ -237,6 +237,22 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   </SafeAreaView>;
 }
 
+function CoverAction({ label, icon, onPress }: { label: string; icon: IconName; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+    style={({ pressed }) => [local.coverAction, pressed && local.pressed]}>
+    <View pointerEvents="none" style={local.coverGlyph}>
+      <View style={local.coverEdge}><Icon name={icon} size={25} color="#25262BC4" /></View>
+      {Platform.OS === 'web' ? <Icon name={icon} size={23} color="#FFFFFFD9" />
+        : <MaskedView style={StyleSheet.absoluteFill}
+          maskElement={<View style={local.coverGlyph}><Icon name={icon} size={23} color="black" /></View>}>
+          <LinearGradient colors={['#FFFFFFF4', '#FFFFFFA8', '#FFEAF1D9', '#E9FFFBDC']}
+            locations={[0, 0.45, 0.72, 1]} start={{ x: 0.25, y: 0 }} end={{ x: 0.78, y: 1 }}
+            style={StyleSheet.absoluteFill} />
+        </MaskedView>}
+    </View>
+  </Pressable>;
+}
+
 function HomeNotificationBell({ photo, top, target }: {
   photo: boolean; top: number; target: RefObject<ComponentRef<typeof View> | null>;
 }) {
@@ -298,6 +314,9 @@ const local = StyleSheet.create({
   pressed: { opacity: 0.72 },
   timelineBody: { paddingHorizontal: space.md, gap: space.xs },
   timelineNav: { position: 'absolute', left: space.sm, right: space.sm, zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: space.xxs },
+  coverAction: { width: touch, minHeight: touch, alignItems: 'center', justifyContent: 'center' },
+  coverGlyph: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  coverEdge: { position: 'absolute', transform: [{ translateY: 0.5 }] },
   bell: { position: 'absolute', right: space.md, zIndex: 2, width: touch, height: touch, justifyContent: 'center', alignItems: 'center' },
   bellGlyph: { width: 26, height: 28, alignItems: 'center', justifyContent: 'center' },
   bellEdge: { position: 'absolute', top: 1 }, bellFace: { position: 'absolute', top: 2 },

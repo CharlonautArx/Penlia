@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import type { ChatMessage } from 'react-native-chat-sdk';
 
-import { Avatar, Button, Empty, IconButton, Notice, Sheet } from '../../components/ui';
+import { Avatar, Button, Empty, Icon, IconButton, Notice, Sheet } from '../../components/ui';
 import { PetShortcut } from '../../features/pet/mark';
 import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
@@ -22,14 +22,14 @@ import { useFriends } from '../../services/friends';
 import { commentEmoji } from '../../features/moments/Comments';
 import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { PeerVideo } from '../../features/media/PeerVideo';
-import { chooseMomentVideo,chooseMomentDraftVideo,MomentVideo } from '../../features/moments/media';
+import { MomentVideo, persistGalleryVideo, readGalleryVideo } from '../../features/moments/media';
 import { ReportForm, ReportSelectionBar, useReportSelection } from '../../features/social/ReportSheet';
 import { Moon } from '../../features/media/Moon';
 import { ImageBubble } from '../../features/media/ImageBubble';
 import { LocationBubble, LocationComposer } from '../../features/media/LocationCard';
 import { deliverPeerMessage, fetchAttachment, readPeerMessage, summaryOf, SendRejected, UnknownDelivery, type PendingMessage, type RichMessage } from '../../features/media/messages';
-import { pickPhotos, preparePhoto, type PreparedPhoto } from '../../features/media/picker';
-import { useLocalPhotoUri } from '../../features/space/media';
+import { isGalleryVideo, pickGallery, preparePhoto, validatePhoto } from '../../features/media/picker';
+import { removeSpaceMedia, useLocalPhotoUri } from '../../features/space/media';
 import { imUserId, useIm } from '../../services/im';
 import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
@@ -42,6 +42,14 @@ import { PeerSendMenu, type PeerSendOptions } from '../../features/chat/PeerSend
 const headerHeight = 54;
 const slowPhotoThreshold = 450;
 const noMarkers = {};
+type QueuedMedia = { id: string; value: Extract<PendingMessage, { kind: 'image' | 'video' }> };
+
+function sameAttachment(first: PendingMessage, second: PendingMessage) {
+  if (first.kind === 'image' && second.kind === 'image') return first.photoId === second.photoId;
+  if (first.kind === 'video' && second.kind === 'video')
+    return first.videoId ? first.videoId === second.videoId : first.uri === second.uri;
+  return false;
+}
 type ShownMessage = ReturnType<typeof applyRecalls<RichMessage>>[number];
 const isRecalled = (message: ShownMessage): message is Extract<ShownMessage, {kind:'recalled'}> =>
   'kind' in message && message.kind === 'recalled';
@@ -76,15 +84,17 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   const [historyError, setHistoryError] = useState('');
   const [actionError, setActionError] = useState('');
   const [sending, setSending] = useState(false);
-  const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
-  const photo=photos[0];
+  const [mediaQueue, setMediaQueue] = useState<QueuedMedia[]>([]);
+  const [previewId, setPreviewId] = useState<string>();
+  const currentMedia = (mediaQueue.find(({ id }) => id === previewId) ?? mediaQueue[0])?.value;
+  const photo = currentMedia?.kind === 'image' ? currentMedia : undefined;
+  const video = currentMedia?.kind === 'video' ? currentMedia : undefined;
   const [quiet,setQuiet]=useState(false);
   const [noReply,setNoReply]=useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [sendMenuOpen, setSendMenuOpen] = useState(false);
   const [sendOptions, setSendOptions] = useState<PeerSendOptions>({ silent: false, noReply: false });
   const closeSendMenu = useCallback(() => setSendMenuOpen(false), []);
-  const [video,setVideo]=useState<{ uri?: string; videoId?: string; bytes: number; duration?: number }>();
   const savedVideoUri = useLocalPhotoUri(video?.videoId);
   const videoUri = video?.uri ?? savedVideoUri;
   const report = useReportSelection(session?.user.id, person.userId, '/chat/[id]');
@@ -114,7 +124,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   const [transferProgress, setTransferProgress] = useState<number>();
   const pending = useRef<{ value: PendingMessage; original?: ChatMessage; uncertain?: boolean } | undefined>(undefined);
   const sendGuard = useRef(false);
-  const photoUri = useLocalPhotoUri(photo?.id);
+  const photoUri = useLocalPhotoUri(photo?.photoId);
   const ownUsername = session ? imUserId(session.user.id) : '';
   const peer = imUserId(person.userId);
 
@@ -187,25 +197,38 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     }
   }
 
-  async function prepareImage() {
+  async function prepareMedia() {
     if (preparingPhoto.current || !session) return;
     preparingPhoto.current = true;
     setPhotoLocked(true);
     let progress: ReturnType<typeof setTimeout> | undefined;
+    const selected: QueuedMedia[] = [];
     try {
-      const inputs = await pickPhotos(6);
+      const inputs = await pickGallery(['images', 'videos'], 6);
       if (!inputs.length) return;
       progress = setTimeout(() => setPhotoBusy(true), slowPhotoThreshold);
       // Let the system picker hand the screen back before starting the first image.
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const selected: PreparedPhoto[] = [];
-      for (const input of inputs) selected.push(await preparePhoto(input, session.user.id));
+      for (const input of inputs) {
+        if (isGalleryVideo(input)) {
+          const clip = await readGalleryVideo(input);
+          const local = demo ? await persistGalleryVideo(clip, session.user.id + '-chat') : clip;
+          const { id, mime, ...rest } = local;
+          selected.push({ id, value: { kind: 'video', ...rest } });
+        } else {
+          validatePhoto(input, false);
+          const { id, ...photo } = await preparePhoto(input, session.user.id, undefined, { maxSide: 1800, maxBytes: Infinity });
+          selected.push({ id, value: { kind: 'image', photoId: id, ...photo } });
+        }
+      }
       pending.current = undefined;
       setSendError(false);
       setPhotoError('');
       setActionError('');
-      setPhotos(selected);
+      setPreviewId(undefined);
+      setMediaQueue(selected);
     } catch (error) {
+      void Promise.allSettled(selected.map(({ value }) => removeSpaceMedia(value.kind === 'image' ? value.photoId : value.videoId)));
       setPhotoError(errorMessage(error));
     } finally {
       clearTimeout(progress);
@@ -232,11 +255,9 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       }
       pending.current = undefined;
       if (value.kind === 'text') { setDraft((current) => current.trim() === value.text ? '' : current); setSticker(undefined); }
-      if (value.kind === 'image') setPhotos((current)=>current.filter((item)=>item.id!==value.photoId));
-      else {
-        setQuiet(false);setNoReply(false);
-        if (value.kind==='video')setVideo(undefined);
-      }
+      if (value.kind === 'image' || value.kind === 'video')
+        setMediaQueue((current) => current.filter((item) => !sameAttachment(item.value, value)));
+      else { setQuiet(false); setNoReply(false); }
       return true;
     } catch (failure) {
       const uncertain = failure instanceof UnknownDelivery;
@@ -263,18 +284,18 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     }
   }
 
-  async function sendImages() {
-    if(batch.current)return;
-    batch.current=true;
+  async function sendMedia() {
+    if (batch.current) return;
+    batch.current = true;
     try {
-      for(const item of photos) {
-        const retry=pending.current;
-        if(retry?.value.kind==='image'&&retry.value.photoId===item.id){
-          if(retry.uncertain||!await transmit(retry.value,retry.original))return;
-        }else if(!await transmit({kind:'image',photoId:item.id,width:item.width,height:item.height,bytes:item.bytes,silent:quiet,noReply,quote:manage.quote}))return;
+      for (const { value } of mediaQueue) {
+        const retry = pending.current;
+        if (retry && sameAttachment(retry.value, value)) {
+          if (retry.uncertain || !await transmit(retry.value, retry.original)) return;
+        } else if (!await transmit({ ...value, silent: quiet, noReply, quote: manage.quote })) return;
       }
-      setQuiet(false);setNoReply(false);manage.setQuote(undefined);
-    }finally{batch.current=false;}
+      setQuiet(false); setNoReply(false); manage.setQuote(undefined);
+    } finally { batch.current = false; }
   }
 
   function openCall(kind: 'voice' | 'video') {
@@ -344,7 +365,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(message.id)}
       toggle={() => report.selected ? report.toggle(message.id) : manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
       {block && <ChatTimestamp value={message.timestamp} />}
-      <ChatBubble bare={'kind' in message && message.kind === 'image'} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
+      <ChatBubble bare={'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
@@ -389,7 +410,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
         />
       </View>
       {!!photoError && <View style={local.notice}>
-        <Notice action="重试选图" onAction={() => void prepareImage()}>{photoError}</Notice>
+        <Notice action="重新选择" onAction={() => void prepareMedia()}>{photoError}</Notice>
       </View>}
       {!!(actionError || historyError) && <View style={local.notice}>
         <Notice action={sendError && (demo || online) ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
@@ -397,8 +418,8 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       {report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <>
       <MessageComposer label="消息" floating focusKey={manage.quote?.id}
         value={draft} onChange={(text) => { setDraft(text); setSticker(undefined); }} maxLength={500}
-        attachLabel="添加" photoLabel="从图库选择图片" onAttach={() => setPicker('attachments')}
-        onPhoto={() => void prepareImage()} onEmoji={() => setPicker('emoji')}
+        attachLabel="添加" photoLabel="从图库选择照片和视频" onAttach={() => setPicker('attachments')}
+        onPhoto={() => void prepareMedia()} onEmoji={() => setPicker('emoji')}
         photoDisabled={photoLocked} photoBusy={photoBusy} toolsDisabled={sending}
         sendLabel={sending ? '发送中…' : '发送'} onSend={() => void sendText()} sendDisabled={sendDisabled}
         onLayout={({ nativeEvent }) => setComposerHeight(nativeEvent.layout.height)}
@@ -437,45 +458,35 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
             <Text style={styles.muted}>可与安静送达同时使用。</Text>
 
           </>}
-          <Button label="短视频" icon="videocam-outline" variant="soft" disabled={(!demo && !online) || sending} onPress={() => {
+          <Button label="照片" icon="images-outline" variant="soft" disabled={(!demo && !online) || sending || photoLocked} onPress={() => {
             setPicker(undefined);
-            const select = demo && session ? chooseMomentDraftVideo(session.user.id + '-chat') : chooseMomentVideo();
-            void select.then(setVideo).catch((failure) => setActionError(errorMessage(failure)));
+            void prepareMedia();
           }} />
           {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
       </Sheet>}
       {report.showForm && <ReportForm peerId={person.userId} lines={reportLines} onClose={() => report.setShowForm(false)} onFinish={report.cancel} />}
-      {video&&<Sheet title="发送短视频" onClose={()=>{if(!sending)setVideo(undefined);}}>
-        {videoUri ? <MomentVideo source={{ uri: videoUri }} /> : <Empty busy>正在读取视频…</Empty>}
-        {noReply&&<NoReply/>}
-        {quiet&&<Moon words/>}
-        {!!actionError&&<Notice>{actionError}</Notice>}
-        <Button label={sending?'发送中…':'发送视频'} variant="gradient" disabled={sending || (!demo && !online) || !videoUri || pending.current?.uncertain}
-          onPress={()=>{
-            const queued=pending.current;
-            if(queued?.value.kind==='video'&&queued.value.uri===video.uri)void transmit(queued.value,queued.original);
-            else if (videoUri) void transmit({kind:'video',uri:video.uri,videoId:video.videoId,bytes:video.bytes,duration:video.duration,silent:quiet,noReply,quote:manage.quote}).then((ok) => { if (ok) manage.setQuote(undefined); });
-          }}/>
-      </Sheet>}
-      {photo && <Sheet title={demo ? '图片预览' : '发送图片'} onClose={() => { if (!sending) setPhotos([]); }}>
-        {photoUri ? <Image source={{ uri: photoUri }} style={local.imagePreview} resizeMode="contain" accessibilityLabel="待发送图片" />
-          : <Empty busy>正在读取图片…</Empty>}
-        {photos.length>1&&<View style={{flexDirection:'row',gap:5,flexWrap:'wrap'}}>
-          {photos.map((item,index)=><QueuePreview key={item.id} item={item} index={index}/>)}
+      {currentMedia && <Sheet title={mediaQueue.length > 1 ? '发送照片和视频' : video ? '发送短视频' : demo ? '图片预览' : '发送图片'}
+        onClose={() => { if (!sending) setMediaQueue([]); }}>
+        {video && videoUri ? <MomentVideo key={videoUri} source={{ uri: videoUri }} />
+          : photo && photoUri ? <Image source={{ uri: photoUri }} style={local.imagePreview} resizeMode="contain" accessibilityLabel="待发送图片" />
+          : <Empty busy>正在读取附件…</Empty>}
+        {mediaQueue.length > 1 && <View style={local.mediaQueue}>
+          {mediaQueue.map((item, index) => <QueuePreview key={item.id} item={item} index={index} active={item.value === currentMedia}
+            onPress={() => setPreviewId(item.id)} />)}
         </View>}
         {quiet&&<Moon words/>}
         {noReply&&<NoReply/>}
-        <Text style={styles.small}>{photo.width} × {photo.height} · {Math.max(1, Math.round(photo.bytes / 1024))} KB</Text>
+        {photo && <Text style={styles.small}>{photo.width} × {photo.height} · {Math.max(1, Math.round(photo.bytes / 1024))} KB</Text>}
         {!!actionError && <Notice>{actionError}</Notice>}
         {!demo && !online && <Notice>聊天连接已断开，恢复后可以继续发送。</Notice>}
         <Button label={sending ? ('发送中' + (transferProgress === undefined ? '…' : ' ' + transferProgress + '%'))
-          : sendError ? '重试发送图片' : photos.length>1?'发送 '+photos.length+' 张图片':'发送图片'} variant="gradient"
-          disabled={!photoUri || sending || pending.current?.uncertain || (!demo && !online)} onPress={()=>void sendImages()} />
-        {demo && <Button label="模拟好友发来此图" variant="soft" disabled={!photoUri || sending} onPress={() => {
+          : sendError ? '重试发送' : mediaQueue.length > 1 ? '发送 ' + mediaQueue.length + ' 个附件' : video ? '发送视频' : '发送图片'} variant="gradient"
+          disabled={!(video ? videoUri : photoUri) || sending || pending.current?.uncertain || (!demo && !online)} onPress={() => void sendMedia()} />
+        {demo && photo && <Button label="模拟好友发来此图" variant="soft" disabled={!photoUri || sending} onPress={() => {
           try {
-            demo.addMedia(person.userId, { kind: 'image', photoId: photo.id, width: photo.width, height: photo.height, bytes: photo.bytes }, false);
-            setPhotos((current)=>current.slice(1));
+            demo.addMedia(person.userId, photo, false);
+            setMediaQueue((current) => current.filter((item) => item.value !== photo));
           } catch (error) { setActionError(errorMessage(error)); }
         }} />}
       </Sheet>}
@@ -483,10 +494,13 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   );
 }
 
-function QueuePreview({item,index}:{item:PreparedPhoto;index:number}) {
-  const uri=useLocalPhotoUri(item.id);
-  return uri?<Image source={{uri}} accessibilityLabel={'第 '+(index+1)+' 张待发送图片'}
-    style={{width:45,height:45,borderRadius:7}} />:null;
+function QueuePreview({ item, index, active, onPress }: { item: QueuedMedia; index: number; active: boolean; onPress: () => void }) {
+  const uri = useLocalPhotoUri(item.value.kind === 'image' ? item.value.photoId : undefined);
+  return <Pressable accessibilityRole="button" accessibilityState={{ selected: active }}
+    accessibilityLabel={'预览待发送附件 ' + (index + 1)} onPress={onPress}
+    style={[local.queueThumb, active && local.queueActive]}>
+    {uri ? <Image source={{ uri }} style={StyleSheet.absoluteFill} /> : <Icon name="film-outline" />}
+  </Pressable>;
 }
 
 export default function ConversationScreen() {
@@ -535,6 +549,10 @@ export default function ConversationScreen() {
 
 const local = StyleSheet.create({
   recalled: { ...styles.small, textAlign: 'center', paddingVertical: space.sm },
+  mediaQueue: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  queueThumb: { width: 45, height: 45, borderRadius: radius.small, overflow: 'hidden', alignItems: 'center',
+    justifyContent: 'center', backgroundColor: colors.search },
+  queueActive: { borderColor: colors.accent, borderWidth: 1 },
   highlight: { backgroundColor: colors.lavender, borderRadius: radius.control },
   headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight + space.xxl },
   header: { ...styles.row, height: headerHeight, gap: space.xxs, paddingLeft: space.xxs, paddingRight: space.xs },

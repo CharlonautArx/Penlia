@@ -41,11 +41,21 @@ export async function deliverPeerMessage(connection: ImConnection, peer: string,
   const message = previous ?? buildPeerMessage(connection, peer, value, local);
   const submitted = message;
   return new Promise<ChatMessage>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new UnknownDelivery('暂未确认送达，请先查看会话，以免重复发送。')), (value.kind === 'image' || value.kind === 'video') ? 50_000 : 20_000);
+    const interval = value.kind === 'image' || value.kind === 'video' ? 50_000 : 20_000;
+    const confirmationTimeout = () => setTimeout(() => reject(new UnknownDelivery('暂未确认送达，请先查看会话，以免重复发送。')), interval);
+    let timeout = confirmationTimeout();
+    let latestProgress = -1;
     const callbacks = {
       onSuccess: (confirmed: ChatMessage) => { clearTimeout(timeout); resolve(confirmed); },
       onError: () => { clearTimeout(timeout); reject(new SendRejected(submitted)); },
-      onProgress: (_: string, progress: number) => onProgress?.(progress),
+      onProgress: (_: string, progress: number) => {
+        if (progress > latestProgress) {
+          latestProgress = progress;
+          clearTimeout(timeout);
+          timeout = confirmationTimeout();
+        }
+        onProgress?.(progress);
+      },
     };
     const transfer = previous ? client.chatManager.resendMessage(submitted, callbacks) : client.chatManager.sendMessage(submitted, callbacks);
     void transfer.catch(() => { clearTimeout(timeout); reject(new UnknownDelivery('暂未确认送达，请先查看会话。')); });

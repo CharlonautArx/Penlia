@@ -154,7 +154,8 @@ async function requestFriend(userId, body, sourceIp) {
     }
     const {rows:[row]}=await db.query(`INSERT INTO friendships as f(first_user,second_user,requested_by)
       VALUES (least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1)
-      ON CONFLICT(first_user,second_user) DO UPDATE SET id=excluded.id,status='pending',requested_by=$1,im_synced=false,updated_at=now()
+      ON CONFLICT(first_user,second_user) DO UPDATE SET id=excluded.id,status='pending',requested_by=$1,im_synced=false,
+        requested_at=now(),updated_at=now()
       RETURNING id`,[userId,other]);
     await db.query(`INSERT INTO friend_notes(friendship_id,note) VALUES($1,$2)
       ON CONFLICT(friendship_id) DO UPDATE SET note=excluded.note`,[row.id,note]);

@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { handle, HttpError } from './api.mjs';
-import { mediaLimit } from './p0/moments.mjs';
+import { momentVideoLimit } from './p0/moments.mjs';
 import { profileCoverLimit } from './p0/profile-cover.mjs';
 
 import { reportBodyLimit } from './p1/moderation.mjs';
@@ -51,7 +51,7 @@ export function createApiServer(options = {}) {
         if (request.method === 'POST' && url.pathname === '/v1/p1/reports') return readBody(request, reportBodyLimit);
         if (request.method === 'POST' && url.pathname === '/v1/chat-records') return readBody(request, 144 * 1024);
         if(request.method==='POST'&&url.pathname==='/v1/moment-media')
-          return readBody(request,Math.ceil(mediaLimit/3)*4+132096);
+          return readBody(request,Math.ceil(momentVideoLimit/3)*4+132096);
         if(request.method==='POST'&&/^\/v1\/p2\/capsule-entries\/[0-9a-f-]{36}\/audio$/.test(url.pathname))
           return readBody(request,Math.ceil(2097152/3)*4+1024);
         if ((request.method === 'POST' && url.pathname === '/v1/groups') ||

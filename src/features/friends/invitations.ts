@@ -11,6 +11,8 @@ export type FriendRequest = {
   friendId?: string;
   avatar?: string;
   demoPortraitKey?: string;
+  requestedAt?: string;
+  updatedAt?: string;
 };
 export type PublicPerson = {
   id: string;

@@ -29,11 +29,11 @@ export async function findFriendRequests(viewer) {
   const { rows } = await pool.query(
     `SELECT f.id, f.status, (f.requested_by=$1) AS outgoing, u.name, ${publicAvatar},
        CASE WHEN f.status='accepted' THEN u.id ELSE NULL END AS "friendId",
-       coalesce(n.note,'') AS "verificationMessage", f.updated_at AS "updatedAt"
+       coalesce(n.note,'') AS "verificationMessage", f.requested_at AS "requestedAt", f.updated_at AS "updatedAt"
      FROM friendships f JOIN users u ON u.id=CASE WHEN f.first_user=$1 THEN f.second_user ELSE f.first_user END
      LEFT JOIN friend_notes n ON n.friendship_id=f.id
      WHERE $1 IN (f.first_user,f.second_user) AND NOT ${blocked('$1::uuid', 'u.id')}
-     ORDER BY f.updated_at DESC,f.id DESC`, [viewer]);
+     ORDER BY (f.status='pending') DESC,f.requested_at DESC,f.id DESC`, [viewer]);
   return { requests: rows };
 }
 

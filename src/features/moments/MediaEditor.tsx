@@ -45,8 +45,8 @@ function updateDrag(current: Drag, dx: number, absoluteY: number, offset: number
   return { ...current, dx, absoluteY, to: photoDropIndex(current.from, dx, absoluteY - current.y + offset - current.scroll, step, count) };
 }
 
-export function MediaEditor<T extends Item>({ items, busy, scroll, add, open, remove, move, tile }: {
-  items: readonly T[]; busy: boolean; scroll: EditorScroll; add?: () => void; open: (item: T) => void;
+export function MediaEditor<T extends Item>({ items, busy, scroll, add, open, remove, move, tile, addLabel = '选择照片' }: {
+  items: readonly T[]; busy: boolean; scroll: EditorScroll; add?: () => void; open: (item: T) => void; addLabel?: string;
   remove: (item: T) => void; move: (id: string, to: number) => void; tile: (item: T) => ReactNode;
 }) {
   const [width, setWidth] = useState(0);
@@ -77,7 +77,7 @@ export function MediaEditor<T extends Item>({ items, busy, scroll, add, open, re
     {!!size && items.map((item, index) => <EditorTile key={item.id} item={item} index={index}
       count={items.length} size={size} busy={busy} reduced={reduced} open={() => open(item)} remove={() => remove(item)}
       move={move} state={{ order, drag, scroll }}>{tile(item)}</EditorTile>)}
-    {!!size && add && <Pressable accessibilityRole="button" accessibilityLabel="选择照片" disabled={busy} onPress={add}
+    {!!size && add && <Pressable accessibilityRole="button" accessibilityLabel={addLabel} disabled={busy} onPress={add}
       style={({ pressed }) => [local.add, { width: size, height: size, left: items.length % 3 * step,
         top: Math.floor(items.length / 3) * step }, pressed && local.pressed]}>
       <Icon name="add-outline" size={26} color={colors.quiet} />

@@ -6,9 +6,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Button, Empty, Icon, ListRow, Notice, Screen, Sheet } from '../components/ui';
 import { scopes, type Audience, type Moment } from '../features/moments/Feed';
 import {
-  chooseMomentPhotos,
+  choosePostMedia,
   MomentMediaLimit,
-  chooseMomentDraftVideo,
   removeMomentDraftMedia,
   EditorMediaPreview,
   EditorMediaThumbnail,
@@ -162,7 +161,8 @@ export default function PrivateMoment() {
       : scope === 'selected' && memberIds.length
         ? '指定好友 · ' + memberIds.length + ' 位'
         : scopes[scope];
-  const hasVideo = assets.some((asset) => asset.mime === 'video/mp4');
+  const photosLeft = momentPhotoLimit - assets.filter((asset) => asset.mime !== 'video/mp4').length;
+  const videosLeft = assets.some((asset) => asset.mime === 'video/mp4') ? 0 : 1;
 
   function move(id: string, to: number) {
     change((current) => {
@@ -208,7 +208,7 @@ export default function PrivateMoment() {
         <>
           <TextInput
             accessibilityLabel="动态正文"
-            placeholder="写点什么，或直接分享一张照片"
+            placeholder="写点什么，或直接分享照片和视频"
             placeholderTextColor={colors.quiet}
             multiline
             textAlignVertical="top"
@@ -220,15 +220,9 @@ export default function PrivateMoment() {
           />
           <MediaEditor items={assets} busy={busy} scroll={scroll} open={setPreview} remove={removeAsset} move={move}
             tile={(item) => <EditorMediaThumbnail item={item} />}
-            add={hasVideo || assets.length >= momentPhotoLimit ? undefined :
-              () => void run(async () => append(await chooseMomentPhotos(me! + '-draft', momentPhotoLimit - assets.length, true)))} />
-          {!assets.length && <View style={local.videoOption}>
-            <Button label="选择短视频" variant="soft" icon="film-outline" disabled={busy}
-              onPress={() => void run(async () => {
-                const item = await chooseMomentDraftVideo(me! + '-draft');
-                if (item) append([item]);
-              })} />
-          </View>}
+            addLabel={photosLeft && videosLeft ? '选择照片和视频' : photosLeft ? '选择照片' : '选择视频'}
+            add={photosLeft || videosLeft ? () => void run(async () =>
+              append(await choosePostMedia(me! + '-draft', photosLeft, videosLeft))) : undefined} />
           <View style={local.location}>
             <Icon name="location-outline" color={colors.quiet} size={19} />
             <TextInput accessibilityLabel="标注地点" placeholder="标注地点" placeholderTextColor={colors.quiet}
@@ -370,7 +364,6 @@ function publishDraft(form: Form): MomentDraft {
 }
 
 const local = StyleSheet.create({
-  videoOption: { alignSelf: 'flex-start' },
   location: { ...styles.row, minHeight: 44 },
   writing: { ...styles.input, minHeight: 150, backgroundColor: colors.panel, borderColor: colors.border, textAlignVertical: 'top', padding: space.md },
   audience: { backgroundColor: colors.panel, borderRadius: radius.surface, overflow: 'hidden' },

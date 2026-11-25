@@ -3,7 +3,6 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { MessageLongPress } from '../chat/record-model';
 import { randomUUID } from 'expo-crypto';
 import { File } from 'expo-file-system';
-import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, Text, View } from 'react-native';
@@ -15,22 +14,27 @@ import { spaceSamplePhoto } from '../../demo/visuals';
 import { useSession } from '../../services/session';
 import { colors, fixed, radius, space, styles } from '../../theme';
 import { MediaViewer, MediaViewerMessage, viewerStyles } from '../../components/MediaViewer';
-import { PhotoSelectionLimit, pickPhotos, preparePhoto } from '../media/picker';
+import { isGalleryVideo, PhotoSelectionLimit, pickGallery, pickPhotos, preparePhoto, validatePhoto, type SelectedMedia } from '../media/picker';
 import { nativePhotoUri, readLocalPhoto, removeSpaceMedia, saveSpaceMedia, useLocalPhotoUri } from '../space/media';
+import { momentMediaCountError, momentVideoLimitMB } from './media-rules';
 
 export type Media = { id: string; mime: 'image/jpeg' | 'image/png' | 'video/mp4'; demoAsset?: string; demoUri?: string; thumbnail?: boolean; demoThumbnail?: string };
 export type LocalMedia =
   | { id: string; mime: 'image/jpeg'; photoId: string; thumbnailId?: string }
   | { id: string; mime: 'video/mp4'; uri?: string; videoId?: string; bytes: number; duration?: number };
 export type EditorMedia = LocalMedia | (Media & { published: true });
-const maxVideo = 4 * 1024 * 1024;
 export class MomentMediaLimit extends Error {}
+type LocalVideo = Extract<LocalMedia, { mime: 'video/mp4' }>;
 
 export async function chooseMomentPhotos(owner: string, limit: number, thumbnails = false) {
   const inputs = await pickPhotos(limit).catch((failure) => {
     if (failure instanceof PhotoSelectionLimit && thumbnails) throw new MomentMediaLimit('最多选择 ' + momentPhotoLimit + ' 张图片。');
     throw failure;
   });
+  return prepareMomentPhotos(inputs, owner, thumbnails);
+}
+
+async function prepareMomentPhotos(inputs: SelectedMedia[], owner: string, thumbnails: boolean) {
   const assets: LocalMedia[] = [];
   try {
     for (const input of inputs) {
@@ -58,16 +62,7 @@ export async function chooseMomentPhotos(owner: string, limit: number, thumbnail
   return assets;
 }
 
-export async function chooseMomentVideo(): Promise<(Extract<LocalMedia,{mime:'video/mp4'}> & { uri: string }) | undefined> {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['videos'],
-    selectionLimit: 1,
-    exif: false,
-    videoMaxDuration: 30,
-  });
-  if (result.canceled) return;
-  const asset = result.assets[0];
-  if (!asset) return;
+export async function readGalleryVideo(asset: SelectedMedia, limitMB?: number): Promise<LocalVideo & { uri: string }> {
   const size =
     asset.fileSize ??
     asset.file?.size ??
@@ -79,15 +74,40 @@ export async function chooseMomentVideo(): Promise<(Extract<LocalMedia,{mime:'vi
   // Browser video metadata reports seconds. The native picker reports milliseconds.
   const duration = asset.duration ? (Platform.OS === 'web' ? asset.duration : asset.duration / 1000) : undefined;
   if (duration && duration > 30) throw new MomentMediaLimit('视频时长不能超过 30 秒。');
-  if (size > maxVideo) throw new MomentMediaLimit('视频文件大小不能超过 4 MB。');
+  if (limitMB && size > limitMB * 1024 * 1024) throw new MomentMediaLimit('视频文件大小不能超过 ' + limitMB + ' MB。');
   return { id: randomUUID(), mime: 'video/mp4', uri: asset.uri, bytes: size, duration };
 }
 
-export async function chooseMomentDraftVideo(owner: string) {
-  const video = await chooseMomentVideo();
-  if (!video?.uri) return undefined;
-  const videoId = await saveSpaceMedia(video.uri, owner, 'video/mp4');
+export async function chooseMomentVideo() {
+  const [asset] = await pickGallery(['videos'], 1);
+  return asset && readGalleryVideo(asset, 4);
+}
+
+export async function persistGalleryVideo(video: LocalVideo & { uri: string }, owner: string, limitMB?: number): Promise<LocalVideo> {
+  const videoId = await saveSpaceMedia(video.uri, owner, 'video/mp4', limitMB ? limitMB * 1024 * 1024 : Infinity);
   return { ...video, videoId, uri: undefined };
+}
+
+export async function choosePostMedia(owner: string, remainingPhotos: number, remainingVideos: number) {
+  const inputs = await pickGallery(remainingPhotos && remainingVideos ? ['images', 'videos'] :
+    remainingPhotos ? ['images'] : ['videos'], remainingPhotos + remainingVideos).catch((failure) => {
+    if (failure instanceof PhotoSelectionLimit) throw new MomentMediaLimit('最多选择 20 张图片和 1 段视频。');
+    throw failure;
+  });
+  const videos = inputs.filter(isGalleryVideo);
+  const images = inputs.filter((input) => !isGalleryVideo(input));
+  const issue = momentMediaCountError(momentPhotoLimit - remainingPhotos + images.length, 1 - remainingVideos + videos.length);
+  if (issue) throw new MomentMediaLimit(issue);
+  const selectedVideo = videos[0] && await readGalleryVideo(videos[0], momentVideoLimitMB);
+  images.forEach((input) => validatePhoto(input));
+  const photos = await prepareMomentPhotos(images, owner, true);
+  try {
+    const video = selectedVideo && await persistGalleryVideo(selectedVideo, owner, momentVideoLimitMB);
+    return inputs.map((input) => isGalleryVideo(input) ? video! : photos[images.indexOf(input)]);
+  } catch (failure) {
+    await Promise.allSettled(photos.map(removeMomentDraftMedia));
+    throw failure;
+  }
 }
 
 export async function removeMomentDraftMedia(media: LocalMedia) {
@@ -192,7 +212,8 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onL
   const viewSource = sample ?? original;
   return <>
     <Pressable accessibilityRole="button"
-      accessibilityLabel={more ? '查看全部照片，另有 ' + (more - 1) + ' 张' : index ? '查看动态照片 ' + index : (reviewId || boundaryId) ? '查看举报附件' : video ? '播放短视频' : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
+      accessibilityLabel={more ? '查看全部附件，另有 ' + (more - 1) + ' 个' : (reviewId || boundaryId) ? '查看举报附件' :
+        video ? index ? '播放动态视频 ' + index : '播放短视频' : index ? '查看动态照片 ' + index : context === 'chat' ? '查看聊天图片' : '查看动态照片'}
       onPress={more && onMore ? onMore : () => { setViewerFailed(false); setOpen(true); }} onLongPress={onLongPress}
       style={({ pressed }) => [{ height: ratio ? undefined : 140, aspectRatio: ratio, width: ratio ? '100%' : undefined,
         flexGrow: ratio ? 0 : 1, minWidth: ratio ? 0 : 100, overflow: 'hidden', opacity: pressed ? 0.84 : 1,
@@ -219,7 +240,7 @@ export function MomentMediaTile({ item, context = 'moment', reviewId, ratio, onL
 }
 
 export function MomentMediaGrid({ media, mode, onMore }: { media: Media[]; mode?: 'feed' | 'detail'; onMore?: () => void }) {
-  if (mode && media.length > 1 && media.every(({ mime }) => mime !== 'video/mp4')) {
+  if (mode && media.length > 1) {
     const { rows, more } = momentPhotoGrid(media, mode === 'detail');
     return <View style={{ gap: space.xxs }}>{rows.map((row, rowIndex) => (
       <View key={row[0].id} style={{ flexDirection: 'row', gap: space.xxs }}>

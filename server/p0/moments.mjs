@@ -11,6 +11,7 @@ import { collectionReadable, contributionReadable, contributionScope, forwardabl
 import { notifyMoment, revokeMomentSharing } from './moment-interactions.mjs';
 
 export const mediaLimit = 4 * 1024 * 1024;
+export const momentVideoLimit = 20 * 1024 * 1024;
 const notFound = () => new HttpError(404, '找不到可查看的内容。');
 const canRead = momentVisible('p', '$1::uuid');
 const participantVisible = (actor) => `${momentVisible('p', actor)}
@@ -240,8 +241,7 @@ export async function publishMoment(userId, body, transaction) {
       [userId, media],
     );
     if (uploaded.rowCount !== media.length) throw new HttpError(404, '图片或视频已失效，请重新选择。');
-    if (media.length > 1 && uploaded.rows.some((row) => row.mime === 'video/mp4'))
-      throw new HttpError(400, '一条视频动态只能包含一段视频。');
+    checkMomentMediaCounts(uploaded.rows);
     const {
       rows: [saved],
     } = await db.query(
@@ -297,7 +297,7 @@ export async function updateMoment(userId, id, body) {
 }
 
 function momentMediaIds(input) {
-  if (!Array.isArray(input) || input.length > 20) throw new HttpError(400, '请选择最多 20 张照片或一段短视频。');
+  if (!Array.isArray(input) || input.length > 21) throw new HttpError(400, '请选择最多 20 张照片和 1 段视频。');
   const ids = input.map(readId);
   if (new Set(ids).size !== ids.length) throw new HttpError(400, '动态附件不能重复。');
   return ids;
@@ -307,8 +307,7 @@ async function replaceMomentMedia(db, owner, moment, ids) {
   const { rows } = await db.query(`SELECT id,mime FROM private_media b WHERE owner_id=$1 AND id=ANY($2::uuid[])
     AND (moment_id=$3 OR (${unusedMedia('b')} AND created_at>now()-interval '1 day')) FOR UPDATE`, [owner, ids, moment]);
   if (rows.length !== ids.length) throw new HttpError(404, '图片或视频已失效，请重新选择。');
-  if (ids.length > 1 && rows.some(({ mime }) => mime === 'video/mp4'))
-    throw new HttpError(400, '一条视频动态只能包含一段视频。');
+  checkMomentMediaCounts(rows);
 
   // Temporarily move retained rows outside the live ordinal range to avoid unique collisions on swaps.
   await db.query('UPDATE private_media SET position=-position WHERE moment_id=$1 AND id=ANY($2::uuid[])', [moment, ids]);
@@ -319,6 +318,12 @@ async function replaceMomentMedia(db, owner, moment, ids) {
     `DELETE FROM private_media b WHERE id=ANY($1::uuid[]) AND ${unusedMedia('b')}`, [detached.map(({ id }) => id)]);
   await db.query(`UPDATE private_media b SET moment_id=$1,position=media.position
     FROM unnest($2::uuid[]) WITH ORDINALITY AS media(id,position) WHERE b.id=media.id`, [moment, ids]);
+}
+
+function checkMomentMediaCounts(rows) {
+  const videoCount = rows.filter(({ mime }) => mime === 'video/mp4').length;
+  if (videoCount > 1 || rows.length - videoCount > 20)
+    throw new HttpError(400, '请选择最多 20 张照片和 1 段视频。');
 }
 
 export async function deleteMoment(userId, id) {
@@ -373,14 +378,15 @@ function mediaType(data) {
 
 export async function postMedia(userId, input) {
   const clientId = readId(input.clientId);
+  const limit = input.mime === 'video/mp4' ? momentVideoLimit : mediaLimit;
   if (
     typeof input.base64 !== 'string' ||
-    input.base64.length > Math.ceil(mediaLimit / 3) * 4 ||
+    input.base64.length > Math.ceil(limit / 3) * 4 ||
     !/^[A-Za-z0-9+/]+={0,2}$/.test(input.base64)
   )
-    throw new HttpError(413, '文件超过 4 MB 或格式无效。');
+    throw new HttpError(413, '文件超过 ' + limit / 1024 / 1024 + ' MB 或格式无效。');
   const data = Buffer.from(input.base64, 'base64');
-  if (data.length < 16 || data.length > mediaLimit) throw new HttpError(413, '文件大小不符合要求。');
+  if (data.length < 16 || data.length > limit) throw new HttpError(413, '文件大小不符合要求。');
   const mime = mediaType(data);
   if (!mime || mime !== input.mime) throw new HttpError(400, '请选择 JPEG、PNG 或 30 秒以内的标准 MP4。');
   let thumbnail = null;

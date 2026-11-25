@@ -25,6 +25,7 @@ export function demoRelationship(user: User, status: Relationship['status'], out
 export const demoRelationships = demoPeople.slice(0, 10).map((user, index) =>
   ({
     ...demoRelationship(user, index === 9 ? 'pending' : 'accepted', false),
+    requestedAt: new Date(Date.now() - (index + 1) * 86_400_000).toISOString(),
     ...(index === 9 ? { verificationMessage: '你好，我是桃子。上次在手作活动见过，想和你交换一下陶艺照片。' } : {}),
   }));
 

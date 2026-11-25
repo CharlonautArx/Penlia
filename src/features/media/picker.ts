@@ -10,26 +10,18 @@ const maxInputPixels = 28_000_000;
 const maxChatBytes = 2 * 1024 * 1024;
 
 export type SelectedImage = ImagePicker.ImagePickerAsset;
+export type SelectedMedia = ImagePicker.ImagePickerAsset;
 export type PreparedPhoto = { id: string; width: number; height: number; bytes: number };
 
 export class PhotoSelectionLimit extends Error {}
 
-export async function pickPhotos(selectionLimit = 1): Promise<SelectedImage[]> {
+export async function pickGallery(mediaTypes: ImagePicker.MediaType[], selectionLimit: number): Promise<SelectedMedia[]> {
   try {
     const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'], selectionLimit, allowsMultipleSelection: selectionLimit > 1, exif: false,
+      mediaTypes, selectionLimit, allowsMultipleSelection: selectionLimit > 1, orderedSelection: true, exif: false,
     });
     if (picked.canceled) return [];
     if (picked.assets.length > selectionLimit) throw new PhotoSelectionLimit('每次最多选择 ' + selectionLimit + ' 张照片。');
-    for (const item of picked.assets) {
-      const bytes = item.fileSize ?? item.file?.size ?? (Platform.OS !== 'web' ? new File(item.uri).size : 0);
-      if (bytes > maxInputBytes || item.width * item.height > maxInputPixels) {
-        throw new Error('图片过大，请选择 15 MB、2800 万像素以内的图片。');
-      }
-      if (!item.width || !item.height || (item.mimeType && !item.mimeType.startsWith('image/'))) {
-        throw new Error('暂时无法读取这张图片，请试试 JPEG 或 PNG。');
-      }
-    }
     return picked.assets;
   } catch (failure) {
     const code = (failure as { code?: string })?.code ?? '';
@@ -37,6 +29,27 @@ export async function pickPhotos(selectionLimit = 1): Promise<SelectedImage[]> {
     if (failure instanceof Error && !code) throw failure;
     throw new Error('暂时无法打开图库，请重试。');
   }
+}
+
+export function isGalleryVideo(item: SelectedMedia) {
+  return item.type === 'video' || (item.mimeType ?? item.file?.type)?.startsWith('video/') === true;
+}
+
+export function validatePhoto(item: SelectedImage, bounded = true) {
+  if (!item.width || !item.height || (item.mimeType && !item.mimeType.startsWith('image/'))) {
+    throw new Error('暂时无法读取这张图片，请试试 JPEG 或 PNG。');
+  }
+  if (!bounded) return;
+  const bytes = item.fileSize ?? item.file?.size ?? (Platform.OS !== 'web' ? new File(item.uri).size : 0);
+  if (bytes > maxInputBytes || item.width * item.height > maxInputPixels) {
+    throw new Error('图片过大，请选择 15 MB、2800 万像素以内的图片。');
+  }
+}
+
+export async function pickPhotos(selectionLimit = 1): Promise<SelectedImage[]> {
+  const selected = await pickGallery(['images'], selectionLimit);
+  selected.forEach((item) => validatePhoto(item));
+  return selected;
 }
 
 export async function pickOnePhoto(): Promise<SelectedImage | undefined> {
@@ -68,7 +81,7 @@ export async function preparePhoto(input: SelectedImage, account: string, avatar
         const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: quality });
         const bytes = Platform.OS === 'web' ? (await (await fetch(saved.uri)).blob()).size : new File(saved.uri).size;
         if (bytes > maxBytes) continue;
-        const photo = await savePreparedPhoto(saved.uri, account);
+        const photo = await savePreparedPhoto(saved.uri, account, maxBytes);
         return { id: photo.id, width: saved.width, height: saved.height, bytes };
       } finally { image.release(); }
     } finally { context.release(); }

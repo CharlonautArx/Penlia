@@ -69,14 +69,14 @@ export function nativePhotoUri(id: string): string | undefined {
   }
 }
 
-export async function savePreparedPhoto(uri: string, account: string): Promise<Photo> {
-  return { type: 'local', id: await saveSpaceMedia(uri, account, 'image/jpeg') };
+export async function savePreparedPhoto(uri: string, account: string, limit?: number): Promise<Photo> {
+  return { type: 'local', id: await saveSpaceMedia(uri, account, 'image/jpeg', limit) };
 }
 
-export async function saveSpaceMedia(uri: string, account: string, mime: 'image/jpeg' | 'video/mp4') {
+export async function saveSpaceMedia(uri: string, account: string, mime: 'image/jpeg' | 'video/mp4', maxSize?: number) {
   const photo = mime === 'image/jpeg';
   const id = account.replace(/[^a-z\d_-]/gi, '') + '-' + localId() + (photo ? '.jpg' : '.mp4');
-  const limit = photo ? maxBytes : 4 * 1024 * 1024;
+  const limit = maxSize ?? (photo ? maxBytes : 4 * 1024 * 1024);
   if (Platform.OS === 'web') {
     if (!uri.startsWith('blob:') && !uri.startsWith('data:' + mime + ';'))
       throw new Error('无法读取选中的附件。');

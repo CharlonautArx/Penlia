@@ -109,8 +109,9 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       return {};
     }
     const mime = String(body.mime);
+    const bytes = mime === 'video/mp4' ? 20 * 1024 * 1024 : 4 * 1024 * 1024;
     if (!['image/jpeg', 'image/png', 'video/mp4'].includes(mime) || typeof body.base64 !== 'string'
-        || body.base64.length > 6_000_000) throw new Error('无法保存该本机附件。');
+        || body.base64.length > Math.ceil(bytes / 3) * 4) throw new Error('无法保存该本机附件。');
     const asset = String(body.clientId);
     const existing = find('media', asset);
     if (existing) return { media: existing };
@@ -252,9 +253,10 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       const ids = strings(body.mediaIds);
       const media = ids.map((id) => existing.find((asset) => asset.id === id) ??
         (!rows('moments').some((post) => list(post.media).some((asset) => asset.id === id)) ? find('media', id) : undefined));
-      if (!Array.isArray(body.mediaIds) || ids.length !== body.mediaIds.length || ids.length > 20 || new Set(ids).size !== ids.length
-        || media.some((asset) => !asset || asset.commentId) || (media.length > 1 && media.some((asset) => asset?.mime === 'video/mp4')))
-        throw new Error('请选择最多 20 张可用照片或一段短视频。');
+      const videos = media.filter((asset) => asset?.mime === 'video/mp4').length;
+      if (!Array.isArray(body.mediaIds) || ids.length !== body.mediaIds.length || ids.length - videos > 20 || new Set(ids).size !== ids.length
+        || media.some((asset) => !asset || asset.commentId) || videos > 1)
+        throw new Error('请选择最多 20 张可用照片和 1 段视频。');
       return media as Row[];
     }
     if (area === 'resolve-ids' && method === 'POST') {

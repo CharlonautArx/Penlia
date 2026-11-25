@@ -6,6 +6,7 @@ import { useLocalDocument } from '../features/local/document';
 import type { FileItem, ImageItem, LocationItem, PendingMessage, VideoItem } from '../features/media/messages';
 import type { TextMessage } from '../services/im';
 import type { FriendCode } from '../features/friends/invitations';
+import { orderFriendRequests } from '../features/friends/request-order';
 import { offlineRequest } from './life';
 import { seed, type Rows } from './life-fixtures';
 import { demoMessages, demoPeople, demoRelationship, demoRelationships, demoUnread } from './data';
@@ -123,8 +124,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         id: record.id, name: record.name, outgoing: record.outgoing, status: declined ? 'declined' : record.status,
         friendId: !declined && record.status === 'accepted' ? record.userId : undefined,
         verificationMessage: record.verificationMessage ?? '', demoPortraitKey: record.username,
+        requestedAt: record.requestedAt ?? demoRelationships.find((friend) => friend.id === record.id)?.requestedAt,
       });
-      return { requests: [...relationships.current.map((item) => entry(item)), ...rejected.map((item) => entry(item, true))] } as T;
+      return { requests: orderFriendRequests([...relationships.current.map((item) => entry(item)), ...rejected.map((item) => entry(item, true))]) } as T;
     }
     if (path.startsWith('/friend-requests/') && method === 'GET') {
       const id = path.split('/').at(-1);
@@ -146,7 +148,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       const existing = relationships.current.find((item) => item.userId === person.id);
       if (existing) return { id: existing.id } as T;
       const entry = { ...demoRelationship(person, 'pending', true),
-        id: 'relationship-' + person.id + '-' + Date.now(), verificationMessage: String(body?.note ?? '').slice(0, 100) };
+        id: 'relationship-' + person.id + '-' + Date.now(), requestedAt: new Date().toISOString(),
+        verificationMessage: String(body?.note ?? '').slice(0, 100) };
       await store.current.save((value) => ({ ...value, relationships: [...value.relationships, entry] }));
       return { id: entry.id } as T;
     }
