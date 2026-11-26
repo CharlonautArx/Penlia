@@ -1,0 +1,222 @@
+[
+  {
+    "i": 0,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      null,
+      0
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "聊天列表",
+    "changedArea": "没有像素差异"
+  },
+  {
+    "i": 1,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      [
+        16,
+        614,
+        50,
+        776
+      ],
+      4
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "好友列表",
+    "changedArea": "全部位于原图像元素矩形内"
+  },
+  {
+    "i": 2,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      [
+        19,
+        157,
+        81,
+        219
+      ],
+      7
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "动态首页",
+    "changedArea": "全部位于原图像元素矩形内"
+  },
+  {
+    "i": 3,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      null,
+      0
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "我的",
+    "changedArea": "没有像素差异"
+  },
+  {
+    "i": 4,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      null,
+      0
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "玩乐",
+    "changedArea": "没有像素差异"
+  },
+  {
+    "i": 5,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      [
+        294,
+        15,
+        315,
+        39
+      ],
+      5
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "私聊",
+    "changedArea": "宠物矢量图形范围内"
+  },
+  {
+    "i": 6,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      [
+        16,
+        157,
+        81,
+        651
+      ],
+      7
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "个人空间",
+    "changedArea": "全部位于原图像元素矩形内"
+  },
+  {
+    "i": 7,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      null,
+      0
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "约局列表外部入口",
+    "changedArea": "没有像素差异"
+  },
+  {
+    "i": 8,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      null,
+      0
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "约局详情外部入口",
+    "changedArea": "没有像素差异"
+  },
+  {
+    "i": 9,
+    "text": true,
+    "buttonBoundsAndLabels": true,
+    "imageSourcesAndGeometry": true,
+    "between": [
+      null,
+      0
+    ],
+    "repeatBefore": [
+      null,
+      0
+    ],
+    "repeatAfter": [
+      null,
+      0
+    ],
+    "page": "生活日程外部入口",
+    "changedArea": "没有像素差异"
+  }
+]

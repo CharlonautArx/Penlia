@@ -1,0 +1,15 @@
+Profile migration rolls back and reapplies in the isolated database
+▶ Together HTTP integration on isolated PostgreSQL
+  ✔ Optional reminders, private decisions, opted-in messages and membership changes (1104.549864ms)
+  ✔ Together planning, private calendar, authorized roster and capacity (270.545484ms)
+  ✔ Activity covers, album bytes, entry titles and journal grants are independently scoped (208.443357ms)
+  ✔ Referenced places and checklists keep their original readers (159.813087ms)
+✔ Together HTTP integration on isolated PostgreSQL (3657.243184ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3667.437463

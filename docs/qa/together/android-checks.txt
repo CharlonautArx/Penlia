@@ -1,0 +1,20 @@
+PASS cold-start
+PASS open-scroll-back
+PASS share-album-export
+PASS system-share-return
+PASS form-keyboard
+PASS select-photo
+PASS 09-calendar
+PASS 10-inbox
+PASS 11-memories
+PASS 12-reminders
+PASS 13-world
+PASS 16-with-friends
+PASS 17-trip
+PASS 18-place
+PASS 19-relay
+PASS 20-journal
+PASS 21-capsule
+PASS 22-list
+PASS 23-favorites
+Android API 35; ABI x86_64

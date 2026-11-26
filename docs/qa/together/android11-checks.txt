@@ -1,0 +1,4 @@
+PASS cold-start
+PASS Android 30, system dark appearance and font_scale 1.3
+PASS solid-large-dark
+Android API 30; ABI x86_64
