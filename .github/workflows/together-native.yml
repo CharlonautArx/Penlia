@@ -148,3 +148,10 @@ jobs:
             evidence/checks.txt
           if-no-files-found: ignore
           retention-days: 30
+
+  android-11:
+    needs: build
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/together-native-recheck.yml
+    permissions:
+      contents: read

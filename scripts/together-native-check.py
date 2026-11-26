@@ -123,10 +123,12 @@ def form():
         assert input_pos[1] < int(ime_frames[-1]), 'Focused field is covered by the IME'
         log('Input center y='+str(input_pos[1])+'; IME top='+ime_frames[-1])
     capture('06-keyboard');shell('input','keyevent','4');time.sleep(.4)
-    find('选择活动封面')
+    find(cls='android.widget.EditText')
 
 def photo():
-    route('gathering/new?together=1');tap('选择活动封面')
+    route('gathering/new?together=1')
+    shell('input','swipe','230','350','230','1000','450');time.sleep(.3)
+    tap('选择活动封面')
     time.sleep(1);capture('07-photo-picker')
     # The seeded alley photo predates the newly exported title card.
     # Select the last visible media tile so the blur test runs against a photograph.
@@ -160,6 +162,7 @@ def compatibility():
     shell('settings','put','system','font_scale','1.3')
     shell('am','force-stop',pkg)
     shell('am','start','-W','-n',pkg+'/.MainActivity')
+    find('玩乐',tries=8)
     route('life')
     find('约朋友一起玩');capture('30-dark-hub')
     tap('周末到河边喝杯咖啡');find('活动操作');capture('31-dark-detail')

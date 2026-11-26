@@ -1,5 +1,6 @@
 import { useRef, type ComponentRef } from 'react';
-import { ScrollView, TextInput, View, type ScrollViewProps } from 'react-native';
+import * as ReactNative from 'react-native';
+import { ScrollView, View, type ScrollViewProps } from 'react-native';
 import { KeyboardInsets } from '../../components/keyboard-insets';
 import { styles } from '../../theme';
 
@@ -9,12 +10,14 @@ export function InvitationFormScroll(props: ScrollViewProps) {
   const offset = useRef(0);
 
   function revealFocusedInput() {
-    const input = TextInput.State.currentlyFocusedInput();
+    // Named TextInput imports are transformed to the app's visual typography wrapper.
+    const focus = ReactNative.TextInput.State;
+    const input = focus.currentlyFocusedInput();
     if (!input) return;
     viewport.current?.measureInWindow((_x, top, _w, height) => {
       input.measureInWindow((_left, y, _width, inputHeight) => {
         const overlap = y + inputHeight + 12 - (top + height);
-        if (overlap > 0 && input === TextInput.State.currentlyFocusedInput())
+        if (overlap > 0 && input === focus.currentlyFocusedInput())
           scroll.current?.scrollTo({ y: offset.current + overlap, animated: false });
       });
     });

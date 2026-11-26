@@ -1,12 +1,7 @@
 name: Together Android 30 compatibility on the existing Release
-on:
-  push:
-    branches: [codex/together-invitations]
-    paths: ['.github/workflows/together-native-recheck.yml']
-  workflow_dispatch:
+on: workflow_call
 permissions:
   contents: read
-  actions: read
 jobs:
   device:
     runs-on: ubuntu-24.04
@@ -22,10 +17,8 @@ jobs:
       - name: Download the exact compiled client
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          run-id: 45818511078
-          name: together-x86_64-e016ff6af190853287d83ef1d60c027dcff0368e
+          name: together-x86_64-${{ github.sha }}
           path: out
-          github-token: ${{ github.token }}
       - run: sha256sum --check out/sha256.txt
       - name: Allow hardware acceleration
         run: |
@@ -88,7 +81,7 @@ jobs:
         if: always() && steps.scan_evidence.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: together-recheck-${{ github.sha }}
+          name: together-emulator-api30-${{ github.sha }}
           path: |
             evidence/*.png
             evidence/*.mp4
