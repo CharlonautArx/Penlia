@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Button, Empty, Icon, ListRow, Notice, Screen, Sheet } from '../components/ui';
+import { pilot } from '../features/design/pilot';
 import { scopes, type Audience, type Moment } from '../features/moments/Feed';
 import {
   choosePostMedia,
@@ -24,7 +25,7 @@ import type { RelationGroup, Settings } from '../features/privacy/types';
 import { errorMessage } from '../services/api';
 import { useFriends } from '../services/friends';
 import { useSession } from '../services/session';
-import { colors, radius, space, styles } from '../theme';
+import { colors, radius, space, styles, touch, type } from '../theme';
 
 type Form = Omit<MomentDraft, 'assets'> & { assets: EditorMedia[] };
 
@@ -39,6 +40,8 @@ export default function PrivateMoment() {
   const [defaultScope, setDefaultScope] = useState<Audience>('private');
   const [groups, setGroups] = useState<RelationGroup[]>([]);
   const [showAudience, setShowAudience] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const [taggingPlace, setTaggingPlace] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [preview, setPreview] = useState<EditorMedia>();
   const form: Form = id ? editing : draft.value ?? emptyMomentDraft(defaultScope);
@@ -203,33 +206,43 @@ export default function PrivateMoment() {
       }}
     >
       {(error || draft.error) && <Notice action={draft.error ? '重试读取草稿' : undefined} onAction={draft.retry}>{error || draft.error}</Notice>}
-      {(!loaded || (!id && draft.loading)) && !error && <Empty busy>正在读取动态草稿…</Empty>}
+      {(!loaded || (!id && draft.loading)) && !error && <View style={pilot.surface}>
+        <Empty busy>正在读取动态草稿…</Empty>
+      </View>}
       {loaded && (id || draft.value !== undefined) && (
         <>
-          <TextInput
-            accessibilityLabel="动态正文"
-            placeholder="写点什么，或直接分享照片和视频"
-            placeholderTextColor={colors.quiet}
-            multiline
-            textAlignVertical="top"
-            value={body}
-            editable={!busy}
-            onChangeText={(body) => change({ body })}
-            maxLength={2000}
-            style={local.writing}
-          />
-          <MediaEditor items={assets} busy={busy} scroll={scroll} open={setPreview} remove={removeAsset} move={move}
-            tile={(item) => <EditorMediaThumbnail item={item} />}
-            addLabel={photosLeft && videosLeft ? '选择照片和视频' : photosLeft ? '选择照片' : '选择视频'}
-            add={photosLeft || videosLeft ? () => void run(async () =>
-              append(await choosePostMedia(me! + '-draft', photosLeft, videosLeft))) : undefined} />
-          <View style={local.location}>
-            <Icon name="location-outline" color={colors.quiet} size={19} />
-            <TextInput accessibilityLabel="标注地点" placeholder="标注地点" placeholderTextColor={colors.quiet}
-              value={location} editable={!busy} maxLength={100} onChangeText={(location) => change({ location })}
-              style={[styles.input, styles.grow]} />
+          <View style={[pilot.surface, local.composer, writing && local.focused]}>
+            <TextInput
+              accessibilityLabel="动态正文"
+              placeholder="写点什么，或直接分享照片和视频"
+              placeholderTextColor={colors.quiet}
+              multiline
+              textAlignVertical="top"
+              value={body}
+              editable={!busy}
+              onFocus={() => setWriting(true)}
+              onBlur={() => setWriting(false)}
+              onChangeText={(body) => change({ body })}
+              maxLength={2000}
+              style={local.writing}
+            />
+            <MediaEditor items={assets} busy={busy} scroll={scroll} open={setPreview} remove={removeAsset} move={move}
+              tile={(item) => <EditorMediaThumbnail item={item} />}
+              addLabel={photosLeft && videosLeft ? '选择照片和视频' : photosLeft ? '选择照片' : '选择视频'}
+              add={photosLeft || videosLeft ? () => void run(async () =>
+                append(await choosePostMedia(me! + '-draft', photosLeft, videosLeft))) : undefined} />
           </View>
-          <View style={local.audience}>
+          <View style={pilot.surface}>
+            <View style={[local.location, styles.divider, taggingPlace && local.focused]}>
+              <Icon name="location-outline" color={colors.accent} size={21} />
+              <View style={styles.grow}>
+                {!!location && <Text style={local.locationLabel}>标注地点</Text>}
+                <TextInput accessibilityLabel="标注地点" placeholder="标注地点" placeholderTextColor={colors.quiet}
+                  value={location} editable={!busy} maxLength={100} onChangeText={(location) => change({ location })}
+                  onFocus={() => setTaggingPlace(true)} onBlur={() => setTaggingPlace(false)}
+                  style={local.locationInput} />
+              </View>
+            </View>
             <ListRow
               title={'可见范围 · ' + audienceName}
               detail={confirmed ? '已确认' : (id ? '保存前请确认谁能看到' : '发布前请确认谁能看到')}
@@ -364,7 +377,12 @@ function publishDraft(form: Form): MomentDraft {
 }
 
 const local = StyleSheet.create({
-  location: { ...styles.row, minHeight: 44 },
-  writing: { ...styles.input, minHeight: 150, backgroundColor: colors.panel, borderColor: colors.border, textAlignVertical: 'top', padding: space.md },
-  audience: { backgroundColor: colors.panel, borderRadius: radius.surface, overflow: 'hidden' },
+  composer: { padding: space.sm, gap: space.sm },
+  focused: { borderColor: colors.accent },
+  writing: { ...type.body, fontSize: 17, lineHeight: 27, color: colors.text, minHeight: 144,
+    paddingHorizontal: space.xxs, paddingVertical: space.xxs, borderRadius: radius.small, outlineWidth: 0 },
+  location: { ...styles.row, minHeight: touch, paddingHorizontal: space.sm },
+  locationLabel: { ...type.caption, color: colors.quiet, paddingLeft: space.xxs, paddingTop: space.xs },
+  locationInput: { ...type.body, color: colors.text, paddingHorizontal: space.xxs, paddingVertical: space.xs,
+    minHeight: touch, outlineWidth: 0 },
 });

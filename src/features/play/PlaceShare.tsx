@@ -43,10 +43,10 @@ export function usePlaceDelivery() {
   };
 }
 
-export function PlaceShareButton({ place }: { place: Place }) {
+export function PlaceShareButton({ place, prominent = false }: { place: Place; prominent?: boolean }) {
   const [open, setOpen] = useState(false);
   return <>
-    <Button label="发个聚会提议" icon="paper-plane-outline" variant="soft" onPress={() => setOpen(true)} />
+    <Button label="发个聚会提议" icon="paper-plane-outline" variant={prominent ? 'gradient' : 'soft'} onPress={() => setOpen(true)} />
     {open && <Recipients place={place} close={() => setOpen(false)} />}
   </>;
 }
