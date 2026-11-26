@@ -1,4 +1,5 @@
-import { useTogetherRouter } from '../features/together/navigation';
+import { ReminderRows } from '../features/together/ReminderRows';
+import { useTogether, useTogetherRouter } from '../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -357,12 +358,14 @@ function Collections() {
 }
 
 function Events() {
+  const together=useTogether();
   const router = useTogetherRouter();
   const { data, error, run, request } = useRecord<{ events: Event[] }>('/p1/events');
   return (
     <>
       {!!error && <Notice>{error}</Notice>}
-      {!data?.events.length && <Empty icon="mail-outline">约局、共振和共同记录的更新会显示在这里。</Empty>}
+      {together && <ReminderRows/>}
+      {!together && !data?.events.length && <Empty icon="mail-outline">约局、共振和共同记录的更新会显示在这里。</Empty>}
       {data?.events.map((event) => (
         <ListRow
           key={event.id}

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ActivityDiscussion } from '../../features/together/ActivityDiscussion';
 import { ShareInvitation } from '../../features/together/ShareInvitation';
 import { LocationBubble } from '../../features/media/LocationCard';
 import { chooseCover } from '../../features/together/cover';
@@ -846,6 +847,7 @@ function GatheringDetail({ id }: { id: string }) {
               )}
             </>
           )}
+          <ActivityDiscussion id={id} ended={g.state === 'cancelled' || g.state === 'completed'}/>
           {!!data.updates?.length && (
             <>
               <Section title="活动通知" />

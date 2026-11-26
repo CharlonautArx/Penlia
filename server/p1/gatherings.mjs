@@ -32,7 +32,7 @@ async function gathering(db, id, user, lock = false) {
     rows: [row],
   } = await db.query(
     `SELECT ${viewFields},g.suggestion_id AS suggestion,g.revision,g.description,g.agreed_choice AS "agreedChoice",g.allow_companion AS "allowCompanion",g.decision,g.choices,m.answer,m.private_note AS "privateNote",
-    m.reminder_minutes AS "reminderMinutes",m.preparation,m.waiting_at AS "waitingAt",m.offered,m.companion,
+    m.discussion,m.reminder_minutes AS "reminderMinutes",m.preparation,m.waiting_at AS "waitingAt",m.offered,m.companion,
     (SELECT c.id FROM p1_collections c WHERE c.gathering_id=g.id AND ${activeMember('c', 'm.user_id')} LIMIT 1) AS "journalId",
     (SELECT json_build_object('id',i.id,'title',i.title,'location',i.location,'latitude',i.latitude,'longitude',i.longitude) FROM p2_items i
      WHERE i.id=g.source_item_id AND ${itemVisible('i', 'm.user_id')}) AS source,
@@ -313,9 +313,75 @@ export async function confirmAttendance(user, id, wantsToJoin, companion = false
     );
     if (!wantsToJoin) {
       await leaveEventJournals(db, id, user);
+      await leaveDiscussion(db, id, user);
       await offerNext(db, id);
     }
     await refreshFormation(db, id, row);
+    return {};
+  });
+}
+
+async function leaveDiscussion(db, id, user) {
+  await db.query('DELETE FROM p1_activity_messages WHERE gathering_id=$1 AND author_id=$2', [id, user]);
+  await db.query('DELETE FROM p1_activity_message_readers WHERE gathering_id=$1 AND viewer_id=$2', [
+    id,
+    user,
+  ]);
+  await db.query('UPDATE p1_gathering_members SET discussion=false WHERE gathering_id=$1 AND user_id=$2', [
+    id,
+    user,
+  ]);
+}
+
+export async function discussion(user, id, body) {
+  return inTransaction(pool, async (db) => {
+    const row = await gathering(db, id, user, true);
+    if (!body) {
+      if (!row.discussion) return { joined: false, messages: [] };
+      const { rows } = await db.query(
+        `SELECT k.id,k.body,u.name,k.author_id=$2 AS mine,k.created_at AS "createdAt"
+        FROM p1_activity_messages k JOIN users u ON u.id=k.author_id
+        JOIN p1_activity_message_readers r ON r.message_id=k.id AND r.viewer_id=$2
+        WHERE k.gathering_id=$1 AND NOT ${blocked('k.author_id', '$2::uuid')}
+        AND NOT ${blocked('k.author_id', '$3::uuid')}
+        ORDER BY k.created_at DESC,k.id DESC LIMIT 50`,
+        [id, user, row.ownerId],
+      );
+      return { joined: true, messages: rows };
+    }
+    if (body.action === 'leave') {
+      await leaveDiscussion(db, id, user);
+      return {};
+    }
+    if (body.action === 'withdraw') {
+      await db.query('DELETE FROM p1_activity_messages WHERE gathering_id=$1 AND author_id=$2 AND id=$3', [
+        id,
+        user,
+        readId(body.id),
+      ]);
+      return {};
+    }
+    if (['cancelled', 'completed'].includes(row.state)) throw conflict('活动已结束。');
+    if (body.action === 'join') {
+      await db.query('UPDATE p1_gathering_members SET discussion=true WHERE gathering_id=$1 AND user_id=$2', [
+        id,
+        user,
+      ]);
+      return {};
+    }
+    if (body.action !== 'post' || !row.discussion) throw conflict();
+    const saved = await db.query(
+      `INSERT INTO p1_activity_messages(gathering_id,author_id,client_id,body)
+      VALUES($1,$2,$3,$4) ON CONFLICT(gathering_id,author_id,client_id) DO NOTHING RETURNING id`,
+      [id, user, readId(body.clientId), cleanText(body.text, 240, true)],
+    );
+    if (saved.rowCount)
+      await db.query(
+        `INSERT INTO p1_activity_message_readers(message_id,gathering_id,viewer_id)
+      SELECT $3,$1,m.user_id FROM p1_gathering_members m WHERE m.gathering_id=$1 AND m.discussion
+      AND NOT ${blocked('m.user_id', '$2::uuid')} AND NOT ${blocked('m.user_id', '$4::uuid')}`,
+        [id, user, saved.rows[0].id, row.ownerId],
+      );
     return {};
   });
 }
@@ -416,7 +482,10 @@ export async function organizeGathering(user, id, body) {
     }
     if (['cancel', 'reschedule'].includes(action))
       await db.query('DELETE FROM p2_calendar_events WHERE gathering_id=$1', [id]);
-    if (action === 'cancel') await db.query("UPDATE p1_gatherings SET state='cancelled' WHERE id=$1", [id]);
+    if (action === 'cancel') {
+      await db.query("UPDATE p1_gatherings SET state='cancelled' WHERE id=$1", [id]);
+      await db.query('UPDATE p1_gathering_members SET reminder_minutes=NULL WHERE gathering_id=$1', [id]);
+    }
     if (action === 'complete') {
       if (row.state !== 'formed') throw conflict('只有已成局活动可以完成。');
       const chosen = await db.query(

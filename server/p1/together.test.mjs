@@ -75,6 +75,83 @@ test('Together HTTP integration on isolated PostgreSQL', async (t) => {
     const relation = ok(await api(a, '/friends', 'POST', { userId: userId(friend) }));
     ok(await api(friend, '/friends/accept', 'POST', { id: relation.id }));
   }
+  await t.test(
+    'Optional reminders, private decisions, opted-in messages and membership changes',
+    async () => {
+      const members = [];
+      for (const name of ['host', 'guest1', 'guest2', 'guest3'])
+        members.push(
+          ok(
+            await api(null, '/register', 'POST', {
+              username: 'discussion_' + name,
+              name,
+              password: randomUUID(),
+            }),
+            201,
+          ),
+        );
+      const [a, b, c, d] = members;
+      for (const guest of [b, c, d]) {
+        const relation = ok(await api(a, '/friends', 'POST', { userId: userId(guest) }));
+        ok(await api(guest, '/friends/accept', 'POST', { id: relation.id }));
+      }
+      const start = new Date(Date.now() + 8 * 60000).toISOString();
+      const { id } = ok(
+        await post(a, '/gatherings', {
+          clientId: randomUUID(),
+          title: '一起吃饭',
+          planning: true,
+          category: 'food',
+          mode: 'open',
+          minimum: 2,
+          decision: '去哪家店',
+          choices: ['甲店', '乙店'],
+          memberIds: [b, c, d].map(userId),
+          options: [{ startsAt: start }],
+        }),
+      );
+      const base = '/gatherings/' + id,
+        notes = base + '/discussion',
+        due = async (who) => ok(await p1(who, '/activity-reminders')).reminders.some((r) => r.id === id);
+      for (const who of [b, c, d])
+        ok(await post(who, base + '/personal', { action: 'answer', answer: '甲店' }));
+      assert.equal(ok(await p1(b, base)).gathering.confirmed, false);
+      assert.equal(ok(await p1(a, base)).gathering.agreedChoice, null);
+      const message = { action: 'post', text: '我会带茶', clientId: randomUUID() };
+      ok(await post(b, notes, message), 409);
+      ok(await p1(outside, notes), 404);
+      for (const who of [a, b]) ok(await post(who, notes, { action: 'join' }));
+      ok(await post(b, notes, message));
+      ok(await post(b, notes, message));
+      assert.equal(ok(await p1(a, notes)).messages.length, 1);
+      ok(await post(c, notes, { action: 'join' }));
+      assert.equal(ok(await p1(c, notes)).messages.length, 0);
+      ok(await post(b, notes, { action: 'leave' }));
+      assert.equal(ok(await p1(a, notes)).messages.length, 0);
+      const choiceId = ok(await p1(a, base)).options[0].id;
+      ok(await post(a, base + '/organize', { action: 'choose', optionId: choiceId }));
+      assert.equal(ok(await p1(a, base)).gathering.agreedChoice, '甲店');
+      ok(await post(b, base + '/confirm', { attend: true, choiceId }));
+      assert.equal(await due(b), false);
+      ok(await post(b, base + '/personal', { action: 'reminder', minutes: 15 }));
+      assert.equal(await due(b), true);
+      assert.equal(await due(c), false);
+      for (const [temporary, expected] of [
+        ['30', false],
+        ['off', true],
+      ]) {
+        const { settings } = ok(await api(b, '/privacy'));
+        ok(await api(b, '/privacy', 'PATCH', { version: settings.version, temporary }));
+        assert.equal(await due(b), expected);
+      }
+      ok(await post(b, base + '/personal', { action: 'reminder', minutes: null }));
+      assert.equal(await due(b), false);
+      ok(await post(b, base + '/personal', { action: 'reminder', minutes: 60 }));
+      ok(await post(a, base + '/organize', { action: 'cancel' }));
+      assert.equal(await due(b), false);
+      assert.equal(ok(await p1(b, base)).gathering.reminderMinutes, null);
+    },
+  );
   await t.test('Together planning, private calendar, authorized roster and capacity', async () => {
     const body = {
       clientId: randomUUID(),

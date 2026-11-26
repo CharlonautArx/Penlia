@@ -67,6 +67,38 @@ export function previewGathering(
   check(host || guests.includes(self), '找不到可访问的约局。');
   const linked = () => store.calendars?.find((e) => e.gatheringId === id && e.ownerId === self);
   const option = array(row.options).find((o) => o.id === row.choiceId);
+  if (action === 'discussion') {
+    const messages = array(row.messages);
+    if (read) return { joined: !!row.discussion, messages };
+    if (body.action === 'leave') Object.assign(row, { discussion: false, messages: [] });
+    else if (body.action === 'withdraw') row.messages = messages.filter((m) => m.id !== body.id || !m.mine);
+    else {
+      check(!['cancelled', 'completed'].includes(String(row.state)));
+      if (body.action === 'join') row.discussion = true;
+      else {
+        check(
+          row.discussion &&
+            body.action === 'post' &&
+            typeof body.text === 'string' &&
+            body.text.trim().length > 0 &&
+            body.text.length <= 240,
+        );
+        if (!messages.some((m) => m.clientId === body.clientId))
+          row.messages = [
+            {
+              id: randomUUID(),
+              clientId: body.clientId,
+              body: body.text,
+              mine: true,
+              name: '我',
+              createdAt: new Date().toISOString(),
+            },
+            ...messages,
+          ];
+      }
+    }
+    return {};
+  }
   if (read) {
     const source = store.items?.find(
       (i) => i.id === row.source && (i.ownerId === self || ids(i.memberIds).includes(self)),
@@ -141,6 +173,7 @@ export function previewGathering(
         }
       case 'cancel':
         row.state = 'cancelled';
+        row.reminderMinutes = null;
         unlink();
         break;
       case 'complete':

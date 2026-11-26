@@ -78,6 +78,8 @@ export async function p1Routes(
         const input=await body();
         return gathering.confirmAttendance(me,id,choose(input.attend,[true,false]),input.companion===true,input.choiceId);
       }
+      case 'GET:one:discussion': return gathering.discussion(me,id);
+      case 'POST:one:discussion': return gathering.discussion(me,id,await body());
       case 'POST:one:details': return gathering.editInvitation(me,id,await body());
       case 'POST:one:organize':
         return gathering.organizeGathering(me, id, await body());
