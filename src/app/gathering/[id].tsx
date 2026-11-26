@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityDiscussion } from '../../features/together/ActivityDiscussion';
+import { InvitationFormScroll } from '../../features/together/InvitationFormScroll';
 import { ShareInvitation } from '../../features/together/ShareInvitation';
 import { LocationBubble } from '../../features/media/LocationCard';
 import { chooseCover } from '../../features/together/cover';
@@ -7,7 +8,7 @@ import { useTogether, useTogetherRouter } from '../../features/together/navigati
 import { randomUUID } from 'expo-crypto';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import {
   Button,
   Invitation,
@@ -309,7 +310,11 @@ function GatheringForm({
     setMessage('草稿已保存在本机。');
   };
   return (
-    <Screen title="发起约局" back={back}>
+    <Screen
+      title="发起约局"
+      back={back}
+      renderScroll={together && Platform.OS === 'android' ? (props) => <InvitationFormScroll {...props} /> : undefined}
+    >
       {together && (
         <>
           <Invitation title={name.trim() || '发起约局'} detail={categories[kind]} cover={cover} />

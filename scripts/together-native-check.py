@@ -115,6 +115,13 @@ def form():
     route('gathering/new?together=1');find('选择活动封面');capture('05-create')
     x,y=find(cls='android.widget.EditText');shell('input','tap',str(x),str(y));shell('input','text','Together')
     assert re.search(r'mInputShown=true|mIsInputViewShown=true',shell('dumpsys','input_method'))
+    time.sleep(.7)
+    input_pos=find(cls='android.widget.EditText')
+    # Compare the real input location with Android's settled IME insets, when exposed.
+    ime_frames=re.findall(r'type=ime frame=\[0,(\d+)\]\[\d+,\d+\] visible=true',shell('dumpsys','window','displays'))
+    if ime_frames:
+        assert input_pos[1] < int(ime_frames[-1]), 'Focused field is covered by the IME'
+        log('Input center y='+str(input_pos[1])+'; IME top='+ime_frames[-1])
     capture('06-keyboard');shell('input','keyevent','4');time.sleep(.4)
     find('选择活动封面')
 

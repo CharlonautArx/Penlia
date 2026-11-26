@@ -9,7 +9,7 @@ type Reminder = {
   dueDay: string;
   readAt: string | null;
 };
-export function ReminderRows({ screen = false }: { screen?: boolean }) {
+export function ReminderRows({ screen = false, inboxEmpty = false }: { screen?: boolean; inboxEmpty?: boolean }) {
   const together = useTogether();
   const router = useTogetherRouter();
   const { data, error, load, busy, run, request } = useRecord<{ reminders: Reminder[] }>(
@@ -18,7 +18,10 @@ export function ReminderRows({ screen = false }: { screen?: boolean }) {
   );
   const rows = (
     <>
-      {together && <ActivityReminders other={screen ? data?.reminders.length : undefined} />}
+      {together && <ActivityReminders
+        showEmpty={(screen || inboxEmpty) && data?.reminders.length === 0 && !error}
+        emptyText={screen ? '还没有生活提醒。' : '当前没有邀请、活动更新或提醒。'}
+      />}
       {!!error && (
         <Notice action="重试" onAction={() => void load()}>
           {error}
@@ -59,7 +62,7 @@ export function ReminderRows({ screen = false }: { screen?: boolean }) {
   );
 }
 
-function ActivityReminders({ other }: { other?: number }) {
+function ActivityReminders({ showEmpty, emptyText }: { showEmpty: boolean; emptyText: string }) {
   const router = useTogetherRouter();
   const { data, error } = useRecord<{ reminders: { id: string; title: string; startsAt: string }[] }>(
     '/p1/activity-reminders',
@@ -67,8 +70,8 @@ function ActivityReminders({ other }: { other?: number }) {
   );
   return (
     <>
-      {!error && other === 0 && data?.reminders.length === 0 && (
-        <DataEmpty loading={false}>还没有生活提醒。</DataEmpty>
+      {!error && showEmpty && data?.reminders.length === 0 && (
+        <DataEmpty loading={false}>{emptyText}</DataEmpty>
       )}
       {!!error && <Notice>{error}</Notice>}
       {data?.reminders.map((item) => (

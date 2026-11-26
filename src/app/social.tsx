@@ -364,7 +364,7 @@ function Events() {
   return (
     <>
       {!!error && <Notice>{error}</Notice>}
-      {together && <ReminderRows/>}
+      {together && <ReminderRows inboxEmpty={data?.events.length === 0 && !error} />}
       {!together && !data?.events.length && <Empty icon="mail-outline">约局、共振和共同记录的更新会显示在这里。</Empty>}
       {data?.events.map((event) => (
         <ListRow

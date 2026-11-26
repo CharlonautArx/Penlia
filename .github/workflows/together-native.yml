@@ -111,7 +111,7 @@ jobs:
           echo 'DISPLAY=:93' >> "$GITHUB_ENV"
           echo 'LIBGL_ALWAYS_SOFTWARE=1' >> "$GITHUB_ENV"
           echo 'QT_QPA_PLATFORM=xcb' >> "$GITHUB_ENV"
-      - name: Exercise the offline interface
+      - name: Verify navigation, IME, photo selection, MediaStore and system share
         if: matrix.abi == 'x86_64'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
