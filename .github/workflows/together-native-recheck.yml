@@ -1,5 +1,8 @@
-name: Verify the existing Together Release on Android
+name: Together Android 30 compatibility on the existing Release
 on:
+  push:
+    branches: [codex/together-invitations]
+    paths: ['.github/workflows/together-native-recheck.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,8 +22,8 @@ jobs:
       - name: Download the exact compiled client
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          run-id: 45814384408
-          name: together-x86_64-8f7a7b39cb759ab8357c4dfa559d0883bcfebe3d
+          run-id: 45818511078
+          name: together-x86_64-e016ff6af190853287d83ef1d60c027dcff0368e
           path: out
           github-token: ${{ github.token }}
       - run: sha256sum --check out/sha256.txt
@@ -55,13 +58,13 @@ jobs:
         with:
           emulator-boot-timeout: 150
           emulator-build: '16970787'
-          api-level: 35
+          api-level: 30
           arch: x86_64
           target: default
           profile: pixel_6
           disable-animations: false
           emulator-options: -gpu host -timezone Asia/Shanghai -no-skin -skin 540x1200 -memory 3072 -cores 4 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front emulated
-          script: python3 scripts/together-native-check.py out/Penlia-x86_64.apk evidence
+          script: python3 scripts/together-native-check.py out/Penlia-x86_64.apk evidence --fallback
       - name: Scan the evidence allowlist
         id: scan_evidence
         if: always()

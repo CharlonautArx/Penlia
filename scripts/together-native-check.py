@@ -154,6 +154,31 @@ def page(path,label,name):
     route(path+'?together=1' if '?' not in path else path+'&together=1')
     find(label);capture(name)
 
+def compatibility():
+    assert shell('getprop','ro.build.version.sdk') == '30'
+    shell('cmd','uimode','night','yes')
+    shell('settings','put','system','font_scale','1.3')
+    shell('am','force-stop',pkg)
+    shell('am','start','-W','-n',pkg+'/.MainActivity')
+    route('life')
+    find('约朋友一起玩');capture('30-dark-hub')
+    tap('周末到河边喝杯咖啡');find('活动操作');capture('31-dark-detail')
+    shell('input','swipe','240','905','240','640','680');time.sleep(.4)
+    capture('32-dark-scroll')
+    route('gathering/new?together=1')
+    find('选择活动封面');capture('33-dark-create')
+    # Scroll the form, enter a title and verify focus survives closing the keyboard.
+    shell('input','swipe','235','906','235','565','560')
+    x,y=find(cls='android.widget.EditText')
+    shell('input','tap',str(x),str(y));shell('input','text','Together')
+    time.sleep(1)
+    assert re.search(r'mInputShown=true|mIsInputViewShown=true',shell('dumpsys','input_method'))
+    capture('34-dark-keyboard')
+    shell('input','keyevent','4')
+    find(cls='android.widget.EditText')
+    assert shell('settings','get','system','font_scale') == '1.3'
+    log('PASS Android 30, system dark appearance and font_scale 1.3')
+
 adb('install','-r',str(apk))
 shell('wm','size','540x1200');shell('wm','density','240')
 shell('settings','put','secure','show_ime_with_hard_keyboard','1')
@@ -164,21 +189,24 @@ check('cold-start',cold)
 # Record the compositor output, including scrolling, transitions and system surfaces.
 video=Popen(['adb','shell','screenrecord','--time-limit','178','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
 try:
-    check('open-scroll-back',hub)
-    check('share-album-export',album_export)
-    check('system-share-return',system_share)
-    check('form-keyboard',form)
-    check('select-photo',photo)
-    for path,label,name in [
-        ('life/calendar','生活日程','09-calendar'),('social?section=events','邀请与消息','10-inbox'),
-        ('life/memories','共同回忆','11-memories'),('life/reminders','生活提醒','12-reminders'),
-        ('world?kind=world','共同世界','13-world'),
-        ('playground/with-friends','约朋友一起玩','16-with-friends'),
-        ('life/projects?kind=trip','共同旅行','17-trip'),('life/items?kind=place','愿望地图','18-place'),
-        ('world?kind=relay','瞬间共鸣','19-relay'),('social?section=collections','共同记录','20-journal'),
-        ('life/projects?kind=capsule','时光胶囊','21-capsule'),('life/projects?kind=list','共同清单','22-list'),
-        ('life/items','我的收藏与好友推荐','23-favorites')]:
-        check(name,lambda:page(path,label,name))
+    if '--fallback' in sys.argv:
+        check('solid-large-dark',compatibility)
+    else:
+        check('open-scroll-back',hub)
+        check('share-album-export',album_export)
+        check('system-share-return',system_share)
+        check('form-keyboard',form)
+        check('select-photo',photo)
+        for path,label,name in [
+            ('life/calendar','生活日程','09-calendar'),('social?section=events','邀请与消息','10-inbox'),
+            ('life/memories','共同回忆','11-memories'),('life/reminders','生活提醒','12-reminders'),
+            ('world?kind=world','共同世界','13-world'),
+            ('playground/with-friends','约朋友一起玩','16-with-friends'),
+            ('life/projects?kind=trip','共同旅行','17-trip'),('life/items?kind=place','愿望地图','18-place'),
+            ('world?kind=relay','瞬间共鸣','19-relay'),('social?section=collections','共同记录','20-journal'),
+            ('life/projects?kind=capsule','时光胶囊','21-capsule'),('life/projects?kind=list','共同清单','22-list'),
+            ('life/items','我的收藏与好友推荐','23-favorites')]:
+            check(name,lambda:page(path,label,name))
 finally:
     if video.poll() is None: shell('pkill','-INT','screenrecord')
     video.wait(timeout=20)
