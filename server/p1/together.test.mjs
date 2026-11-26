@@ -132,6 +132,15 @@ test('Together HTTP integration on isolated PostgreSQL', async (t) => {
       const choiceId = ok(await p1(a, base)).options[0].id;
       ok(await post(a, base + '/organize', { action: 'choose', optionId: choiceId }));
       assert.equal(ok(await p1(a, base)).gathering.agreedChoice, '甲店');
+      const updates = ok(await p1(b, base)).updates;
+      const inbox = ok(await p1(b, '/events')).events.filter((event) => event.subjectId === id);
+      for (const kind of ['gathering_invited', 'gathering_updated']) {
+        const notice = updates.find((event) => event.kind === kind);
+        assert.ok(notice);
+        assert.ok(inbox.some((event) => event.id === notice.id && event.kind === kind));
+      }
+      assert.ok(!ok(await p1(outside, '/events')).events.some((event) => event.subjectId === id));
+      ok(await p1(outside, base), 404);
       ok(await post(b, base + '/confirm', { attend: true, choiceId }));
       assert.equal(await due(b), false);
       ok(await post(b, base + '/personal', { action: 'reminder', minutes: 15 }));
