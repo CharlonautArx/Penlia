@@ -23,10 +23,11 @@ def tree():
     shell('uiautomator','dump','/sdcard/together.xml')
     return ElementTree.fromstring(adb('exec-out','cat','/sdcard/together.xml',binary=True).strip())
 
-def find(label=None, cls=None, key=None, tries=3):
+def find(label=None, cls=None, key=None, tries=3, clickable=False):
     for _ in range(tries):
         for node in tree().iter('node'):
             if cls and node.get('class') != cls: continue
+            if clickable and node.get('clickable') != 'true': continue
             if key and key not in node.get('resource-id',''): continue
             vals=[node.get('text',''),node.get('content-desc','')]
             if label and not any(label == v or v.startswith(label+'，') or v.startswith(label+',') for v in vals): continue
@@ -183,14 +184,14 @@ def compatibility():
     assert shell('settings','get','system','font_scale') == '1.3'
     log('PASS Android 30, system dark appearance and font_scale 1.3')
 
-def reveal(label):
+def reveal(label, clickable=False):
     for _ in range(6):
-        try: return find(label, tries=1)
+        try: return find(label, tries=1, clickable=clickable)
         except ValueError: shell('input','swipe','250','980','250','440','500')
     raise ValueError(label)
 
-def tap_visible(label):
-    x,y=reveal(label)
+def tap_visible(label, clickable=False):
+    x,y=reveal(label, clickable=clickable)
     shell('input','tap',str(x),str(y))
     time.sleep(.55)
 
@@ -220,18 +221,18 @@ def revised_favorites():
 def revised_gathering():
     route('gathering/new?together=1&title=Android%20Meetup')
     tap_visible('添加候选时间')
-    tap_visible('日期')
+    tap_visible('日期', clickable=True)
     find('选择日期')
     tomorrow = date.fromisoformat(shell('date','+%Y-%m-%d')) + timedelta(days=1)
     if tomorrow.day == 1: tap('下一个月')
     capture('42-calendar')
     tap(tomorrow.isoformat())
-    tap_visible('时间')
+    tap_visible('时间', clickable=True)
     find('选择时间')
     shell('input','swipe','180','610','180','535','380')
     capture('43-clock')
     tap('确定时间')
-    x,y=reveal('见面地点')
+    x,y=reveal('见面地点', clickable=True)
     shell('input','tap',str(x),str(y));shell('input','text','Riverside')
     shell('input','keyevent','4')
     tap_visible('邀请对象')
@@ -292,7 +293,9 @@ check('cold-start',cold)
 # Record the compositor output, including scrolling, transitions and system surfaces.
 video=Popen(['adb','shell','screenrecord','--time-limit','178','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
 try:
-    if '--favorites-profile' in sys.argv:
+    if '--gathering-only' in sys.argv:
+        check('date-wheels-friend-invite-chat',revised_gathering)
+    elif '--favorites-profile' in sys.argv:
         check('legacy-place-in-favorites',revised_places)
         check('favorites-and-detail',revised_favorites)
         check('date-wheels-friend-invite-chat',revised_gathering)

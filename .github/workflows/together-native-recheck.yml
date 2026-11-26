@@ -1,9 +1,15 @@
-name: Together Android 30 compatibility on the existing Release
-on: workflow_call
+name: Together Android compatibility on the existing Release
+on:
+  workflow_call:
+  push:
+    tags: ['penlia-preview-recheck-*']
 permissions:
   contents: read
 jobs:
   device:
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -14,7 +20,32 @@ jobs:
         with:
           cmdline-tools-version: '16111833'
           packages: platform-tools
+      - name: Identify a trusted preview build
+        id: source
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="${GITHUB_REF_NAME#penlia-preview-recheck-}"
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$RUNNER_TEMP/penlia-source.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .head_repository.full_name == $repo and .event == "push"
+            and .head_branch == "codex/penlia-favorites-gathering-profile"
+            and .path == ".github/workflows/together-native.yml"
+          ' "$RUNNER_TEMP/penlia-source.json"
+          echo "run=$run_id" >> "$GITHUB_OUTPUT"
+          echo "sha=$(jq -er '.head_sha' "$RUNNER_TEMP/penlia-source.json")" >> "$GITHUB_OUTPUT"
+      - name: Download the exact compiled client from the trusted preview run
+        if: github.ref_type == 'tag'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: together-x86_64-${{ steps.source.outputs.sha }}
+          path: out
+          run-id: ${{ steps.source.outputs.run }}
+          github-token: ${{ github.token }}
       - name: Download the exact compiled client
+        if: github.ref_type != 'tag'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: together-x86_64-${{ github.sha }}
@@ -51,13 +82,13 @@ jobs:
         with:
           emulator-boot-timeout: 150
           emulator-build: '16970787'
-          api-level: 30
+          api-level: ${{ github.ref_type == 'tag' && 35 || 30 }}
           arch: x86_64
           target: default
           profile: pixel_6
           disable-animations: false
           emulator-options: -gpu host -timezone Asia/Shanghai -no-skin -skin 540x1200 -memory 3072 -cores 4 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front emulated
-          script: python3 scripts/together-native-check.py out/Penlia-x86_64.apk evidence --fallback
+          script: python3 scripts/together-native-check.py out/Penlia-x86_64.apk evidence ${{ github.ref_type == 'tag' && '--gathering-only' || '--fallback' }}
       - name: Scan the evidence allowlist
         id: scan_evidence
         if: always()
@@ -81,7 +112,7 @@ jobs:
         if: always() && steps.scan_evidence.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: together-emulator-api30-${{ github.sha }}
+          name: together-emulator-${{ github.ref_type == 'tag' && 'gathering-recheck' || 'api30' }}-${{ github.sha }}
           path: |
             evidence/*.png
             evidence/*.mp4

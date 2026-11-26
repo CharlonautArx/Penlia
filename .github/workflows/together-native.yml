@@ -169,3 +169,4 @@ jobs:
     uses: ./.github/workflows/together-native-recheck.yml
     permissions:
       contents: read
+      actions: read
