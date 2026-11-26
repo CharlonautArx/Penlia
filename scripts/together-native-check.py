@@ -194,6 +194,15 @@ def tap_visible(label):
     shell('input','tap',str(x),str(y))
     time.sleep(.55)
 
+def revised_places():
+    route('playground/place/sample-board')
+    tap('收藏去处')
+    find('取消收藏')
+    route('life/items')
+    tap('景点')
+    reveal('夜航桌游社')
+    capture('39-legacy-place-in-favorites')
+
 def revised_favorites():
     route('chat/demo-xiaoman')
     x,y=reveal('好，到时我在出口等你。')
@@ -284,6 +293,7 @@ check('cold-start',cold)
 video=Popen(['adb','shell','screenrecord','--time-limit','178','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
 try:
     if '--favorites-profile' in sys.argv:
+        check('legacy-place-in-favorites',revised_places)
         check('favorites-and-detail',revised_favorites)
         check('date-wheels-friend-invite-chat',revised_gathering)
         check('profile-background-fullscreen-crop',revised_profile)

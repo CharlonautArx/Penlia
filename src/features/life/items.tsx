@@ -80,6 +80,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
   const [category, setCategory] = useState<Category>();
   const [editor, setEditor] = useState<Item | 'new'>();
   const [expanded, setExpanded] = useState<Item>();
+  const [chatActions, setChatActions] = useState<Item>();
   const [removing, setRemoving] = useState<Item>();
   const [copying, setCopying] = useState<{ id: string; clientId: string }>();
   const [notice, setNotice] = useState('');
@@ -108,7 +109,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
   const card = (item: Item) => favorites && item.chatRecordId ? (
     <ChatFavorite key={item.id} preview={item.chatPreview} fallback={item.title}
       open={() => router.push({ pathname: '/life/chat-record/[id]', params: { id: item.chatRecordId!, favorite: '1' } })}
-      remove={() => setRemoving(item)} />
+      options={() => setChatActions(item)} />
   ) : (
     <ItemCard
       key={item.id}
@@ -282,6 +283,16 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
           {!!error && <Notice>{error}</Notice>}
         </Sheet>
       )}
+      {chatActions && <Sheet title="收藏选项" onClose={() => setChatActions(undefined)}>
+        <Button label="编辑收藏" variant="soft" onPress={() => {
+          setEditor(chatActions);
+          setChatActions(undefined);
+        }} />
+        <Button label="删除收藏" variant="danger" onPress={() => {
+          setRemoving(chatActions);
+          setChatActions(undefined);
+        }} />
+      </Sheet>}
       {removing && (
         <Sheet title="删除这条记录" onClose={() => setRemoving(undefined)}>
           <Text style={styles.muted}>已分享的读者将失去原记录和附件权限。</Text>
@@ -564,7 +575,8 @@ function ItemEditor({
   return (
     <Sheet title={initial ? '编辑记录' : isPlace ? '收藏地点' : '添加收藏'} onClose={onClose}>
       <Field title={isPlace ? '地点名称' : '名称'} value={title} onChangeText={setTitle} />
-      {kind === 'saved' && !space
+      {initial?.chatRecordId ? <Text style={styles.muted}>聊天记录 · 仅自己</Text>
+        : kind === 'saved' && !space
         ? <Choices labels={savedCategoryLabels} value={collectionOf(category)} set={setCategory} />
         : <Choices labels={categories} value={category} set={setCategory} />}
       <Choices

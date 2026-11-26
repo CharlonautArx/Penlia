@@ -2,7 +2,7 @@ name: Together native release and checks
 on:
   push:
     branches: [codex/together-invitations, codex/penlia-favorites-gathering-profile]
-    paths: ['.github/workflows/together-native.yml']
+    paths: ['.github/workflows/together-native.yml', 'scripts/together-native-check.py']
   workflow_dispatch:
 permissions:
   contents: read

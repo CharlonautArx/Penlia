@@ -43,11 +43,11 @@ function Thumbnail({ media }: { media: Media }) {
   </View>;
 }
 
-export function ChatFavorite({ preview, fallback, open, remove }: {
+export function ChatFavorite({ preview, fallback, open, options }: {
   preview?: ChatFavoritePreview;
   fallback: string;
   open: () => void;
-  remove: () => void;
+  options: () => void;
 }) {
   const { line, thumbnail, count } = preview ?? { line: undefined, thumbnail: undefined, count: 0 };
   const { name } = useSavedSender(line ?? { author: '' });
@@ -61,7 +61,7 @@ export function ChatFavorite({ preview, fallback, open, remove }: {
       </View>
       {!!thumbnail && <Thumbnail media={thumbnail} />}
     </Pressable>
-    <IconButton label="删除收藏" icon="ellipsis-horizontal" onPress={remove} />
+    <IconButton label="收藏选项" icon="ellipsis-horizontal" onPress={options} />
   </View>;
 }
 
