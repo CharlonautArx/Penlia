@@ -28,7 +28,7 @@ async function access(db, id, user, { lock = false, write = false } = {}) {
   const {
     rows: [row],
   } = await db.query(
-    `SELECT c.id,c.owner_id AS "ownerId",c.kind,c.title,c.moment_id AS "momentId",
+    `SELECT c.id,c.owner_id AS "ownerId",c.kind,c.title,c.moment_id AS "momentId",c.activity_journal AS "activityJournal",
     c.gathering_id AS "gatheringId",${activeMember('c', '$2::uuid')} AS "canWrite" FROM p1_collections c
     WHERE c.id=$1 AND ${limit} ${lock ? 'FOR UPDATE' : ''}`,
     [id, user],
@@ -42,7 +42,9 @@ export async function listCollections(user) {
     `SELECT c.id,c.owner_id AS "ownerId",c.kind,c.title,c.moment_id AS "momentId",u.name owner,
     CASE WHEN c.owner_id=$1 THEN 'active' ELSE m.state END AS state
     FROM p1_collections c JOIN users u ON u.id=c.owner_id LEFT JOIN p1_collection_members m ON m.collection_id=c.id AND m.user_id=$1
-    WHERE c.owner_id=$1 OR m.state IN ('active','invited') AND NOT ${blocked('c.owner_id', '$1::uuid')}
+    WHERE (c.owner_id=$1 OR m.state IN ('active','invited') AND NOT ${blocked('c.owner_id', '$1::uuid')})
+    AND (NOT c.activity_journal OR EXISTS(SELECT 1 FROM p1_gathering_members gm JOIN p1_gatherings g ON g.id=gm.gathering_id
+      WHERE g.id=c.gathering_id AND gm.user_id=$1 AND gm.confirmed AND g.state IN ('formed','completed')))
     ORDER BY c.created_at DESC,c.id LIMIT 60`,
     [user],
   );
@@ -70,8 +72,8 @@ export async function createCollection(user, body, transaction) {
       const {
         rows: [source],
       } = await db.query(
-        "SELECT id,category FROM p1_gatherings WHERE id=$1 AND owner_id=$2 AND state='completed' FOR UPDATE",
-        [gathering, user],
+        "SELECT id,category FROM p1_gatherings WHERE id=$1 AND owner_id=$2 AND (state='completed' OR $3 AND state='formed' AND EXISTS(SELECT 1 FROM p1_gathering_options o WHERE o.id=p1_gatherings.choice_id AND o.starts_at<=now())) FOR UPDATE",
+        [gathering, user,body.liveJournal===true],
       );
       if (!source) throw missing();
       const {
@@ -84,14 +86,19 @@ export async function createCollection(user, body, transaction) {
         [gathering, user],
       );
       members = rows.map((row) => row.id);
+      if (body.liveJournal===true) {
+        const explicit = await inviteesOf(db,user,body);
+        if (explicit.some(target=>!members.includes(target))) throw invalid('请从已确认参加的好友中选择。');
+        members=explicit;
+      }
     } else members = await inviteesOf(db, user, body);
     if (members.length) await assertAllowed(db, user, ['limit_contact', 'limit_account']);
     const {
       rows: [record],
     } = await db.query(
-      `INSERT INTO p1_collections(owner_id,client_id,kind,title,gathering_id)
-      VALUES($1,$2,$3,$4,$5) RETURNING id`,
-      [user, clientId, kind, title, gathering],
+      `INSERT INTO p1_collections(owner_id,client_id,kind,title,gathering_id,activity_journal)
+      VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [user, clientId, kind, title, gathering,!!gathering && body.liveJournal===true],
     );
     const eventTitle = kind === 'collaboration' ? title : undefined;
     if (eventTitle) {
@@ -191,8 +198,9 @@ export async function getCollection(user, id, query) {
     }
     const { rows } = await db.query(
       `SELECT e.id,e.title,e.category,e.event_date::text AS "eventDate",e.author_id AS "authorId",
-      u.name AS author FROM p1_entries e JOIN users u ON u.id=e.author_id
-      WHERE e.collection_id=$1 AND ($2::text IS NULL OR e.category=$2) AND ($3::date IS NULL OR e.event_date>=$3)
+      u.name AS author FROM p1_entries e JOIN users u ON u.id=e.author_id JOIN p1_collections c ON c.id=e.collection_id
+      WHERE (NOT c.activity_journal OR e.author_id=$7 OR EXISTS(SELECT 1 FROM p1_contributions k WHERE k.entry_id=e.id AND k.author_id=e.author_id
+        AND ${contributionReadable('k','$7::uuid')} AND ${workspaceGrant('k','$7::uuid')})) AND e.collection_id=$1 AND ($2::text IS NULL OR e.category=$2) AND ($3::date IS NULL OR e.event_date>=$3)
       AND ($4::date IS NULL OR e.event_date<=$4) AND ($5::date IS NULL OR (e.event_date,e.id)<($5::date,$6::uuid))
       AND NOT ${blocked('$7::uuid', 'e.author_id')} ORDER BY e.event_date DESC,e.id DESC LIMIT 21`,
       [id, category, after, until, cursorDate, cursorId, user],
@@ -261,6 +269,8 @@ async function entryAccess(db, id, user, write) {
   );
   if (!entry) throw missing();
   const collection = await access(db, entry.collectionId, user, { lock: true, write });
+  if (collection.activityJournal && entry.authorId!==user && !(await db.query(
+    `SELECT 1 FROM p1_contributions k WHERE k.entry_id=$1 AND k.author_id=$2 AND ${contributionReadable('k','$3::uuid')} AND ${workspaceGrant('k','$3::uuid')}`,[id,entry.authorId,user])).rowCount) throw missing();
   return { entry, collection };
 }
 
@@ -413,7 +423,7 @@ export async function contributionHistory(user, id) {
     if (row.author_id !== user) {
       if (collection.ownerId !== user) throw missing();
       if (
-        collection.kind === 'collaboration' &&
+        (collection.kind === 'collaboration' || collection.activityJournal) &&
         !(
           await db.query(
             `SELECT 1 FROM p1_contributions k

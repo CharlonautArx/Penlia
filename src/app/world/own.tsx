@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Sheet } from '../../components/ui';
+import { Button, ListRow, Notice, Screen, Sheet } from '../../features/together/ui';
 import { DataEmpty } from '../../features/life/ui';
 import { back, formatTime, useRecord } from '../../features/social/ui';
 import type { Page, WorldRecord } from '../../features/world/model';

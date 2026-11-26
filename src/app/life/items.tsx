@@ -1,9 +1,11 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Screen } from '../../components/ui';
+import { useTogetherRouter } from '../../features/together/navigation';
+import { useLocalSearchParams } from 'expo-router';
+import { Button, Screen } from '../../features/together/ui';
 import { back } from '../../features/social/ui';
 import { ItemsView } from '../../features/life/items';
 
 export default function ItemsScreen() {
+  const router = useTogetherRouter();
   const { kind: requested, item } = useLocalSearchParams<{ kind?: 'saved' | 'place'; item?: string }>();
   const kind = requested === 'place' ? 'place' : 'saved';
   return (

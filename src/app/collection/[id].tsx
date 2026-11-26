@@ -1,8 +1,9 @@
+import { useTogetherRouter } from '../../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../../features/together/ui';
 import { scopes, type Audience } from '../../features/moments/Feed';
 import { MomentMediaTile, type Media } from '../../features/moments/media';
 import {
@@ -25,7 +26,7 @@ export type CollectionInfo = {
   ownerId: string;
   kind: CollectionKind;
   title: string;
-  canWrite: boolean;
+  canWrite: boolean;activityJournal?:boolean;
   momentId: string | null;
 };
 type Detail = {
@@ -47,6 +48,8 @@ export default function CollectionScreen() {
 }
 
 function Create({ kind, from, title }: { kind: CollectionKind; from?: string; title?: string }) {
+  const router = useTogetherRouter();
+  const {live} = useLocalSearchParams<{live?:string}>();
   const { request, run, busy, error } = useRecord('/p1/collections');
   const [clientId] = useState(randomUUID);
   const [name, setName] = useState(title ?? '');
@@ -56,11 +59,11 @@ function Create({ kind, from, title }: { kind: CollectionKind; from?: string; ti
     <Screen title={kind === 'collaboration' ? '发起共创动态' : '新建共同日记'} back={back}>
       <Field title="名称" value={name} onChangeText={setName} maxLength={80} />
       <Text style={styles.muted}>
-        {from
+        {live==='1' ? '可以先建立日记，再邀请已确认参加的朋友。每位作者自行授权。' : from
           ? '会邀请确认参加这次约局的好友，好友同意后才加入。'
           : '参与者需主动接受邀请。你可以稍后继续邀请好友。'}
       </Text>
-      {!from && <InviteChoices ids={ids} setIds={setIds} groupId={group} setGroupId={setGroup} />}
+      {(!from || live==='1') && <InviteChoices ids={ids} setIds={setIds} groupId={group} setGroupId={setGroup} />}
       {!!error && <Notice>{error}</Notice>}
       <Button
         label="创建"
@@ -74,7 +77,7 @@ function Create({ kind, from, title }: { kind: CollectionKind; from?: string; ti
                 clientId,
                 kind,
                 title: name,
-                gatheringId: from,
+                gatheringId: from, liveJournal:live==='1',
                 memberIds: ids,
                 groupId: group || undefined,
               },
@@ -88,6 +91,7 @@ function Create({ kind, from, title }: { kind: CollectionKind; from?: string; ti
 }
 
 function Details({ id, showAlbum }: { id: string; showAlbum: boolean }) {
+  const router = useTogetherRouter();
   const base = '/p1/collections/' + id;
   const [category, setCategory] = useState<Category>();
   const [from, setFrom] = useState('');

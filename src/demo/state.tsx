@@ -180,7 +180,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const savingMoment = (path === '/moments' && method === 'POST')
       || (/^\/moments\/[^/?]+$/.test(path) && ['PATCH', 'DELETE'].includes(method));
     const savingReport = method === 'POST' && ['/p1/reports', '/p1/boundary'].includes(path);
-    if (savingMoment || savingReport) {
+    const savingActivity = method !== 'GET' && (path.startsWith('/p1/gatherings') || /^\/p2\/items\/[^/]+\/checklist$/.test(path));
+    if (savingMoment || savingReport || savingActivity) {
       let result: unknown;
       await store.current.save((value) => {
         const rows = { ...value.rows };

@@ -47,6 +47,7 @@ export function createApiServer(options = {}) {
       readBody: () => {
         if (request.method === 'POST' && url.pathname === '/v1/friends/code'
           && !request.headers['transfer-encoding'] && Number(request.headers['content-length'] ?? 0) === 0) return {};
+        if (request.method === 'POST' && (/^\/v1\/p1\/gatherings(?:\/[0-9a-f-]{36}\/details)?$/.test(url.pathname))) return readBody(request, 144 * 1024);
         if (request.method === 'PATCH' && url.pathname === '/v1/me') return readBody(request, 46000);
         if (request.method === 'POST' && url.pathname === '/v1/p1/reports') return readBody(request, reportBodyLimit);
         if (request.method === 'POST' && url.pathname === '/v1/chat-records') return readBody(request, 144 * 1024);

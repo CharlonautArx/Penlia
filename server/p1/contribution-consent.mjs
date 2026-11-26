@@ -14,7 +14,7 @@ async function original(db, user, id) {
   } = await db.query(
     `SELECT c.id AS collection,c.owner_id AS owner,c.moment_id AS moment,k.revision
     FROM p1_contributions k JOIN p1_entries e ON e.id=k.entry_id JOIN p1_collections c ON c.id=e.collection_id
-    WHERE k.id=$1 AND k.author_id=$2 AND k.removed_at IS NULL AND c.kind='collaboration'`,
+    WHERE k.id=$1 AND k.author_id=$2 AND k.removed_at IS NULL AND (c.kind='collaboration' OR c.activity_journal)`,
     [id, user],
   );
   if (!record) throw missing();

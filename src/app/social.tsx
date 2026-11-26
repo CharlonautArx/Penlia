@@ -1,8 +1,9 @@
+import { useTogetherRouter } from '../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../components/ui';
+import { Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../features/together/ui';
 import {
   back,
   categories,
@@ -94,6 +95,7 @@ export default function SocialScreen() {
   );
 }
 function Wishes({title,place}:{title?:string;place?:string}) {
+  const router = useTogetherRouter();
   const { data, error, busy, run, request } = useRecord<{ wishes: Wish[]; matches: Match[] }>('/p1/wishes');
   const fresh = () =>
     ({
@@ -275,6 +277,7 @@ function WishEditor({
 }
 
 function Gatherings() {
+  const router = useTogetherRouter();
   const { data, error } = useRecord<{ gatherings: Gathering[] }>('/p1/gatherings');
   return (
     <>
@@ -301,6 +304,7 @@ function Gatherings() {
 }
 
 function Collections() {
+  const router = useTogetherRouter();
   const { data, error, busy, run, request } = useRecord<{ collections: Collection[] }>('/p1/collections');
   return (
     <>
@@ -353,6 +357,7 @@ function Collections() {
 }
 
 function Events() {
+  const router = useTogetherRouter();
   const { data, error, run, request } = useRecord<{ events: Event[] }>('/p1/events');
   return (
     <>

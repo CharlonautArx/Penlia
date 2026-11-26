@@ -1,8 +1,8 @@
+import { useTogetherRouter } from '../together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Text, View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Button, ListRow, Notice, Screen, Section, Sheet } from '../together/ui';
 import { back, Choices, Field, useRecord } from '../social/ui';
 import { MomentMediaGrid, type LocalMedia, type Media } from '../moments/media';
 import { useSession } from '../../services/session';
@@ -40,6 +40,7 @@ type Trip = Project & {
 type Detail = { trip: Trip; items: Stop[]; members: ProjectMember[]; myAgreement: boolean };
 type Library = { items: { id: string; title: string; location: string; sourceUrl: string | null }[] };
 export function TripScreen({ id }: { id: string }) {
+  const router = useTogetherRouter();
   const { session } = useSession();
   const { data, error, busy, run, request, load } = useRecord<Detail>('/p2/trips/' + id, 20000);
   const me = session?.user.id;

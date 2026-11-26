@@ -2,7 +2,7 @@ import { randomUUID } from 'expo-crypto';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Avatar, Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Avatar, Button, Empty, ListRow, Notice, Screen, Section, Sheet } from '../../features/together/ui';
 import {
   chooseMomentPhotos,
   chooseMomentVideo,
@@ -88,7 +88,7 @@ export default function JournalEntry() {
           <View style={styles.row}><Avatar userId={line.authorId} name={line.author} size={36} /><Section title={line.author} detail={formatTime(line.createdAt)} /></View>
           {!!line.body && <Text style={styles.body}>{line.body}</Text>}
           {!!line.media.length && <MomentMediaGrid media={line.media} />}
-          {data.collection.kind === 'collaboration' && line.authorId === me && (
+          {(data.collection.kind === 'collaboration' || data.collection.activityJournal) && line.authorId === me && (
             <Button label="管理这条贡献的读者" variant="soft" onPress={() => setAudienceId(line.id)} />
           )}
           {data.collection.canWrite && (line.authorId === me || data.collection.ownerId === me) && (
@@ -140,7 +140,7 @@ export default function JournalEntry() {
           )}
           {panel === 'add' && (
             <>
-              {data?.collection.kind === 'collaboration' && (
+              {(data?.collection.kind === 'collaboration' || data?.collection.activityJournal) && (
                 <Text style={styles.muted}>这条贡献起初仅自己可见，保存后可以选定共创成员或动态读者。</Text>
               )}
               <View style={styles.row}>
@@ -222,7 +222,7 @@ export default function JournalEntry() {
                         method: 'POST',
                         body: { clientId, body, mediaIds: ids },
                       });
-                      if (data?.collection.kind === 'collaboration') setAudienceId(added.id);
+                      if ((data?.collection.kind === 'collaboration' || data?.collection.activityJournal)) setAudienceId(added.id);
                     }
                     if (item && panel === 'edit')
                       await request('/p1/contributions/' + item.id, {

@@ -1,3 +1,4 @@
+import { previewGathering, previewReminders } from './together';
 import { canRecall, recalledQuote } from '../features/chat/recall-model';
 import { randomUUID } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
@@ -368,35 +369,33 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       }
       return upsert('wishes', action === 'pause' ? { active: body.active ?? !requireRow('wishes').active } : { active: true });
     }
-    if (area === 'gatherings') {
-      if (!id && get) return { gatherings: rows('gatherings') };
-      if (!id) {
-        const options = list(body.options).map((option) => add(option));
-        return save('gatherings', add(body, { ownerId: self, state: 'interest', choiceId: null, intention: null,
-          directProposal: true, ballotClosed: false, confirmed: false, votes: [], options, attendees: [] }));
-      }
-      const gathering = requireRow('gatherings');
-      if (get) return { gathering, options: gathering.options, attendees: gathering.attendees };
-      const command = String(body.action ?? action);
-      if (command === 'intention') return edit('gatherings', gathering, { votes: strings(body.optionIds) });
-      if (command === 'reschedule') return edit('gatherings', gathering, { state: 'interest', options: list(body.options).map((row) => add(row)),
-        choiceId: null, confirmed: false, votes: [], attendees: [] });
-      const state = { choose: 'confirming', propose: 'confirming', cancel: 'cancelled', complete: 'completed',
-        reopen: 'interest', retry: 'interest', open: 'interest' }[command] ?? gathering.state;
-      const confirmed = command === 'confirm' ? body.attend === true : gathering.confirmed;
-      const attendees = command === 'confirm' ? (confirmed ? members() : []) : gathering.attendees;
-      if (command !== 'confirm' && state === gathering.state && command !== 'choose') throw new Error(unavailable);
-      return edit('gatherings', gathering, { state: command === 'confirm' && confirmed ? 'formed' : state,
-        choiceId: body.optionId ?? body.choiceId ?? gathering.choiceId, confirmed, attendees });
-    }
+    if (area === 'gatherings') return previewGathering(store,id,action,get,body);
+    if (area === 'activity-reminders') return previewReminders(store);
     // Legacy preview journal entries were all written by the single signed-in preview account.
+    const journalMember=(collection:Row)=>{
+      if(!collection.activityJournal)return true;
+      const g=find('gatherings',String(collection.gatheringId));
+      return !!g?.confirmed && ['formed','completed'].includes(String(g.state)) && (collection.ownerId===self ||
+        list(collection.members).some(m=>m.id===self && m.state==='active'));
+    };
+    const granted=(collection:Row,contribution:Row)=>!collection.activityJournal || contribution.authorId===self || strings(contribution.memberIds).includes(self);
     const journalAuthor = (entry: Row): Row => ({ ...entry, authorId: entry.authorId ?? self });
     if (area === 'collections') {
-      if (!id && get) return { collections: rows('collections').filter((row) => row.state !== 'left') };
+      if (!id && get) return { collections: rows('collections').filter((row) => row.state !== 'left' && journalMember(row)) };
+      if (!id && body.liveJournal===true) {
+        const g=requireRow('gatherings',String(body.gatheringId));
+        const option=list(g.options).find(o=>o.id===g.choiceId);
+        if (g.ownerId!==self || !g.confirmed || !(g.state==='completed' || g.state==='formed' && Date.parse(String(option?.startsAt))<=Date.now())) throw new Error('当前活动尚不能建立日记。');
+        const existing=rows('collections').find(c=>c.gatheringId===g.id);if(existing)return existing;
+        if(strings(body.memberIds).some(id=>!list(g.attendees).some(a=>a.id===id)))throw new Error('请核对已确认参加的好友。');
+        return save('collections',add(body,{...owner,activityJournal:true,members:[...members([self]),...newMembers()]}));
+      }
       if (!id) return save('collections', add(body, { ...owner, momentId: null, members: [...members([self]), ...newMembers()] }));
       const collection = requireRow('collections');
-      const entries = related('entries', 'collectionId').map(journalAuthor);
-      if (get && action === 'album') return { media: entries.flatMap((entry) => related('contributions', 'entryId', entry.id)
+      if (!journalMember(collection)) throw new Error('找不到可访问的活动日记。');
+      const entries = related('entries', 'collectionId').map(journalAuthor).filter(e=>!collection.activityJournal || e.authorId===self ||
+        related('contributions','entryId',e.id).some(c=>e.authorId===c.authorId && granted(collection,c)));
+      if (get && action === 'album') return { media: entries.flatMap((entry) => related('contributions', 'entryId', entry.id).filter(c=>granted(collection,c))
         .flatMap((contribution) => list(contribution.media).map((media) => ({
           ...media, title: entry.title, author: contribution.author, authorId: contribution.authorId,
         })))), next: null };
@@ -411,12 +410,26 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     }
     if (area === 'entries') {
       const entry = journalAuthor(requireRow('entries'));
-      if (get) return { entry, collection: requireRow('collections', String(entry.collectionId)), contributions: related('contributions', 'entryId') };
+      const collection=requireRow('collections',String(entry.collectionId));
+      const contributions=related('contributions','entryId').filter(c=>granted(collection,c));
+      if(!journalMember(collection) || collection.activityJournal && entry.authorId!==self && !contributions.some(c=>c.authorId===entry.authorId)) throw new Error('找不到可访问的活动记录。');
+      if (get) return { entry, collection, contributions };
       if (action === 'contributions') return save('contributions', add(body, { ...author, createdAt: now(), entryId: id, media: assetRefs() }));
     }
     if (area === 'contributions') {
       if (get && !id) return { contributions: rows('contributions').filter((row) => row.authorId === self) };
       const contribution = requireRow('contributions');
+      const activityJournal=find('collections',String(find('entries',String(contribution.entryId))?.collectionId));
+      if(activityJournal?.activityJournal) {
+        if(!journalMember(activityJournal) || contribution.authorId!==self && (!granted(activityJournal,contribution) || action==='audience')) throw new Error('找不到可访问的贡献。');
+        if(action==='audience'){
+          const people=list(activityJournal.members).filter(m=>m.id!==self && m.state==='active');
+          if(get)return {available:true,hasConsent:strings(contribution.memberIds).length>0,version:String(contribution.revision),viewers:people.map(m=>({...m,allowed:strings(contribution.memberIds).includes(m.id)}))};
+          const selected=remove?[]:strings(body.viewerIds);
+          if(!remove && body.version!==String(contribution.revision) || selected.some(id=>!people.some(p=>p.id===id)))throw new Error('请重新核对读者。');
+          return save('contributions',{...contribution,memberIds:selected,revision:Number(contribution.revision)+1});
+        }
+      }
       if (action === 'history') return { history: [{ revision: contribution.revision, body: contribution.body,
         action: 'created', editorId: contribution.authorId, editor: contribution.author, editedAt: contribution.createdAt }] };
       if (action === 'audience') {
@@ -425,6 +438,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
           viewers: members([friend.id]).map((person) => ({ ...person, allowed: strings(contribution.memberIds).includes(person.id) })) };
         return edit('contributions', contribution);
       }
+      if (remove && find('collections',String(find('entries',String(contribution.entryId))?.collectionId))?.activityJournal) return drop('contributions',contribution);
       return upsert('contributions', { media: assetRefs(contribution.media) });
     }
     if (area === 'events') return { events: rows('events') };
@@ -514,10 +528,12 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       if (share && body.action === 'accept') return save('calendarShares', { ...share, accepted: true });
       return share ? drop('calendarShares', share) : {};
     }
-    if (area === 'availability') return { options: list(requireRow('gatherings').options).map((option) => ({
-      id: option.id, includedCalendars: 1, hasKnownConflict: rows('calendars').some((slot) =>
-        String(slot.startsAt) <= String(option.startsAt) && String(slot.endsAt) > String(option.startsAt)), allFree: false,
-    })) };
+    if (area === 'availability') return {options:list(requireRow('gatherings').options).map(option=>{
+      const start=Date.parse(String(option.startsAt)), end=Date.parse(String(option.endsAt));
+      const hasKnownConflict=rows('calendars').some(slot=>slot.ownerId===self && slot.gatheringId!==id && Date.parse(String(slot.endsAt))>start &&
+        (Number.isFinite(end)?Date.parse(String(slot.startsAt))<end:Date.parse(String(slot.startsAt))<=start));
+      return {id:option.id,includedCalendars:1,hasKnownConflict,durationKnown:Number.isFinite(end),allFree:Number.isFinite(end)&&!hasKnownConflict};
+    })};
     if (area === 'spaces') {
       if (!id && get) return { spaces: rows('projects').filter((row) => row.kind === query.get('kind') && row.state !== 'left') };
       if (!id) return save('projects', add(body, { ...owner, revision: 1, members: [...members([self]), ...newMembers()] }));
@@ -551,6 +567,15 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       return edit('projects', trip);
     }
     if (area === 'items') {
+      if (action==='checklist') {
+        const item={...requireRow('items')},space=find('projects',String(item.spaceId));
+        if (!space || space.kind!=='list' || (space.ownerId!==self && space.state!=='active')) throw new Error('找不到可访问的共同清单。');
+        if (body.action==='quantity' && item.ownerId===self && Number.isInteger(body.quantity) && Number(body.quantity)>0 && Number(body.quantity)<=9999) item.quantity=body.quantity;
+        else if (body.action==='claim' && (!item.claimed || item.claimedByMe)) item.claimed=item.claimedByMe=body.enabled===true;
+        else if (body.action==='check') item.state=body.done===true?'done':'want';
+        else throw new Error('请核对清单条目。');
+        save('items',item);return {};
+      }
       if (get && id) return { item: requireRow('items') };
       if (get) return { items: rows('items').filter((row) => {
         const category = query.get('category');

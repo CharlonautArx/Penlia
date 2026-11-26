@@ -2,7 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Button, IconButton, ListRow, Notice, Screen, Section, Segments, Sheet } from '../../components/ui';
+import { Button, IconButton, ListRow, Notice, Screen, Section, Segments, Sheet } from '../../features/together/ui';
 import { MemberChoices } from '../../features/privacy/MemberChoices';
 import { back, Choices, dateTime, Field, formatTime, useRecord } from '../../features/social/ui';
 import { DataEmpty, daysText, formTime, localDay, moveDays } from '../../features/life/ui';

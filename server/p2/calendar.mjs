@@ -6,6 +6,10 @@ import { known } from './access.mjs';
 import { dayMs, revisionOf, textOf } from './common.mjs';
 
 const fields = 'id,title,details,starts_at AS "startsAt",ends_at AS "endsAt",visibility,revision';
+const activeLink = `(e.gathering_id IS NULL OR EXISTS(
+  SELECT 1 FROM p1_gathering_members m JOIN p1_gatherings g ON g.id=m.gathering_id
+  WHERE m.gathering_id=e.gathering_id AND m.user_id=e.owner_id AND m.confirmed
+  AND g.state IN ('confirming','formed','completed') AND NOT ${blocked('g.owner_id', 'm.user_id')}))`;
 const estimateBasis = 'authorized_calendar_estimate';
 
 function interval(from, to, max = 62) {
@@ -43,8 +47,8 @@ export async function calendarView(user, query) {
     [user],
   );
   const { rows: own } = await pool.query(
-    `SELECT ${fields},owner_id AS "ownerId" FROM p2_calendar_events
-    WHERE owner_id=$1 AND starts_at<$3 AND ends_at>$2 ORDER BY starts_at,id LIMIT 501`,
+    `SELECT ${fields},owner_id AS "ownerId" FROM p2_calendar_events e
+    WHERE owner_id=$1 AND ${activeLink} AND starts_at<$3 AND ends_at>$2 ORDER BY starts_at,id LIMIT 501`,
     [user, start, end],
   );
   const { rows: shared } = await pool.query(
@@ -54,7 +58,7 @@ export async function calendarView(user, query) {
     e.starts_at AS "startsAt",e.ends_at AS "endsAt"
     FROM p2_calendar_events e JOIN p2_calendar_shares g ON g.owner_id=e.owner_id AND g.viewer_id=$1
     WHERE g.accepted AND ${known('e.owner_id', '$1::uuid')} AND e.owner_id=ANY($4::uuid[])
-    AND e.visibility<>'private' AND e.starts_at<$3 AND e.ends_at>$2 ORDER BY e.starts_at,e.id LIMIT 501`,
+    AND ${activeLink} AND e.visibility<>'private' AND e.starts_at<$3 AND e.ends_at>$2 ORDER BY e.starts_at,e.id LIMIT 501`,
     [user, start, end, all.rows.map((p) => p.id)],
   );
   const events = [...own.slice(0, 500), ...shared.slice(0, 500)];
@@ -171,10 +175,10 @@ export async function gatheringAvailability(user, id) {
     WHERE m.gathering_id=$1 AND g.accepted AND ${known('m.user_id', '$2::uuid')}
       AND NOT ${blocked('event.owner_id', 'm.user_id')}
     UNION ALL SELECT $2::uuid)
-    SELECT o.id,(SELECT count(*)::int FROM known_people) AS "includedCalendars",
+    SELECT o.id,o.ends_at IS NOT NULL AS "durationKnown",(SELECT count(*)::int FROM known_people) AS "includedCalendars",
       EXISTS(SELECT 1 FROM known_people k JOIN p2_calendar_events e ON e.owner_id=k.user_id
-        WHERE (k.user_id=$2 OR e.visibility<>'private')
-          AND e.starts_at<o.starts_at+interval '1 hour' AND e.ends_at>o.starts_at) AS "hasKnownConflict"
+        WHERE ${activeLink} AND (k.user_id=$2 OR e.visibility<>'private')
+          AND (e.starts_at<o.ends_at OR o.ends_at IS NULL AND e.starts_at<=o.starts_at) AND e.gathering_id IS DISTINCT FROM o.gathering_id AND e.ends_at>o.starts_at) AS "hasKnownConflict"
     FROM p1_gathering_options o JOIN p1_gatherings g ON g.id=o.gathering_id
     WHERE o.gathering_id=$1 AND NOT ${blocked('g.owner_id', '$2::uuid')}
       AND EXISTS(SELECT 1 FROM p1_gathering_members a WHERE a.gathering_id=g.id AND a.user_id=$2)
@@ -184,6 +188,6 @@ export async function gatheringAvailability(user, id) {
   return {
     basis: estimateBasis,
     // Keep allFree for older clients. It means no conflict in the available calendars.
-    options: rows.map((row) => ({ ...row, allFree: !row.hasKnownConflict })),
+    options: rows.map((row) => ({ ...row, allFree: row.durationKnown && !row.hasKnownConflict })),
   };
 }

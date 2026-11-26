@@ -1,8 +1,9 @@
-import { router } from 'expo-router';
-import { ListRow } from '../../components/ui';
+import { useTogetherRouter } from '../together/navigation';
+import { ListRow } from '../together/ui';
 import { useRecord } from '../social/ui';
 
 export function RelatedRelays({ kind, id }: { kind: 'world' | 'journal' | 'collaboration'; id: string }) {
+  const router = useTogetherRouter();
   const params = new URLSearchParams({ kind,id });
   const { data } = useRecord<{ relays: { id: string; title: string; eventDay: string }[] }>('/p3/relays-for?' + params);
   return data?.relays.map((relay) => (

@@ -1,7 +1,8 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useTogetherRouter } from '../../features/together/navigation';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Avatar, Button, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Avatar, Button, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../features/together/ui';
 import { DataEmpty, ProjectPeople } from '../../features/life/ui';
 import { back, Choices, Field, formatTime, InviteChoices, useRecord } from '../../features/social/ui';
 import { openRecord, sceneNames, sourceNames, spaceTitles, type Page, type Person, type Scene, type Space, type WorldRecord } from '../../features/world/model';
@@ -19,6 +20,7 @@ export default function WorldDetail() {
 }
 
 function Details({ id }: { id: string }) {
+  const router = useTogetherRouter();
   const base = '/p3/spaces/' + id;
   const { data, error, run, busy, request, load } = useRecord<{ space: Space; members: Person[] }>(base,20000);
   const { session } = useSession();
@@ -151,6 +153,7 @@ function Arrange({ space,close,changed }: { space: Space; close: () => void; cha
 }
 
 function People({ space,members,close,changed }: { space: Space; members: Person[]; close: () => void; changed: () => void }) {
+  const router = useTogetherRouter();
   const { session } = useSession();
   const path = '/p3/spaces/' + space.id;
   const { error,busy,run,request } = useRecord(path);

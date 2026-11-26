@@ -1,8 +1,9 @@
+import { useTogetherRouter } from '../../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Sheet } from '../../components/ui';
+import { Button, ListRow, Notice, Screen, Sheet } from '../../features/together/ui';
 import {
   DataEmpty,
   formTime,
@@ -16,6 +17,7 @@ import { back, dateTime, Field, InviteChoices, useRecord } from '../../features/
 
 type List = { spaces: (Project & { state: string; owner: string })[] };
 export default function Projects() {
+  const router = useTogetherRouter();
   const {
     kind: requested,
     from,
@@ -90,6 +92,7 @@ function NewProject({
   gathering?: string;
   onClose: () => void;
 }) {
+  const router = useTogetherRouter();
   const { run, busy, error, request } = useRecord<List>('/p2/spaces?kind=' + kind);
   const [clientId] = useState(randomUUID);
   const [title, setTitle] = useState(initial ?? '');

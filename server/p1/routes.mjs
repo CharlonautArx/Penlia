@@ -40,7 +40,7 @@ export async function p1Routes(
   const body = async () => readBody();
   const route = method + ':' + (id ? 'one' : 'list') + (action ? ':' + action : '');
   if (
-    (resource === 'gatherings' && route === 'POST:list') ||
+    (resource === 'gatherings' && ['POST:list','POST:one:roster'].includes(route)) ||
     (resource === 'collections' && ['POST:list', 'POST:one:invite'].includes(route))
   ) {
     await rateLimit('p1-invite:' + resource + ':' + me, 10, 60);
@@ -58,6 +58,7 @@ export async function p1Routes(
       case 'POST:one:pause':
         return wishes.pauseWish(me, id, choose((await body()).active, [true, false]));
     }
+  if (resource === 'activity-reminders' && route==='GET:list') return gathering.activityReminders(me);
   if (resource === 'gatherings')
     switch (route) {
       case 'GET:list':
@@ -66,10 +67,18 @@ export async function p1Routes(
         return gathering.createGathering(me, await body());
       case 'GET:one':
         return gathering.getGathering(me, id);
+      case 'POST:one:calendar':
+        return gathering.linkCalendar(me,id,choose((await body()).enabled,[true,false]));
+      case 'POST:one:roster':
+        return gathering.manageRoster(me,id,await body());
       case 'POST:one:intention':
         return gathering.updateIntention(me, id, await body());
-      case 'POST:one:confirm':
-        return gathering.confirmAttendance(me, id, choose((await body()).attend, [true, false]));
+      case 'POST:one:personal': return gathering.personalChoice(me,id,await body());
+      case 'POST:one:confirm': {
+        const input=await body();
+        return gathering.confirmAttendance(me,id,choose(input.attend,[true,false]),input.companion===true,input.choiceId);
+      }
+      case 'POST:one:details': return gathering.editInvitation(me,id,await body());
       case 'POST:one:organize':
         return gathering.organizeGathering(me, id, await body());
     }

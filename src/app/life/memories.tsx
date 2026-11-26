@@ -1,8 +1,9 @@
+import { useTogetherRouter } from '../../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../features/together/ui';
 import { back, Choices, Field, useRecord } from '../../features/social/ui';
 import { DateBadge } from '../../features/life/Editorial';
 import { DataEmpty, localDay } from '../../features/life/ui';
@@ -44,6 +45,7 @@ type Candidate = Source & { sourceKind: Exclude<Kind, 'birthday'>; reason: 'anni
 type Draft = { source?: string; initial?: string; initialKind?: Kind };
 
 export default function MemoriesScreen() {
+  const router = useTogetherRouter();
   const {
     from,
     sourceKind,

@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
+import { useTogetherRouter } from '../together/navigation';
 import { useState } from 'react';
 import { Text } from 'react-native';
-import { Button, Notice, Sheet } from '../../components/ui';
+import { Button, Notice, Sheet } from '../together/ui';
 import { InviteChoices } from '../social/ui';
 import { useSession } from '../../services/session';
 import { errorMessage } from '../../services/api';
@@ -19,6 +19,7 @@ export function ManageProjectPeople({
   locked?: boolean;
   changed: () => void;
 }) {
+  const router = useTogetherRouter();
   const { session, request } = useSession();
   const [panel, setPanel] = useState<'invite' | 'leave' | 'remove'>();
   const [target, setTarget] = useState('');

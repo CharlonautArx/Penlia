@@ -1,8 +1,9 @@
+import { useTogetherRouter } from '../../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Button, ListRow, Notice, Screen, Section, Sheet } from '../../features/together/ui';
 import { DateBadge } from '../../features/life/Editorial';
 import { DataEmpty, localDay } from '../../features/life/ui';
 import { back, Choices, Field, InviteChoices, useRecord } from '../../features/social/ui';
@@ -19,6 +20,7 @@ export default function WorldList() {
 }
 
 function SpaceList({ kind }: { kind: SpaceKind }) {
+  const router = useTogetherRouter();
   const path = '/p3/spaces?kind=' + kind;
   const { data, error, busy, run, request, load } = useRecord<{ spaces: Card[]; next: number | null }>(path);
   const [extra, setExtra] = useState<Card[]>([]);
@@ -74,6 +76,7 @@ function SpaceList({ kind }: { kind: SpaceKind }) {
 }
 
 function CreateSpace({ kind, close }: { kind: SpaceKind; close: () => void }) {
+  const router = useTogetherRouter();
   const { request, run, busy, error } = useRecord('/p3/spaces?kind=' + kind);
   const [clientId] = useState(randomUUID);
   const [title, setTitle] = useState('');

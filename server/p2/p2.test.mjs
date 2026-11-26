@@ -251,11 +251,11 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
         }),
       );
       assert.deepEqual(ok(await p2(a, '/availability/' + travel)).options, [
-        { id: first.options[0].id, includedCalendars: 2, hasKnownConflict: true, allFree: false },
+        { id: first.options[0].id, durationKnown:false, includedCalendars: 2, hasKnownConflict: true, allFree: false },
       ]);
       ok(await write(b, '/calendar-shares', { action: 'revoke', userId: id(a) }));
       assert.deepEqual(ok(await p2(a, '/availability/' + travel)).options, [
-        { id: first.options[0].id, includedCalendars: 1, hasKnownConflict: false, allFree: true },
+        { id: first.options[0].id, durationKnown:false, includedCalendars: 1, hasKnownConflict: false, allFree: false },
       ]);
       assert.equal((await p2(c, '/availability/' + travel)).status, 404);
       ok(await write(a, '/calendar-shares', { action: 'revoke', userId: id(b) }));

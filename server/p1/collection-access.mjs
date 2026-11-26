@@ -30,9 +30,9 @@ export const momentVisible = (post, viewer) => `(${baseMomentVisible(post, viewe
     AND ${baseMomentVisible('original', viewer)}
   )))`;
 
-export const activeMember = (collection, viewer) => `(${collection}.owner_id=${viewer} OR (
+export const activeMember = (collection, viewer) => `((NOT ${collection}.activity_journal OR EXISTS(SELECT 1 FROM p1_gathering_members gm JOIN p1_gatherings gg ON gg.id=gm.gathering_id WHERE gm.gathering_id=${collection}.gathering_id AND gm.user_id=${viewer} AND gm.confirmed AND gg.state IN ('formed','completed') AND NOT ${blocked('gg.owner_id',viewer)})) AND (${collection}.owner_id=${viewer} OR (
   NOT ${blocked(collection + '.owner_id', viewer)} AND EXISTS(SELECT 1 FROM p1_collection_members cm
-    WHERE cm.collection_id=${collection}.id AND cm.user_id=${viewer} AND cm.state='active')))`;
+    WHERE cm.collection_id=${collection}.id AND cm.user_id=${viewer} AND cm.state='active'))))`;
 
 export const collectionReadable = (collection, viewer) => `(${activeMember(collection, viewer)} OR
   (${collection}.kind='collaboration' AND EXISTS(SELECT 1 FROM private_moments pm WHERE pm.id=${collection}.moment_id
@@ -53,7 +53,7 @@ export const workspaceGrant = (
 ) => `EXISTS(SELECT 1 FROM p1_contribution_workspace_readers cw
   WHERE cw.contribution_id=${contribution}.id AND cw.viewer_id=${viewer})`;
 
-export const contributionScope = (contribution, collection, viewer) => `(${collection}.kind='journal' OR
+export const contributionScope = (contribution, collection, viewer) => `((${collection}.kind='journal' AND NOT ${collection}.activity_journal) OR
   ${contribution}.author_id=${viewer} OR
   (${activeMember(collection, viewer)} AND ${workspaceGrant(contribution, viewer)}) OR
   EXISTS(SELECT 1 FROM p1_contribution_public_readers cp JOIN private_moments pm ON pm.id=cp.moment_id

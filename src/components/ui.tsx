@@ -181,8 +181,8 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
     : <View style={[ui.listRow, separator && styles.divider, style]}>{content}</View>;
 }
 
-export function Sheet({ title, onClose, children, footer, tone, avoidKeyboard = false, ...props }: ScrollViewProps & {
-  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral'; avoidKeyboard?: boolean;
+export function Sheet({ title, onClose, children, footer, tone, surface, avoidKeyboard = false, ...props }: ScrollViewProps & {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral'; surface?: ReactNode; avoidKeyboard?: boolean;
 }) {
   const { reduced } = useAppearance();
   const entering = useRef(new Animated.Value(reduced ? 1 : 0)).current;
@@ -203,8 +203,8 @@ export function Sheet({ title, onClose, children, footer, tone, avoidKeyboard = 
       <Animated.View style={[ui.sheetFrame, !reduced && {
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
       }]}>
-      <SafeAreaView edges={['bottom', 'left', 'right']} accessibilityViewIsModal style={ui.sheet}>
-        {tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />}
+      <SafeAreaView edges={['bottom', 'left', 'right']} accessibilityViewIsModal style={[ui.sheet, !!surface && { backgroundColor: 'transparent' }]}>
+        {surface ?? (tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />)}
         <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
           <Text accessibilityRole="header" style={[styles.section, styles.grow]}>{title}</Text>

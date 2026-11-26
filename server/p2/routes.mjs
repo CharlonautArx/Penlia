@@ -70,6 +70,7 @@ export async function p2Routes(method, path, { user, query, readBody, headers, r
     }
   if (resource === 'items')
     switch (key) {
+      case 'POST:one:checklist': return items.checklistAction(me,id,await readBody());
       case 'GET:list':
         return items.listItems(me, query);
       case 'GET:one':

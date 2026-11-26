@@ -8,7 +8,7 @@ import { assetList, deleteAssets, linkOf, replaceAssets, revisionOf, spaceOf, te
 
 const kinds = ['saved', 'place'];
 const categories = ['food', 'film', 'music', 'travel', 'leisure', 'other'];
-const fields = `i.id,i.owner_id AS "ownerId",i.kind,i.title,i.category,i.notes,i.city,i.location,i.tags,i.state,i.latitude,i.longitude,
+const fields = `i.id,i.quantity,i.claimed_by IS NOT NULL AS claimed, i.claimed_by=$1 AS "claimedByMe",i.owner_id AS "ownerId",i.kind,i.title,i.category,i.notes,i.city,i.location,i.tags,i.state,i.latitude,i.longitude,
   i.source_url AS "sourceUrl",i.revision,CASE WHEN i.owner_id=$1 THEN i.chat_record_id END AS "chatRecordId",
   CASE WHEN i.owner_id=$1 OR EXISTS(SELECT 1 FROM p2_spaces ps WHERE ps.id=i.space_id AND ${member('ps', '$1::uuid')})
     THEN i.space_id END AS "spaceId",u.name AS author,${assetList('item', 'i.id')} AS media,
@@ -216,4 +216,22 @@ export async function placeResonance(user) {
     [user],
   );
   return { matches: rows };
+}
+
+export async function checklistAction(user,id,body) {
+  return inTransaction(pool,async db=>{
+    const {rows:[item]}=await db.query(`SELECT i.owner_id,i.claimed_by FROM p2_items i JOIN p2_spaces s ON s.id=i.space_id
+      WHERE i.id=$1 AND s.kind='list' AND ${member('s','$2::uuid')} AND ${itemVisible('i','$2::uuid')} FOR UPDATE OF i`,[id,user]);
+    if (!item) throw missing();
+    if (body.action==='claim') {
+      if (item.claimed_by && item.claimed_by!==user) throw conflict('已有成员认领。');
+      await db.query('UPDATE p2_items SET claimed_by=$2,revision=revision+1 WHERE id=$1',[id,body.enabled===true?user:null]);
+    } else if (body.action==='quantity') {
+      if (item.owner_id!==user || !Number.isInteger(body.quantity) || body.quantity<1 || body.quantity>9999) throw invalid('请输入 1 至 9999 之间的数量。');
+      await db.query('UPDATE p2_items SET quantity=$2,revision=revision+1 WHERE id=$1',[id,body.quantity]);
+    } else if (body.action==='check') {
+      await db.query('UPDATE p2_items SET state=$2,revision=revision+1 WHERE id=$1',[id,body.done===true?'done':'want']);
+    } else throw invalid();
+    return {};
+  });
 }

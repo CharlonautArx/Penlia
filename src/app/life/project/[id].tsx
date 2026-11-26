@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { Notice, Screen, Section } from '../../../components/ui';
+import { Notice, Screen, Section } from '../../../features/together/ui';
 import { back, useRecord } from '../../../features/social/ui';
 import {
   DataEmpty,

@@ -1,10 +1,10 @@
+import { useTogetherRouter } from '../together/navigation';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getDocumentAsync, type DocumentPickerAsset } from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
-import { Button, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { Button, Notice, Screen, Section, Sheet } from '../together/ui';
 import { back, dateTime, Field, formatTime, useRecord } from '../social/ui';
 import { type LocalMedia, type Media } from '../moments/media';
 import { apiOrigin, errorMessage } from '../../services/api';
@@ -34,6 +34,7 @@ type Entry = {
 type Detail = { capsule: Capsule; entries: Entry[]; ownEntryId: string | null; members: ProjectMember[] };
 
 export function CapsuleScreen({ id }: { id: string }) {
+  const router = useTogetherRouter();
   const { session } = useSession();
   const { data, error, busy, run, request, load } = useRecord<Detail>('/p2/capsules/' + id, 15000);
   const [editor, setEditor] = useState(false);

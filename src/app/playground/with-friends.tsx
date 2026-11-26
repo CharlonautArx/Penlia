@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
+import { useTogetherRouter } from '../../features/together/navigation';
 import { useState } from 'react';
 
-import { Button, Icon, ListRow, Screen, Section, Segments, SettingGroup } from '../../components/ui';
+import { Button, Icon, ListRow, Screen, Section, Segments, SettingGroup } from '../../features/together/ui';
 import { Chips, GameCard } from '../../features/play/Cards';
 import { InviteButton } from '../../features/play/Gather';
 import { gameModes, games } from '../../features/play/games';
@@ -9,6 +9,7 @@ import { gameModes, games } from '../../features/play/games';
 type Panel = 'activities' | 'games';
 
 export default function WithFriendsScreen() {
+  const router = useTogetherRouter();
   const [panel, setPanel] = useState<Panel>('activities');
   const [mode, setMode] = useState<typeof gameModes[number]>('全部');
   const playable = games.filter((game) => mode === '全部' || game.mode === mode);

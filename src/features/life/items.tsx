@@ -1,8 +1,8 @@
+import { useTogether, useTogetherRouter } from '../together/navigation';
 import { randomUUID } from 'expo-crypto';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
-import { Button, Icon, ListRow, Notice, Section, Sheet } from '../../components/ui';
+import { Button, Icon, ListRow, Notice, Section, Sheet } from '../together/ui';
 import { MemberChoices } from '../privacy/MemberChoices';
 import { LocationBubble, LocationComposer } from '../media/LocationCard';
 import { type LocalMedia, type Media } from '../moments/media';
@@ -28,6 +28,7 @@ type Kind = 'saved' | 'place';
 type Item = {
   id: string;
   ownerId: string;
+  quantity?:number;claimed?:boolean;claimedByMe?:boolean;
   chatRecordId?: string;
   kind: Kind;
   title: string;
@@ -58,6 +59,8 @@ const tabs = { mine: '我的收藏', friends: '好友推荐' };
 const mapTabs = { mine: '我的地点', friends: '朋友分享' };
 
 export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string; itemId?: string }) {
+  const router = useTogetherRouter();
+  const together = useTogether();
   const { session } = useSession();
   const [tab, setTab] = useState<'mine' | 'friends'>('mine');
   const [category, setCategory] = useState<Category>();
@@ -90,6 +93,9 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
       key={item.id}
       item={item}
       me={me || ''}
+      checklist={together && space && kind==='saved' ? (action,extra)=>void run(async()=>{
+        await request('/p2/items/'+item.id+'/checklist',{method:'POST',body:{action,...extra}});await refresh();
+      },false) : undefined}
       open={() => setExpanded(item)}
       edit={() => setEditor(item)}
       remove={() => setRemoving(item)}
@@ -188,8 +194,8 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
               router.push({
                 pathname: '/gathering/new',
                 params: {
-                  title: expanded.title,
-                  place: addressOf(expanded) || expanded.title,
+                  title: together ? '' : expanded.title,
+                  ...(together ? {source:expanded.id} : {place:addressOf(expanded) || expanded.title}),
                   category:
                     expanded.category === 'food'
                       ? 'food'
@@ -268,14 +274,16 @@ function ItemCard({
   me,
   open,
   edit,
-  remove,
+  remove,checklist,
 }: {
+  checklist?:(action:string,extra:Record<string,unknown>)=>void;
   item: Item;
   me: string;
   open: () => void;
   edit: () => void;
   remove: () => void;
 }) {
+  const [amount,setAmount]=useState(String(item.quantity??1));
   const address = addressOf(item);
   return (
     <View style={styles.card}>
@@ -287,6 +295,14 @@ function ItemCard({
       {item.ownerId !== me && <Text style={styles.small}>{item.author} 分享</Text>}
       {!!address && <Text style={styles.muted}>{address}</Text>}
       {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
+      {checklist && <>
+        <Button label={item.state==='done'?'已完成 · 撤销':'勾选完成'} variant="soft" onPress={()=>checklist('check',{done:item.state!=='done'})}/>
+        <Button label={item.claimedByMe?'撤回我的认领':item.claimed?'已有成员认领':'我来带'} disabled={item.claimed && !item.claimedByMe}
+          variant="quiet" onPress={()=>checklist('claim',{enabled:!item.claimedByMe})}/>
+        {me===item.ownerId ? <><Field title="数量" value={amount} onChangeText={setAmount} keyboardType="number-pad"/>
+          {amount!==String(item.quantity??1) && <Button label="保存数量" onPress={()=>checklist('quantity',{quantity:Number(amount)})}/>}</> :
+          !!item.quantity && <Text style={styles.muted}>数量 · {item.quantity}</Text>}
+      </>}
       <MediaStrip media={item.media} />
       {!!item.tags.length && <Text style={styles.small}>{item.tags.map((tag) => '#' + tag).join('  ')}</Text>}
       <View style={[styles.row, { flexWrap: 'wrap' }]}>
@@ -411,6 +427,8 @@ function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => v
 }
 
 function Resonance() {
+  const together = useTogether();
+  const router = useTogetherRouter();
   const { data } = useRecord<{ matches: { id: string; title: string; friend: string; friendId: string }[] }>(
     '/p2/place-resonance',
   );
@@ -425,7 +443,7 @@ function Resonance() {
           onPress={() =>
             router.push({
               pathname: '/gathering/new',
-              params: { title: item.title, place: item.title, friend: item.friendId, category: 'travel' },
+              params: { ...(together ? {source:item.id} : {title:item.title,place:item.title}), friend:item.friendId,category:'travel' },
             })
           }
         />
