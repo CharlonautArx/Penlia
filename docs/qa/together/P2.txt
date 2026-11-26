@@ -1,0 +1,22 @@
+Profile migration rolls back and reapplies in the isolated database
+▶ P2 HTTP workflows against PostgreSQL with runtime grants
+  ✔ 007: upgrade of a populated 006 table is repeatable and keeps existing places (25.211119ms)
+  ✔ 16: calendar is private by default and replacements revoke details before opt-in (164.288297ms)
+  ✔ 17: trip conversion, shared itinerary, ordering, voting and consent to create a diary (301.146014ms)
+  ✔ 18: user-written bookmarks and recommendation cards share only to their intended audience (437.334929ms)
+  ✔ 19: reminders and shares recheck original permission and monthly delivery is idempotent (224.681087ms)
+  ✔ 19 follow-up: memory discovery is read-only and rechecks original permissions (94.036798ms)
+  ✔ 20: text, photo, video and audio stay sealed until database time and can be withdrawn (446.061228ms)
+  ✔ 21: active status uses explicit viewers, and expiry also closes the image route (292.951838ms)
+  ✔ 22: private coordinates, independent map contributions, and mutually allowed matches (206.339492ms)
+  ✔ 22 follow-up: name-only places are private by default and only valid pairs become coordinates (149.46215ms)
+  ✔ removing a friendship withdraws direct grants and blocking removes workspace roles (120.117709ms)
+✔ P2 HTTP workflows against PostgreSQL with runtime grants (3618.441415ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3627.18423

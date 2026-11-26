@@ -1,0 +1,1 @@
+PASS: opted in for T-8 min, persisted across route changes, inbox opened the same activity, disabling removed the reminder.

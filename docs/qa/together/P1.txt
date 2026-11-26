@@ -1,0 +1,18 @@
+Profile migration rolls back and reapplies in the isolated database
+▶ P1 HTTP integration on isolated PostgreSQL
+  ✔ 10: text, photo and video flags persist independently and leave quiet policy intact (507.441969ms)
+  ✔ 11: mutual opt-in, exact scope, edit, pause, delete and event ownership (101.698601ms)
+  ✔ 12: anonymous intent seals once, all/free formation, withdrawal and completion (377.559512ms)
+  ✔ 13: evidence consent, encryption, minimum staff scope, protection window, appeal and urgent handling (144.172235ms)
+  ✔ 14: group grants fail closed without provider and authorize actual memberships before minting (69.228295ms)
+  ✔ 13: authority-scoped photo/video snapshots survive source removal, and an advisor gets only consented redacted excerpts (151.281666ms)
+  ✔ 15: journals, opt-in, versioning, media revocation and published P0 scope (2633.842815ms)
+✔ P1 HTTP integration on isolated PostgreSQL (8298.99358ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8311.739567

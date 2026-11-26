@@ -1,0 +1,7 @@
+Verifies
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+package: name='app.penlia.mobile.preview' versionCode='21' versionName='0.1.9' platformBuildVersionName='17' platformBuildVersionCode='37' compileSdkVersion='37' compileSdkVersionCodename='17'
+launchable-activity: name='app.penlia.mobile.preview.MainActivity'  label='' icon=''
+native-code: 'arm64-v8a'
+Verified full archive, packaged bytecode, ARM64 and runner SHA-256: fde233d316e47c8511714e5c633d66293d2c6fd65975c2614d7edcd1ce6382d4

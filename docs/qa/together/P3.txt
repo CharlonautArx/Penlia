@@ -1,0 +1,18 @@
+Profile migration rolls back and reapplies in the isolated database
+▶ P3 privacy and shared workflows on isolated PostgreSQL 17
+  ✔ 008 grants no DDL and records a single ledger entry (8.012093ms)
+  ✔ 23 joins explicitly and never exposes content or member roster through an invite (51.972827ms)
+  ✔ 23 separate media grants and revocation apply to GET, HEAD, Range, and original P0 media (645.368382ms)
+  ✔ 25 members arrange scenes and pet; records stay scoped and stale edits fail (338.449294ms)
+  ✔ 23 and 25 references recheck both ends without copying evidence or broadening access (662.544515ms)
+  ✔ 25 and 23 blocking, removal and author withdrawal invalidate content across scopes (204.836611ms)
+  ✔ 008 can replay with existing P2 and relay memories without rewriting data or grants (17.335014ms)
+✔ P3 privacy and shared workflows on isolated PostgreSQL 17 (2987.639557ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2997.003106
