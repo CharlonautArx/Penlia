@@ -133,11 +133,13 @@ export function InviteChoices({
   setIds,
   groupId,
   setGroupId,
+  portraits = false,
 }: {
   ids: string[];
   setIds: (ids: string[]) => void;
   groupId: string;
   setGroupId: (id: string) => void;
+  portraits?: boolean;
 }) {
   const { relationships, refresh } = useFriends();
   const { data, error } = useRecord<{ groups: RelationGroup[] }>('/relationship-groups');
@@ -169,6 +171,7 @@ export function InviteChoices({
         friends={relationships?.filter((person) => person.status === 'accepted') ?? []}
         ids={ids}
         update={setIds}
+        portraits={portraits}
       />
     </>
   );

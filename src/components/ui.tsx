@@ -23,18 +23,18 @@ export function Icon({ name, size = 21, color = colors.ink }: { name: IconName; 
   return <Ionicons accessible={false} name={name} size={size} color={color ?? undefined} />;
 }
 
-export function IconButton({ label, icon, onPress, color, tinted = false, disabled = false, iconOffsetX, busy }: {
+export function IconButton({ label, icon, onPress, color, tinted = false, disabled = false, iconOffsetX, iconSize, busy }: {
   label: string; icon: IconName; onPress: () => void; color?: ComponentProps<typeof Icon>['color']; tinted?: boolean; disabled?: boolean;
-  iconOffsetX?: number; busy?: boolean;
+  iconOffsetX?: number; iconSize?: number; busy?: boolean;
 }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
       accessibilityState={{ disabled, busy }} onPress={onPress}
       style={({ pressed }) => [ui.iconButton, pressed && ui.pressed, disabled && ui.disabled]}>
       {tinted && <GlassLayer tone="control" roundness={radius.pill} />}
-      {iconOffsetX === undefined && !busy ? <Icon name={icon} color={color} /> :
+      {iconOffsetX === undefined && !busy ? <Icon name={icon} color={color} size={iconSize} /> :
         <View pointerEvents="none" style={[ui.iconFace, { transform: [{ translateX: iconOffsetX ?? 0 }] }]}>
-          {busy ? <ActivityIndicator size="small" color={color ?? colors.ink} /> : <Icon name={icon} color={color} />}
+          {busy ? <ActivityIndicator size="small" color={color ?? colors.ink} /> : <Icon name={icon} color={color} size={iconSize} />}
         </View>}
     </Pressable>
   );

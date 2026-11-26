@@ -12,6 +12,15 @@ const fields = `i.id,i.quantity,i.claimed_by IS NOT NULL AS claimed, i.claimed_b
   i.source_url AS "sourceUrl",i.revision,CASE WHEN i.owner_id=$1 THEN i.chat_record_id END AS "chatRecordId",
   CASE WHEN i.owner_id=$1 OR EXISTS(SELECT 1 FROM p2_spaces ps WHERE ps.id=i.space_id AND ${member('ps', '$1::uuid')})
     THEN i.space_id END AS "spaceId",u.name AS author,${assetList('item', 'i.id')} AS media,
+  CASE WHEN i.owner_id=$1 AND i.chat_record_id IS NOT NULL THEN (
+    SELECT jsonb_build_object('line',r.lines->0,'count',jsonb_array_length(r.lines),
+      'thumbnail',(SELECT jsonb_build_object('id',b.id,'mime',b.mime)
+        FROM jsonb_array_elements(r.lines) WITH ORDINALITY AS ln(detail,line_no)
+        CROSS JOIN LATERAL jsonb_array_elements_text(ln.detail->'mediaIds') WITH ORDINALITY AS a(id,attachment_no)
+        JOIN private_media b ON b.id=a.id::uuid AND b.chat_record_id=r.id AND b.mime IN ('image/jpeg','image/png')
+        ORDER BY ln.line_no,a.attachment_no LIMIT 1))
+    FROM chat_records r WHERE r.id=i.chat_record_id AND r.owner_id=$1
+  ) END AS "chatPreview",
   CASE WHEN i.owner_id=$1 THEN i.scope END AS scope,
   CASE WHEN i.owner_id=$1 THEN i.audience_group END AS "groupId",
   CASE WHEN i.owner_id=$1 THEN ARRAY(SELECT viewer_id FROM p2_item_viewers v WHERE v.item_id=i.id ORDER BY viewer_id) END AS "memberIds",
@@ -42,6 +51,8 @@ export async function listItems(user, query) {
   const kind = choose(query.get('kind'), kinds);
   const tab = choose(query.get('tab') ?? 'mine', ['mine', 'friends', 'space']);
   const category = query.get('category') ? choose(query.get('category'), categories) : null;
+  const collection = query.get('collection') ? choose(query.get('collection'), ['food', 'travel', 'leisure', 'chat']) : null;
+  if (collection && (kind !== 'saved' || tab === 'space')) throw invalid();
   const space = tab === 'space' ? readId(query.get('space')) : null;
   const accessCondition =
     tab === 'mine'
@@ -55,9 +66,11 @@ export async function listItems(user, query) {
   const { rows } = await pool.query(
     `SELECT ${fields} FROM p2_items i JOIN users u ON u.id=i.owner_id
     WHERE i.kind=$2 AND ($3::text IS NULL OR i.category=$3) AND ($4::uuid IS NULL OR i.space_id=$4)
+      AND ($6::text IS NULL OR ($6='chat' AND i.chat_record_id IS NOT NULL)
+        OR (i.chat_record_id IS NULL AND CASE WHEN $6='leisure' THEN i.category NOT IN ('food','travel') ELSE i.category=$6 END))
       AND ${accessCondition} AND ${itemVisible('i', '$1::uuid')}
     ORDER BY i.created_at DESC,i.id DESC LIMIT 31 OFFSET $5`,
-    [user, kind, category, space, offset],
+    [user, kind, category, space, offset, collection],
   );
   return { items: rows.slice(0, 30), next: rows.length > 30 ? offset + 30 : null };
 }

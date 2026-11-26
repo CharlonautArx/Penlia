@@ -7,6 +7,7 @@ export type RecordLine = {
   kind: 'text' | 'image' | 'video' | 'location';
   time: number;
   author: string;
+  authorId?: string;
   body: string;
   quote?: string;
 };

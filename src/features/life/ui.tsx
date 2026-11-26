@@ -152,12 +152,14 @@ export function ProjectPeople({
   invite,
   remove,
   leave,
+  leaveLabel = '退出项目',
 }: {
   members: ProjectMember[];
   owner: boolean;
   invite?: () => void;
   remove?: (id: string) => void;
   leave?: () => void;
+  leaveLabel?: string;
 }) {
   return (
     <>
@@ -180,7 +182,7 @@ export function ProjectPeople({
       {owner && invite && (
         <Button label="邀请好友" variant="soft" icon="person-add-outline" onPress={invite} />
       )}
-      {!owner && leave && <Button label="退出项目" variant="danger" onPress={leave} />}
+      {(!owner || leaveLabel !== '退出项目') && leave && <Button label={leaveLabel} variant="danger" onPress={leave} />}
     </>
   );
 }

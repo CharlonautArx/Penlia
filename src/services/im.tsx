@@ -1,3 +1,4 @@
+import type { ChatInvitation } from '../features/chat/GatheringMessage';
 import { useRecalls } from '../features/chat/recalls';
 import type { MessageReferences } from '../features/chat/record-model';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -11,7 +12,7 @@ import { useSession } from './session';
 type Sdk = typeof import('react-native-chat-sdk');
 type Client = ReturnType<Sdk['ChatClient']['getInstance']>;
 export type ImConnection = { sdk: Sdk; client: Client };
-export type TextMessage = { id: string; mine: boolean; text: string; timestamp: number; confirmedAt?: number; sticker?: boolean; silent?: boolean; noReply?: boolean } & MessageReferences;
+export type TextMessage = { id: string; mine: boolean; text: string; timestamp: number; confirmedAt?: number; gathering?: ChatInvitation; sticker?: boolean; silent?: boolean; noReply?: boolean } & MessageReferences;
 
 export function imUserId(id: string) {
   return 'penlia_' + id.replaceAll('-', '');

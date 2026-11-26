@@ -1,6 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, Button, Empty, Icon, IconButton, ListRow, Notice, Sheet, TopBar } from '../../components/ui';
@@ -68,13 +68,17 @@ function PersonScreen({ id }: { id: string }) {
   const openSpace = () => router.push({ pathname: '/life/timeline/[id]', params: { id } });
 
   return <SafeAreaView style={local.safe} edges={['top', 'left', 'right', 'bottom']}>
-    <TopBar title={own ? '个人主页' : '好友主页'} actions={own
-      ? <IconButton label="编辑主页背景" icon="image-outline" disabled={!cover.ready} onPress={() => setManagement('cover')} />
-      : person && <IconButton label="好友设置" icon="ellipsis-horizontal" onPress={() => setManagement('menu')} />}
+    <TopBar title={own ? '个人主页' : '好友主页'} actions={!own && person && <IconButton label="好友设置" icon="ellipsis-horizontal" onPress={() => setManagement('menu')} />}
       back={() => router.canGoBack() ? router.back() : router.replace(own ? '/profile' : '/friends')} />
     {person ? <>
       <ScrollView contentContainerStyle={local.column} showsVerticalScrollIndicator={false}>
-        <ProfileCoverImage photo={cover.photo} height={coverHeight} fades />
+        {own ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="修改个人主页背景"
+            disabled={!cover.ready} onPress={() => setManagement('cover')}
+            style={({ pressed }) => pressed && { opacity: 0.82 }}>
+            <ProfileCoverImage photo={cover.photo} height={coverHeight} fades />
+          </Pressable>
+        ) : <ProfileCoverImage photo={cover.photo} height={coverHeight} fades />}
         <View style={local.details}>
           <View style={local.identity}>
             <View style={local.avatarFrame}>

@@ -4,6 +4,7 @@ import { getContributionAudience, setContributionAudience } from './contribution
 import * as collections from './collections.mjs';
 import { choose, invalid } from './common.mjs';
 import * as gathering from './gatherings.mjs';
+import { gatheringChat } from './gathering-chat.mjs';
 import * as review from './moderation.mjs';
 import * as calls from './rtc.mjs';
 import * as wishes from './wishes.mjs';
@@ -59,6 +60,7 @@ export async function p1Routes(
         return wishes.pauseWish(me, id, choose((await body()).active, [true, false]));
     }
   if (resource === 'activity-reminders' && route==='GET:list') return gathering.activityReminders(me);
+  if (resource === 'gathering-chat' && route === 'GET:one') return gatheringChat(me, id, query.get('limit'));
   if (resource === 'gatherings')
     switch (route) {
       case 'GET:list':

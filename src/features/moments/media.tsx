@@ -143,7 +143,7 @@ function base64Of(blob: Blob): Promise<string> {
   });
 }
 
-function useProtectedSource(id: string, enabled = true, reviewId?:string, thumbnail = false, boundaryId?: string) {
+export function useProtectedSource(id: string, enabled = true, reviewId?:string, thumbnail = false, boundaryId?: string) {
   const token = useSession().session?.token;
   const [cached, setCached] = useState<{ source: string; token: string; uri: string }>();
   const [problem, setProblem] = useState('');

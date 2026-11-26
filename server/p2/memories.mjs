@@ -204,7 +204,7 @@ export async function runLifeReminders(user = null, at = new Date()) {
   const capsules = await pool.query(
     `WITH available AS (
     SELECT c.space_id,s.owner_id AS user_id,c.opens_at FROM p2_capsules c JOIN p2_spaces s ON s.id=c.space_id
-    WHERE c.sealed_at IS NOT NULL AND c.opens_at<=$2 AND ($1::uuid IS NULL OR s.owner_id=$1)
+    WHERE c.sealed_at IS NOT NULL AND c.opens_at<=$2 AND ($1::uuid IS NULL OR s.owner_id=$1) AND ${member('s', 's.owner_id')}
     UNION ALL SELECT c.space_id,m.user_id,c.opens_at FROM p2_capsules c JOIN p2_spaces s ON s.id=c.space_id
     JOIN p2_members m ON m.space_id=c.space_id AND m.state='active' AND NOT ${blocked('s.owner_id', 'm.user_id')}
     WHERE c.sealed_at IS NOT NULL AND c.opens_at<=$2 AND ($1::uuid IS NULL OR m.user_id=$1)

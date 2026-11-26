@@ -12,7 +12,7 @@ import {
   notify,
   timeOf,
 } from '../p1/common.mjs';
-import { known } from './access.mjs';
+import { known, member } from './access.mjs';
 import { dayMs, membersOf, spaceOf } from './common.mjs';
 
 export const kindOf = (value) => choose(value, ['trip', 'list', 'map', 'capsule']);
@@ -22,7 +22,7 @@ export async function spaces(user, query) {
   const { rows } = await pool.query(
     `SELECT s.id,s.title,s.kind,o.name AS owner,s.owner_id AS "ownerId", CASE WHEN s.owner_id=$1 THEN 'active' ELSE m.state END state
     FROM p2_spaces s JOIN users o ON o.id=s.owner_id LEFT JOIN p2_members m ON m.space_id=s.id AND m.user_id=$1
-    WHERE s.kind=$2 AND (s.owner_id=$1 OR m.state IN ('active','invited') AND NOT ${blocked('s.owner_id', '$1::uuid')})
+    WHERE s.kind=$2 AND (${member('s', '$1::uuid')} OR m.state='invited' AND NOT ${blocked('s.owner_id', '$1::uuid')})
     ORDER BY s.created_at DESC,s.id LIMIT 100`,
     [user, kind],
   );
@@ -154,7 +154,13 @@ export async function spaceMembership(user, id, body) {
     const {
       rows: [s],
     } = await db.query('SELECT s.owner_id,s.kind FROM p2_spaces s WHERE s.id=$1 FOR UPDATE', [id]);
-    if (!s || target === s.owner_id || (action === 'remove' && s.owner_id !== user)) throw missing();
+    if (!s || action === 'remove' && (s.kind === 'capsule' || s.owner_id !== user)) throw missing();
+    if (target === s.owner_id) {
+      if (s.kind !== 'capsule' || action !== 'leave') throw missing();
+      await db.query(`INSERT INTO p2_members(space_id,user_id,state) VALUES($1,$2,'left')
+        ON CONFLICT(space_id,user_id) DO UPDATE SET state='left'`, [id, user]);
+      return {};
+    }
     if (action === 'accept') {
       const {
         rows: [eligible],

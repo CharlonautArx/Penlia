@@ -1,29 +1,25 @@
-const pad = (value: number) => String(value).padStart(2, '0');
+export const padTime = (value: number) => String(value).padStart(2, '0');
 
-function localText(date: Date) {
-  return (
-    [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join('-') +
-    ' ' +
-    pad(date.getHours()) +
-    ':' +
-    pad(date.getMinutes())
-  );
+export function localDay(date: Date) {
+  return [date.getFullYear(), padTime(date.getMonth() + 1), padTime(date.getDate())].join('-');
 }
 
-export function gatheringTimeChoices(now = new Date()) {
-  const presets = [
-    { label: '今晚 19:00', days: 0, hour: 19 },
-    { label: '明天 12:00', days: 1, hour: 12 },
-    { label: '明晚 19:00', days: 1, hour: 19 },
-    { label: '周六 14:00', weekday: 6, hour: 14 },
-    { label: '周日 18:00', weekday: 0, hour: 18 },
-  ];
-  return presets.flatMap(({ label, days, hour, weekday }) => {
-    const target = new Date(now);
-    const offset = weekday === undefined ? (days ?? 0) : (weekday + 7 - now.getDay()) % 7;
-    target.setDate(now.getDate() + offset);
-    target.setHours(hour, 0, 0, 0);
-    if (weekday !== undefined && target <= now) target.setDate(target.getDate() + 7);
-    return target > now ? [{ label, value: localText(target) }] : [];
-  });
+export function calendarDays(year: number, month: number) {
+  const start = new Date(year, month, 1).getDay();
+  const length = new Date(year, month + 1, 0).getDate();
+  return [...Array<null>(start).fill(null), ...Array.from({ length }, (_, index) => index + 1)];
+}
+
+export function gatheringStart(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(value);
+  if (!match) throw new Error('请为每个候选同时选择日期和时间。');
+  const [, rawYear, rawMonth, rawDay, rawHour, rawMinute] = match;
+  const [year, month, day, hour, minute] = [rawYear, rawMonth, rawDay, rawHour, rawMinute].map(Number);
+  const date = new Date(year, month - 1, day, 0, 0);
+  if (localDay(date) !== value.slice(0, 10) || hour > 24 || minute > 59 || (hour === 24 && minute !== 0))
+    throw new Error('请重新选择有效的日期和时间。');
+  date.setHours(hour, minute);
+  if (date.getHours() !== hour % 24 || date.getMinutes() !== minute)
+    throw new Error('此时间在当地时区不可用，请另选时间。');
+  return date.toISOString();
 }

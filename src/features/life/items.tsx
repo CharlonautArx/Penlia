@@ -2,6 +2,12 @@ import { useTogether, useTogetherRouter } from '../together/navigation';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
+import { discoveryCatalog } from '../play/catalog';
+import { PlaceCard } from '../play/Cards';
+import { useSavedPlaces } from '../play/Gather';
+import { ChatFavorite, type ChatFavoritePreview } from './ChatFavorite';
+import { FavoriteSegments } from './FavoriteSegments';
 import { Button, Icon, ListRow, Notice, Section, Sheet } from '../together/ui';
 import { MemberChoices } from '../privacy/MemberChoices';
 import { LocationBubble, LocationComposer } from '../media/LocationCard';
@@ -21,6 +27,11 @@ const categories = {
   other: '其他',
 };
 type Category = keyof typeof categories;
+const collectionLabels = { food: '美食', travel: '景点', leisure: '休闲', chat: '聊天记录' };
+type Collection = keyof typeof collectionLabels;
+const collectionOf = (category: Category): Exclude<Collection, 'chat'> =>
+  category === 'food' || category === 'travel' ? category : 'leisure';
+const savedCategoryLabels = { food: '美食', travel: '景点', leisure: '休闲' };
 const marks = { want: '想去', visited: '去过', done: '一起完成', recommended: '朋友推荐' };
 const scopes = { private: '仅自己', space: '共同成员', selected: '指定好友', group: '预设关系组' };
 type Scope = keyof typeof scopes;
@@ -30,6 +41,7 @@ type Item = {
   ownerId: string;
   quantity?:number;claimed?:boolean;claimedByMe?:boolean;
   chatRecordId?: string;
+  chatPreview?: ChatFavoritePreview;
   kind: Kind;
   title: string;
   category: Category;
@@ -62,6 +74,8 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
   const router = useTogetherRouter();
   const together = useTogether();
   const { session } = useSession();
+  const favorites = kind === 'saved' && !space;
+  const [collection, setCollection] = useState<Collection>('food');
   const [tab, setTab] = useState<'mine' | 'friends'>('mine');
   const [category, setCategory] = useState<Category>();
   const [editor, setEditor] = useState<Item | 'new'>();
@@ -70,13 +84,16 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
   const [copying, setCopying] = useState<{ id: string; clientId: string }>();
   const [notice, setNotice] = useState('');
   const [fetched, setFetched] = useState<{ path: string; rows: Item[]; next: number | null }>();
+  const includeLegacy = favorites && tab === 'mine' && collection === 'travel' && !itemId;
+  const legacy = useSavedPlaces(includeLegacy);
+  const legacyPlaces = includeLegacy ? discoveryCatalog().filter((place) => legacy.saved?.includes(place.id)) : [];
   const path =
     '/p2/items?' +
     new URLSearchParams({
       kind,
       tab: space ? 'space' : tab,
       ...(space ? { space } : {}),
-      ...(category ? { category } : {}),
+      ...(favorites ? { collection } : category ? { category } : {}),
     });
   const { data, error, busy, run, request, load } = useRecord<ItemPage>(path);
   const entries = [...(data?.items ?? []), ...(fetched?.path === path ? fetched.rows : [])].filter(
@@ -88,10 +105,15 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
     setFetched(undefined);
     await load();
   }
-  const card = (item: Item) => (
+  const card = (item: Item) => favorites && item.chatRecordId ? (
+    <ChatFavorite key={item.id} preview={item.chatPreview} fallback={item.title}
+      open={() => router.push({ pathname: '/life/chat-record/[id]', params: { id: item.chatRecordId!, favorite: '1' } })}
+      remove={() => setRemoving(item)} />
+  ) : (
     <ItemCard
       key={item.id}
       item={item}
+      personalCollection={favorites}
       me={me || ''}
       checklist={together && space && kind==='saved' ? (action,extra)=>void run(async()=>{
         await request('/p2/items/'+item.id+'/checklist',{method:'POST',body:{action,...extra}});await refresh();
@@ -103,13 +125,15 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
   );
   return (
     <>
-      {!space && <Choices labels={kind === 'place' ? mapTabs : tabs} value={tab} set={setTab} />}
-      <Choices
-        labels={{ all: '全部', ...categories }}
-        value={category ?? 'all'}
-        set={(value) => setCategory(value === 'all' ? undefined : value)}
-      />
-      {!itemId && (tab === 'mine' || space) && (
+      {favorites ? <>
+        <FavoriteSegments label="收藏与推荐" labels={tabs} value={tab} change={setTab} swipe />
+        <FavoriteSegments label="收藏分类" labels={collectionLabels} value={collection} change={setCollection} />
+      </> : <>
+        {!space && <Choices labels={mapTabs} value={tab} set={setTab} />}
+        <Choices labels={{ all: '全部', ...categories }} value={category ?? 'all'}
+          set={(value) => setCategory(value === 'all' ? undefined : value)} />
+      </>}
+      {!itemId && (tab === 'mine' || space) && (!favorites || collection !== 'chat') && (
         <Button
           label={kind === 'place' ? '收藏地点' : '添加收藏'}
           variant="gradient"
@@ -126,12 +150,22 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
       {!!notice && <Notice>{notice}</Notice>}
       {kind === 'place' && !!entries.length && <PlacePlot items={entries} select={setExpanded} />}
       {kind === 'place' && tab === 'mine' && !space && <Resonance />}
-      {!itemId && !entries.length && !error && (
-        <DataEmpty loading={!data}>
+      {favorites ? <Animated.View key={path} entering={FadeIn.duration(160).reduceMotion(ReduceMotion.System)} style={{ gap: 8 }}>
+        {includeLegacy && !!legacy.error && <Notice>{legacy.error}</Notice>}
+        {legacyPlaces.map((place) => <PlaceCard key={place.id} place={place} compact />)}
+        {!itemId && entries.map(card)}
+        {!itemId && !entries.length && !legacyPlaces.length && !error && (
+          <DataEmpty loading={!data || includeLegacy && !legacy.saved && !legacy.error}>
+            {collection === 'chat' ? tab === 'mine' ? '在聊天中收藏的消息会出现在这里。' : '聊天记录收藏仅自己可见。'
+              : '这里还没有可查看的收藏。'}
+          </DataEmpty>
+        )}
+      </Animated.View> : <>
+        {!itemId && !entries.length && !error && <DataEmpty loading={!data}>
           {kind === 'place' ? '这里还没有可查看的地点。' : '这里还没有可查看的收藏。'}
-        </DataEmpty>
-      )}
-      {!itemId && entries.map(card)}
+        </DataEmpty>}
+        {!itemId && entries.map(card)}
+      </>}
       {!itemId && next !== undefined && next !== null && (
         <Button
           label="查看更多"
@@ -154,6 +188,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
           kind={kind}
           initial={editor === 'new' ? undefined : editor}
           space={space}
+          defaultCategory={favorites && collection !== 'chat' ? collection : undefined}
           onClose={() => {
             setEditor(undefined);
             void refresh();
@@ -162,7 +197,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
       )}
       {expanded && (
         <Sheet title={expanded.title} onClose={() => setExpanded(undefined)}>
-          <ItemInformation item={expanded} />
+          <ItemInformation item={expanded} personalCollection={favorites} />
           {expanded.ownerId !== me && (
             <Button
               label="加入我的收藏"
@@ -271,6 +306,7 @@ export function ItemsView({ kind, space, itemId }: { kind: Kind; space?: string;
 
 function ItemCard({
   item,
+  personalCollection,
   me,
   open,
   edit,
@@ -278,6 +314,7 @@ function ItemCard({
 }: {
   checklist?:(action:string,extra:Record<string,unknown>)=>void;
   item: Item;
+  personalCollection: boolean;
   me: string;
   open: () => void;
   edit: () => void;
@@ -290,7 +327,7 @@ function ItemCard({
       <View style={styles.row}>
         <Icon name={item.kind === 'place' ? (item.latitude == null ? 'bookmark-outline' : 'location-outline') : 'bookmark-outline'}
           color={colors.accent} size={21} />
-        <Section title={item.title} detail={item.chatRecordId ? '聊天记录 · 仅自己' : categories[item.category] + ' · ' + marks[item.state]} />
+        <Section title={item.title} detail={item.chatRecordId ? '聊天记录 · 仅自己' : (personalCollection ? savedCategoryLabels[collectionOf(item.category)] : categories[item.category]) + ' · ' + marks[item.state]} />
       </View>
       {item.ownerId !== me && <Text style={styles.small}>{item.author} 分享</Text>}
       {!!address && <Text style={styles.muted}>{address}</Text>}
@@ -317,13 +354,13 @@ function ItemCard({
     </View>
   );
 }
-function ItemInformation({ item }: { item: Item }) {
+function ItemInformation({ item, personalCollection = false }: { item: Item; personalCollection?: boolean }) {
   const [notice, setNotice] = useState('');
   const address = addressOf(item);
   return (
     <>
       <Text style={styles.muted}>
-        {item.chatRecordId ? '聊天记录 · 仅自己' : [categories[item.category], marks[item.state], item.author].filter(Boolean).join(' · ')}
+        {item.chatRecordId ? '聊天记录 · 仅自己' : [personalCollection ? savedCategoryLabels[collectionOf(item.category)] : categories[item.category], marks[item.state], item.author].filter(Boolean).join(' · ')}
       </Text>
       {!!item.notes && <Text style={styles.body}>{item.notes}</Text>}
       {!!address && <Text style={styles.muted}>{address}</Text>}
@@ -456,11 +493,13 @@ function ItemEditor({
   kind,
   initial,
   space,
+  defaultCategory,
   onClose,
 }: {
   kind: Kind;
   initial?: Item;
   space?: string;
+  defaultCategory?: Exclude<Collection, 'chat'>;
   onClose: () => void;
 }) {
   const { relationships } = useFriends();
@@ -478,7 +517,7 @@ function ItemEditor({
   const isPlace = kind === 'place';
   const [clientId] = useState(randomUUID);
   const [title, setTitle] = useState(initial?.title ?? '');
-  const [category, setCategory] = useState<Category>(initial?.category ?? 'other');
+  const [category, setCategory] = useState<Category>(initial?.category ?? defaultCategory ?? 'other');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [city, setCity] = useState(initial?.city ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
@@ -525,7 +564,9 @@ function ItemEditor({
   return (
     <Sheet title={initial ? '编辑记录' : isPlace ? '收藏地点' : '添加收藏'} onClose={onClose}>
       <Field title={isPlace ? '地点名称' : '名称'} value={title} onChangeText={setTitle} />
-      <Choices labels={categories} value={category} set={setCategory} />
+      {kind === 'saved' && !space
+        ? <Choices labels={savedCategoryLabels} value={collectionOf(category)} set={setCategory} />
+        : <Choices labels={categories} value={category} set={setCategory} />}
       <Choices
         labels={
           isPlace ? marks : { want: '想体验', visited: '已体验', done: '已完成', recommended: '推荐给朋友' }

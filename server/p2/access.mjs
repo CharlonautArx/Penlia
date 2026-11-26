@@ -1,7 +1,9 @@
 import { blocked, related, restricted } from '../p0/access.mjs';
 
 export const known = (a, b) => `(${related(a, b)} AND NOT ${restricted(a, b)} AND NOT ${restricted(b, a)})`;
-export const member = (s, v) => `(${s}.owner_id=${v} OR
+export const member = (s, v) => `((${s}.owner_id=${v} AND (${s}.kind<>'capsule' OR NOT EXISTS(
+    SELECT 1 FROM p2_members departed WHERE departed.space_id=${s}.id AND departed.user_id=${v} AND departed.state='left'
+  ))) OR
   (NOT ${blocked(s + '.owner_id', v)} AND EXISTS(SELECT 1 FROM p2_members pm WHERE pm.space_id=${s}.id AND pm.user_id=${v} AND pm.state='active')))`;
 
 export const itemVisible = (i, v) => `(${i}.owner_id=${v} OR (

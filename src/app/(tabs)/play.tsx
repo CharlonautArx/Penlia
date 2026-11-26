@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GlassLayer } from '../../components/material';
 import { useFontScale } from '../../components/Typography';
-import { Empty, Icon, IconButton, Notice, Screen, Sheet } from '../../components/ui';
+import { Empty, Icon, Notice, Screen, Sheet } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
 import { pilot } from '../../features/design/pilot';
 import { Chips, PlaceCard } from '../../features/play/Cards';
@@ -35,7 +35,6 @@ export default function PlayScreen() {
             <Text style={local.cityLabel}>{city}</Text>
             <Icon name="chevron-down-outline" size={13} color={colors.ink} />
           </Pressable>
-          <IconButton label="想去的地点" icon="bookmark-outline" onPress={() => router.push('/playground/saved')} />
         </View>
       </View>
       <Chips items={categories} value={category} onChange={setCategory} horizontal={fontScale <= 1} />

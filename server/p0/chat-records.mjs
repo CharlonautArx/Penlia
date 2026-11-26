@@ -21,6 +21,7 @@ function recordLines(input) {
     if (!Array.isArray(assets) || assets.length > 6) throw new HttpError(400, '附件数量超出限制。');
     return {
       kind: line.kind, time: line.time, author: cleanText(line.author, 80, true),
+      authorId: line.authorId ? readId(line.authorId) : undefined,
       body: cleanText(line.body ?? '', 1000),
       quote: line.quote ? cleanText(line.quote, 180) : undefined,
       mediaIds: [...new Set(assets.map(readId))],
@@ -55,13 +56,14 @@ export async function saveChatRecord(user, body) {
 }
 
 export async function getChatRecord(user, id) {
-  const { rows: [row] } = await pool.query(`SELECT r.lines,coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime))
+  const { rows: [row] } = await pool.query(`SELECT r.lines, (SELECT max(i.created_at) FROM p2_items i WHERE i.chat_record_id=r.id AND i.owner_id=$1) AS "savedAt",
+    coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'mime',b.mime))
     FROM private_media b WHERE b.chat_record_id=r.id),'[]'::jsonb) AS media FROM chat_records r WHERE r.id=$2 AND ${recordReadable('r','$1::uuid')}`,
     [user, readId(id)]);
   if (!row) throw missing();
   const { lines, media } = row;
   const assets = new Map(media.map((item) => [item.id, item]));
-  return { lines: lines.map(({ mediaIds, ...line }) => ({ ...line, media: mediaIds.flatMap((asset) => assets.get(asset) ?? []) })) };
+  return { savedAt: row.savedAt, lines: lines.map(({ mediaIds, ...line }) => ({ ...line, media: mediaIds.flatMap((asset) => assets.get(asset) ?? []) })) };
 }
 
 export async function saveChatFavorite(user, body) {

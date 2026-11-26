@@ -24,14 +24,14 @@ import {
   categories,
   CheckRow,
   Choices,
-  dateTime,
   Field,
   formatTime,
   InviteChoices,
   useRecord,
   type Category,
 } from '../../features/social/ui';
-import { gatheringTimeChoices } from '../../features/social/gathering-time';
+import { gatheringStart } from '../../features/social/gathering-time';
+import { GatheringTimeFields } from '../../features/social/GatheringTimeFields';
 import { useSession } from '../../services/session';
 import { styles } from '../../theme';
 import { LifeLead } from '../../features/life/Editorial';
@@ -120,22 +120,8 @@ function OptionsEditor({ items, set }: { items: DraftOption[]; set: (items: Draf
       {items.map((option, index) => (
         <View style={styles.card} key={index}>
           <Section title={'候选 ' + (index + 1)} />
-          <Field
-            title="当地日期与时间"
-            value={option.time}
-            placeholder="年-月-日 时:分"
-            onChangeText={(time) => set(items.map((item, i) => (i === index ? { ...item, time } : item)))}
-          />
-          <View style={[styles.row, { flexWrap: 'wrap' }]}>
-            {gatheringTimeChoices().map(({ label, value }) => (
-              <Button
-                key={label}
-                label={label}
-                variant={option.time === value ? 'primary' : 'soft'}
-                onPress={() => set(items.map((item, i) => (i === index ? { ...item, time: value } : item)))}
-              />
-            ))}
-          </View>
+          <GatheringTimeFields value={option.time}
+            change={(time) => set(items.map((item, i) => (i === index ? { ...item, time } : item)))} />
           <Field
             title="见面地点"
             value={option.place}
@@ -168,7 +154,7 @@ function OptionsEditor({ items, set }: { items: DraftOption[]; set: (items: Draf
 }
 const payload = (items: DraftOption[]) =>
   items.map(({ time, place, duration }) => {
-    const startsAt = dateTime(time);
+    const startsAt = gatheringStart(time);
     if (duration && (!/^\d+$/.test(duration) || Number(duration) < 1 || Number(duration) > 44640))
       throw new Error('请输入 1 至 44640 分钟的活动时长。');
     return {
@@ -454,12 +440,12 @@ function GatheringForm({
               onClose={() => setChoosing(false)}
               footer={<Button label="完成选择" onPress={() => setChoosing(false)} />}
             >
-              <InviteChoices ids={ids} setIds={setIds} groupId={groupId} setGroupId={setGroupId} />
+              <InviteChoices portraits ids={ids} setIds={setIds} groupId={groupId} setGroupId={setGroupId} />
             </Sheet>
           )}
         </>
       ) : (
-        <InviteChoices ids={ids} setIds={setIds} groupId={groupId} setGroupId={setGroupId} />
+        <InviteChoices portraits ids={ids} setIds={setIds} groupId={groupId} setGroupId={setGroupId} />
       )}
       {!!message && <Notice>{message}</Notice>}
       {together && (
@@ -752,7 +738,7 @@ function GatheringDetail({ id }: { id: string }) {
               ))}
               {!['completed', 'cancelled'].includes(g.state) && (
                 <>
-                  <InviteChoices ids={invited} setIds={setInvited} groupId={group} setGroupId={setGroup} />
+                  <InviteChoices portraits ids={invited} setIds={setInvited} groupId={group} setGroupId={setGroup} />
                   {!!error && <Notice>{error}</Notice>}
                   <Button
                     label="补发邀请"

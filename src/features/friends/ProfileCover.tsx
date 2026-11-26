@@ -99,7 +99,14 @@ export function EditProfileCover({ cover, ratio, onClose }: { cover: ReturnType<
     finally { setBusy(false); }
   }
   const recipe = draft ? draft.recipe : cover.recipe;
-  return <>
+  if (selection) return <FullImageCrop source={selection.source} initial={selection.frame} ratio={ratio}
+    onClose={() => setSelection(undefined)} onConfirm={async (source, frame) => {
+      const output = await cropJpeg(source, ratio, frame, 1280, 512 * 1024);
+      const original = await recipeSource(source).catch(() => ({ jpeg: output.base64, width: output.width, height: output.height }));
+      setDraft({ photo: output.base64, recipe: { source: original, frame: original.jpeg === output.base64 ? centered : frame } });
+      setSelection(undefined);
+    }} />;
+  return (
     <Sheet title="个人主页背景" onClose={() => { if (!busy) onClose(); }} tone="neutral">
       <View style={[local.preview, { aspectRatio: ratio }]}>
         <ProfileCoverImage height="100%" photo={draft ? draft.photo : cover.photo} />
@@ -119,13 +126,7 @@ export function EditProfileCover({ cover, ratio, onClose }: { cover: ReturnType<
         onClose();
       })} />
     </Sheet>
-    {selection && <FullImageCrop source={selection.source} initial={selection.frame} ratio={ratio}
-      onClose={() => setSelection(undefined)} onConfirm={async (source, frame) => {
-        const output = await cropJpeg(source, ratio, frame, 1280, 512 * 1024);
-        setDraft({ photo: output.base64, recipe: { source: await recipeSource(source), frame } });
-        setSelection(undefined);
-      }} />}
-  </>;
+  );
 }
 
 const local = StyleSheet.create({

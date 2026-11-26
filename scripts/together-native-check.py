@@ -1,5 +1,6 @@
 """Exercise the installed local-demo Release on an isolated Android emulator."""
 from pathlib import Path
+from datetime import date, timedelta
 from xml.etree import ElementTree
 from subprocess import run, Popen, PIPE, DEVNULL
 import re
@@ -182,6 +183,96 @@ def compatibility():
     assert shell('settings','get','system','font_scale') == '1.3'
     log('PASS Android 30, system dark appearance and font_scale 1.3')
 
+def reveal(label):
+    for _ in range(6):
+        try: return find(label, tries=1)
+        except ValueError: shell('input','swipe','250','980','250','440','500')
+    raise ValueError(label)
+
+def tap_visible(label):
+    x,y=reveal(label)
+    shell('input','tap',str(x),str(y))
+    time.sleep(.55)
+
+def revised_favorites():
+    route('chat/demo-xiaoman')
+    x,y=reveal('好，到时我在出口等你。')
+    shell('input','swipe',str(x),str(y),str(x),str(y),'680')
+    tap('收藏')
+    route('life/items')
+    tap('聊天记录')
+    capture('40-favorites')
+    tap('查看收藏 好，到时我在出口等你。')
+    find('收藏详情')
+    find('小满')
+    assert any(n.get('text','').startswith('收藏于 ') for n in tree().iter('node'))
+    capture('41-favorite-detail')
+
+def revised_gathering():
+    route('gathering/new?together=1&title=Android%20Meetup')
+    tap_visible('添加候选时间')
+    tap_visible('日期')
+    find('选择日期')
+    tomorrow = date.fromisoformat(shell('date','+%Y-%m-%d')) + timedelta(days=1)
+    if tomorrow.day == 1: tap('下一个月')
+    capture('42-calendar')
+    tap(tomorrow.isoformat())
+    tap_visible('时间')
+    find('选择时间')
+    shell('input','swipe','180','610','180','535','380')
+    capture('43-clock')
+    tap('确定时间')
+    x,y=reveal('见面地点')
+    shell('input','tap',str(x),str(y));shell('input','text','Riverside')
+    shell('input','keyevent','4')
+    tap_visible('邀请对象')
+    find('小满')
+    capture('44-guest-portraits')
+    tap('小满');tap('完成选择')
+    tap_visible('邀请朋友商量')
+    find('活动操作', tries=6)
+    route('chat/demo-xiaoman')
+    find('查看约局 Android Meetup', tries=6)
+    capture('45-chat-invitation')
+    tap('查看约局 Android Meetup')
+    find('活动操作', tries=6)
+
+def revised_profile():
+    route('profile')
+    find('状态')
+    assert not any(n.get('content-desc')=='恢复默认头像' or n.get('text')=='恢复默认头像' for n in tree().iter('node'))
+    capture('46-profile')
+    tap('个人主页')
+    tap('修改个人主页背景')
+    tap('从手机相册选择')
+    tiles=[]
+    for node in tree().iter('node'):
+        if not node.get('resource-id','').endswith(('/icon_thumbnail','/thumbnail')): continue
+        left,top,right,bottom=map(int,re.findall(r'\d+',node.get('bounds','')))
+        if left < right and top < bottom: tiles.append(((left+right)//2,(top+bottom)//2))
+    if not tiles: raise ValueError('profile picker photo')
+    x,y=tiles[-1]
+    shell('input','tap',str(x),str(y));time.sleep(1)
+    find('移动和缩放', tries=6)
+    shell('input','swipe','280','565','270','498','450')
+    capture('47-profile-crop')
+    tap('完成')
+    tap('保存主页背景')
+    find('个人主页')
+    capture('48-profile-cover')
+    route('person/demo-self')
+    find('修改个人主页背景')
+    capture('49-profile-cover-reopened')
+
+def revised_capsule():
+    route('life/project/preview-capsule?kind=capsule&together=1')
+    reveal('退出时间胶囊')
+    assert not any(n.get('content-desc')=='移除' or n.get('text')=='移除' for n in tree().iter('node'))
+    capture('50-capsule')
+    tap('退出时间胶囊')
+    tap('确认')
+    find('时光胶囊')
+
 adb('install','-r',str(apk))
 shell('wm','size','540x1200');shell('wm','density','240')
 shell('settings','put','secure','show_ime_with_hard_keyboard','1')
@@ -192,7 +283,12 @@ check('cold-start',cold)
 # Record the compositor output, including scrolling, transitions and system surfaces.
 video=Popen(['adb','shell','screenrecord','--time-limit','178','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
 try:
-    if '--fallback' in sys.argv:
+    if '--favorites-profile' in sys.argv:
+        check('favorites-and-detail',revised_favorites)
+        check('date-wheels-friend-invite-chat',revised_gathering)
+        check('profile-background-fullscreen-crop',revised_profile)
+        check('capsule-self-exit',revised_capsule)
+    elif '--fallback' in sys.argv:
         check('solid-large-dark',compatibility)
     else:
         check('open-scroll-back',hub)

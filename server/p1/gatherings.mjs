@@ -134,7 +134,7 @@ export async function createGathering(user, body) {
   const clientId = readId(body.clientId);
   return inTransaction(pool, async (db) => {
     await lockUsers(db, user);
-    await assertAllowed(db, user, ['limit_contact', 'limit_account']);
+    await assertAllowed(db, user, ['limit_contact', 'limit_sending', 'limit_account']);
     const {
       rows: [existing],
     } = await db.query('SELECT id FROM p1_gatherings WHERE owner_id=$1 AND client_id=$2', [user, clientId]);
@@ -566,7 +566,7 @@ export async function manageRoster(user, id, body) {
     )
       throw conflict('本轮已开始收集意向，邀请范围已锁定。');
     if (body.action === 'invite') {
-      await assertAllowed(db, user, ['limit_contact', 'limit_account']);
+      await assertAllowed(db, user, ['limit_contact', 'limit_sending', 'limit_account']);
       const ids = await inviteesOf(db, user, body);
       const additions = await db.query(
         `INSERT INTO p1_gathering_members(gathering_id,user_id)

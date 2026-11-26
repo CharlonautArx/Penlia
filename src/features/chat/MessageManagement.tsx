@@ -236,7 +236,7 @@ function useRecordDelivery() {
               } });
               mediaIds.push(media.id);
             }
-            lines.push({ kind: line.kind, time: line.time, author: line.author.slice(0, 80),
+            lines.push({ kind: line.kind, time: line.time, author: line.author.slice(0, 80), authorId: !target ? line.authorId : undefined,
               body: shareSafeText(line.body), quote: line.quote ? shareSafeText(line.quote) : undefined, mediaIds });
           }
         }

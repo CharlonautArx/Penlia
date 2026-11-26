@@ -16,9 +16,6 @@ export default function ProfileScreen() {
   const { changeLocalAvatar } = useSession();
   const localPhoto = useAccountPhoto(state.me?.id);
   const [extra, setExtra] = useState(false);
-  const [reset, setReset] = useState(false);
-  const [failure, setFailure] = useState('');
-  const [busy, setBusy] = useState(false);
   if (!state.me) return null;
   const user = state.me;
   const profile = state.card(user.id);
@@ -33,7 +30,6 @@ export default function ProfileScreen() {
         <Text style={styles.muted}>{formatHandle(user.username)}</Text>
       </View>
     </View>
-    {!!(localPhoto || user.avatar) && <Button label="恢复默认头像" variant="quiet" onPress={() => { setFailure(''); setReset(true); }} />}
     <SettingGroup>
       <ListRow title="朋聊号" detail={formatHandle(user.username)} left={<Icon name="at-outline" />} onPress={() => edit('username')} />
       <ListRow title="昵称" detail={user.name} left={<Icon name="person-outline" />} onPress={() => edit('name')} />
@@ -44,16 +40,8 @@ export default function ProfileScreen() {
     {!!state.error && <Notice action="重试" onAction={state.retry}>{state.error}</Notice>}
     {!!state.value && <SettingGroup title="补充资料">
       <ListRow title="地区" detail={profile.region || '未填写'} left={<Icon name="location-outline" />} onPress={() => setExtra(true)} />
-      <ListRow title="近况" detail={profile.status || '未填写'} left={<Icon name="happy-outline" />} onPress={() => setExtra(true)} separator={false} />
+      <ListRow title="状态" detail={profile.status || '未填写'} left={<Icon name="happy-outline" />} onPress={() => setExtra(true)} separator={false} />
     </SettingGroup>}
-    {reset && <Sheet title="恢复默认头像" onClose={() => { if (!busy) setReset(false); }}>
-      <Text style={styles.body}>将当前头像替换为默认头像。</Text>
-      {!!failure && <Notice>{failure}</Notice>}
-      <Button label="确认恢复" variant="gradient" disabled={busy} onPress={() => {
-        setBusy(true); setFailure('');
-        void changeLocalAvatar(null).then(() => setReset(false)).catch((problem) => setFailure(errorMessage(problem))).finally(() => setBusy(false));
-      }} />
-    </Sheet>}
     {extra && <SupplementalProfile onClose={() => setExtra(false)} />}
   </Screen>;
 }
@@ -78,8 +66,8 @@ function SupplementalProfile({ onClose }: { onClose: () => void }) {
   return <Sheet title="编辑补充资料" onClose={() => { if (!busy) onClose(); }}>
     <Text style={styles.strong}>地区</Text>
     <TextInput accessibilityLabel="地区" value={region} onChangeText={setRegion} maxLength={24} style={styles.input} />
-    <Text style={styles.strong}>近况</Text>
-    <TextInput accessibilityLabel="近况" value={status} onChangeText={setStatus} maxLength={28} style={styles.input} />
+    <Text style={styles.strong}>状态</Text>
+    <TextInput accessibilityLabel="状态" value={status} onChangeText={setStatus} maxLength={28} style={styles.input} />
     {!!error && <Notice>{error}</Notice>}
     <Button label="保存补充资料" variant="gradient" disabled={busy} onPress={() => void save()} />
   </Sheet>;

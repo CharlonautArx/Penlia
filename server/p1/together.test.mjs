@@ -178,6 +178,14 @@ test('Together HTTP integration on isolated PostgreSQL', async (t) => {
     };
     const { id } = ok(await post(a, '/gatherings', body));
     assert.equal(ok(await post(a, '/gatherings', body)).id, id);
+    const chat = async (viewer, peer) => ok(await p1(viewer, '/gathering-chat/' + userId(peer)))
+      .invitations.filter((entry) => entry.gatheringId === id);
+    const [sent] = await chat(a, b);
+    assert.equal((await chat(a, b)).length, 1);
+    assert.equal(sent.mine, true);
+    assert.deepEqual(await chat(b, a), [{ ...sent, mine: false }]);
+    assert.deepEqual(await chat(outside, a), []);
+    assert.equal(sent.startsAt, null);
     const base = '/gatherings/' + id;
     ok(await p1(outside, base), 404);
     const edit = { title: '秋天下午喝杯茶', description: '带一本书', revision: 1 };
@@ -188,14 +196,20 @@ test('Together HTTP integration on isolated PostgreSQL', async (t) => {
     assert.ok(ok(await p1(b, base)).updates.some((entry) => entry.kind === 'gathering_updated'));
     ok(await post(b, base + '/roster', { action: 'invite', memberIds: [userId(c)] }), 404);
     ok(await post(a, base + '/roster', { action: 'invite', memberIds: [userId(c)] }));
+    const [oldInvite] = await chat(c, a);
+    assert.equal(oldInvite.mine, false);
     ok(await post(a, base + '/roster', { action: 'remove', userId: userId(c) }));
     ok(await p1(c, base), 404);
+    assert.deepEqual(await chat(c, a), []);
     ok(await post(a, base + '/roster', { action: 'invite', memberIds: [userId(c)] }));
+    assert.notEqual((await chat(c, a))[0].id, oldInvite.id);
     const startsAt = new Date(Date.now() + 86400000).toISOString(),
       endsAt = new Date(Date.now() + 86400000 + 7200000).toISOString();
     ok(await post(a, base + '/organize', { action: 'propose', options: [{ startsAt, endsAt }] }));
     const [option] = ok(await p1(a, base)).options;
     assert.equal(option.place, '');
+    assert.equal((await chat(b, a))[0].startsAt, startsAt);
+    assert.equal((await chat(b, a))[0].title, edit.title);
     ok(await post(b, base + '/personal', { action: 'answer', answer: '茶' }));
     ok(await post(a, base + '/organize', { action: 'choose', optionId: option.id }));
     const confirmations = await Promise.all(

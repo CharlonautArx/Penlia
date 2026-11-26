@@ -40,7 +40,7 @@ export function InviteRecipients({ message, onChoose, empty = '先添加好友�
   </>;
 }
 
-export function useSavedPlaces() {
+export function useSavedPlaces(active = true) {
   const { session } = useSession();
   const key = session ? 'penlia.saved-places.v1.' + session.user.id : undefined;
   const [saved, setSaved] = useState<string[]>();
@@ -48,16 +48,16 @@ export function useSavedPlaces() {
   const [busy, setBusy] = useState(false);
 
   useFocusEffect(useCallback(() => {
-    if (!key) return;
-    let active = true;
+    if (!active || !key) return;
+    let live = true;
     void AsyncStorage.getItem(key).then((value) => {
-      if (!active) return;
+      if (!live) return;
       const parsed: unknown = value ? JSON.parse(value) : [];
       setSaved(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
       setError('');
-    }).catch(() => { if (active) setError('暂时无法读取本机收藏。'); });
-    return () => { active = false; };
-  }, [key]));
+    }).catch(() => { if (live) setError('暂时无法读取本机收藏。'); });
+    return () => { live = false; };
+  }, [active, key]));
 
   async function toggle(id: string) {
     if (!saved || !key || busy) return;

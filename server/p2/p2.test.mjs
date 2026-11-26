@@ -124,6 +124,47 @@ test('P2 HTTP workflows against PostgreSQL with runtime grants', async (t) => {
     write(owner, '/calendar-shares', { action: 'share', userId: id(viewer), access });
 
   let travel, diary, birthday;
+  await t.test('private chat favorites retain sender, time and image; old categories remain reachable', async () => {
+    const file = await upload(a);
+    const time = Date.now() - 3000;
+    const { id: recordId } = ok(await api(a, '/chat-records', 'POST', {
+      clientId: randomUUID(),
+      lines: [{ author: b.user.name, authorId: id(b), kind: 'image', time, mediaIds: [file.id] }],
+    }), 201);
+    ok(await api(a, '/chat-favorites', 'POST', { recordId, title: '私人收藏' }), 201);
+    const chat = ok(await p2(a, '/items?kind=saved&collection=chat')).items;
+    assert.equal(chat.length, 1);
+    assert.equal(chat[0].chatPreview.line.authorId, id(b));
+    assert.equal(chat[0].chatPreview.line.time, time);
+    assert.equal(chat[0].chatPreview.thumbnail.id, file.id);
+    assert.ok(Date.parse(ok(await api(a, '/chat-records/' + recordId)).savedAt) >= time);
+    assert.equal((await api(b, '/chat-records/' + recordId)).status, 404);
+    assert.equal((await api(b, '/moment-media/' + file.id)).status, 404);
+    assert.deepEqual(ok(await p2(b, '/items?kind=saved&collection=chat&tab=friends')).items, []);
+    const { id: old } = ok(await write(a, '/items', {
+      clientId: randomUUID(), kind: 'saved', title: '电影旧收藏', category: 'film',
+    }));
+    assert.ok(ok(await p2(a, '/items?kind=saved&collection=leisure')).items.some((entry) => entry.id === old));
+    assert.equal(ok(await p2(a, '/items/' + old)).item.category, 'film');
+  });
+
+  await t.test('capsule hosts and invitees can only change their own membership', async () => {
+    const { id: capsule } = ok(await write(a, '/spaces', {
+      kind: 'capsule', clientId: randomUUID(), title: '自行退出', opensAt: scheduled(86400000), memberIds: [id(b), id(c)],
+    }));
+    const path = '/spaces/' + capsule + '/membership';
+    assert.equal((await write(a, path, { action: 'remove', userId: id(c) })).status, 404);
+    ok(await write(b, path, { action: 'accept' }));
+    assert.equal((await write(a, path, { action: 'remove', userId: id(b) })).status, 404);
+    ok(await write(a, path, { action: 'leave' }));
+    assert.equal((await p2(a, '/capsules/' + capsule)).status, 404);
+    assert.ok(!ok(await p2(a, '/spaces?kind=capsule')).spaces.some((space) => space.id === capsule));
+    ok(await p2(b, '/capsules/' + capsule));
+    ok(await write(b, path, { action: 'leave' }));
+    assert.equal((await p2(b, '/capsules/' + capsule)).status, 404);
+    ok(await write(c, path, { action: 'decline' }));
+  });
+
   await t.test('007: upgrade of a populated 006 table is repeatable and keeps existing places', async () => {
     const previous = await readFile(new URL('../migrations/006_life_p2.sql', import.meta.url), 'utf8');
     const current = await readFile(new URL('../migrations/007_p2_life_followup.sql', import.meta.url), 'utf8');

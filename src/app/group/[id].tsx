@@ -199,7 +199,7 @@ export default function GroupConversation() {
       if (manage.quote?.id === item.id) manage.setQuote(undefined);
     } : undefined;
     return { recall, recallUntil: recall ? timestamp + recallWindow : undefined, id: item.id, kind: !asset ? 'text' : asset.mime === 'video/mp4' ? 'video' : 'image',
-      time: Date.parse(item.sentAt), author: item.name, body: item.content,
+      time: Date.parse(item.sentAt), author: item.name, authorId: item.senderId, body: item.content,
       canCopy: !!item.content && !item.recordId && !parsePlaceCard(item.content), recordId: item.recordId,
       assets: item.media.map(recordAsset), quote: item.quote && item.quote.author + ' · ' + item.quote.body };
   }

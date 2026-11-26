@@ -1,7 +1,7 @@
 name: Together native release and checks
 on:
   push:
-    branches: [codex/together-invitations]
+    branches: [codex/together-invitations, codex/penlia-favorites-gathering-profile]
     paths: ['.github/workflows/together-native.yml']
   workflow_dispatch:
 permissions:
@@ -123,7 +123,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -gpu host -timezone Asia/Shanghai -no-skin -skin 540x1200 -memory 3072 -cores 4 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front emulated
-          script: python3 scripts/together-native-check.py out/Penlia-x86_64.apk evidence
+          script: python3 scripts/together-native-check.py out/Penlia-x86_64.apk evidence ${{ github.ref_name == 'codex/penlia-favorites-gathering-profile' && '--favorites-profile' || '' }}
       - name: Scan the evidence allowlist
         id: scan_evidence
         if: always() && matrix.abi == 'x86_64'
@@ -151,7 +151,7 @@ jobs:
 
   android-11:
     needs: build
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.ref_name != 'codex/penlia-favorites-gathering-profile' }}
     uses: ./.github/workflows/together-native-recheck.yml
     permissions:
       contents: read

@@ -79,7 +79,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (get) {
       const record = requireRow('chatRecords');
       if (record.ownerId !== self) throw new Error('找不到可查看的聊天记录。');
-      return { lines: list(record.lines).map(({ mediaIds, ...line }) => ({
+      return { savedAt: rows('items').find((item) => item.chatRecordId === record.id)?.createdAt, lines: list(record.lines).map(({ mediaIds, ...line }) => ({
         ...line, media: strings(mediaIds).flatMap((file) => find('media', file) ?? []),
       })) };
     }
@@ -98,7 +98,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (record.ownerId !== self || record.peerId || record.groupId) throw new Error('找不到可收藏的聊天记录。');
     return rows('items').find((item) => item.chatRecordId === record.id) ?? save('items', add({
       chatRecordId: record.id, kind: 'saved', title: body.title, category: 'other',
-      notes: '', location: '', tags: [], state: 'done', scope: 'private', media: [],
+      notes: '', location: '', tags: [], state: 'done', scope: 'private', media: [], createdAt: now(),
     }, { ...owner, author: demoUser.name }));
   }
   if (root === 'moment-media') {
@@ -369,6 +369,20 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       }
       return upsert('wishes', action === 'pause' ? { active: body.active ?? !requireRow('wishes').active } : { active: true });
     }
+    if (area === 'gathering-chat' && get) {
+      if (!relationships.some((friend) => friend.userId === id && friend.status === 'accepted')) return { invitations: [], more: false };
+      const invitations = rows('gatherings')
+        .filter((entry) => entry.ownerId === self && strings(entry.memberIds).includes(String(id)))
+        .map((entry) => {
+          const options = list(entry.options);
+          const option = options.find((item) => item.id === entry.choiceId) ??
+            [...options].sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)))[0];
+          return { id: entry.id, gatheringId: entry.id, title: entry.title, mine: true, sentAt: entry.createdAt,
+            state: entry.state, startsAt: option?.startsAt, place: option?.place || entry.meetingNote, optionCount: options.length, hasCover: !!entry.cover };
+        });
+      const limit = Number(query.get('limit')) || 40;
+      return { invitations: invitations.slice(0, limit), more: invitations.length > limit && limit < 400 };
+    }
     if (area === 'gatherings') return previewGathering(store,id,action,get,body);
     if (area === 'activity-reminders') return previewReminders(store);
     // Legacy preview journal entries were all written by the single signed-in preview account.
@@ -538,6 +552,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       if (!id && get) return { spaces: rows('projects').filter((row) => row.kind === query.get('kind') && row.state !== 'left') };
       if (!id) return save('projects', add(body, { ...owner, revision: 1, members: [...members([self]), ...newMembers()] }));
       const space = requireRow('projects');
+      if (space.kind === 'capsule' && (space.state === 'left' || body.action === 'remove')) throw new Error('无法访问或移除该时光胶囊成员。');
       return get ? { space, ...people(space) } : patchMembers('projects', space, action);
     }
     if (area === 'trips') {
@@ -579,9 +594,18 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
       if (get && id) return { item: requireRow('items') };
       if (get) return { items: rows('items').filter((row) => {
         const category = query.get('category');
+        const collection = query.get('collection');
+        const bucket = row.chatRecordId ? 'chat' : ['food','travel'].includes(String(row.category)) ? row.category : 'leisure';
+        if (collection && bucket !== collection) return false;
         if (row.kind !== query.get('kind') || (category && row.category !== category)) return false;
         if (query.get('space')) return row.spaceId === query.get('space');
         return query.get('tab') === 'friends' ? row.ownerId !== self : row.ownerId === self && !row.spaceId;
+      }).map((item) => {
+        if (item.ownerId !== self || !item.chatRecordId) return item;
+        const lines = list(find('chatRecords', String(item.chatRecordId))?.lines);
+        const thumbnail = lines.flatMap((line) => strings(line.mediaIds))
+          .map((asset) => find('media', asset)).find((asset) => String(asset?.mime).startsWith('image/'));
+        return { ...item, chatPreview: { line: lines[0], count: lines.length, thumbnail } };
       }), next: null };
       if (find('items')?.chatRecordId && !remove && body.scope !== 'private') throw new Error('聊天收藏仅自己可见。');
       if (action === 'copy') return save('items', add(requireRow('items'), { ...owner, scope: 'private', author: demoUser.name }));
@@ -612,6 +636,7 @@ export function offlineRequest(store: Rows, path: string, method: string, body: 
     if (area === 'reminders') return { reminders: rows('reminders') };
     if (area === 'capsules') {
       const capsule = requireRow('projects');
+      if (capsule.state === 'left') throw new Error('找不到可访问的时光胶囊。');
       const entry = rows('capsuleEntries').find((row) => row.capsuleId === id && row.authorId === self);
       if (get) return { capsule: { ...capsule, opened: !!capsule.sealedAt && String(capsule.opensAt) <= now() },
         entries: entry ? [entry] : [], ownEntryId: entry?.id ?? null, ...people(capsule) };

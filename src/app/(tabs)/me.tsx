@@ -1,7 +1,6 @@
 import { useFontSize } from '../../components/Typography';
 import { fontSizes } from '../../font-scale';
 import { formatHandle } from '../../services/handle';
-import { isUiDemo } from '../../demo/mode';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -52,7 +51,7 @@ export default function MeScreen() {
         </View>
       </View>
       <View style={styles.row}>
-        <IconButton label="我的二维码" icon="qr-code-outline" onPress={() => router.push('/my-qr')} />
+        <IconButton label="我的二维码" icon="qr-code-outline" iconSize={19} iconOffsetX={4} onPress={() => router.push('/my-qr')} />
         <IconButton label="编辑资料" icon="create-outline" onPress={() => router.push('/profile')} disabled={busy} />
       </View>
       {!!user.bio && <View pointerEvents="none" style={local.bio}><Text style={styles.body}>{user.bio}</Text></View>}
@@ -64,8 +63,6 @@ export default function MeScreen() {
     <SettingGroup title="我的生活">
       <ListRow title="生活边界保护计划" detail="举报记录、处置与申诉"
         left={<Tile icon="flag-outline" />} onPress={() => router.push('/boundary')} />
-      {isUiDemo && <ListRow title="想去的地点" detail="查看在玩乐里保存的去处" left={<Tile icon="bookmark-outline" />}
-        onPress={() => router.push('/playground/saved')} />}
       <ListRow title="状态" detail="文字、图片和可见范围" left={<Tile icon="happy-outline" />} onPress={()=>router.push('/life/status')}/>
       <ListRow title="我的收藏与好友推荐" left={<Tile icon="bookmark-outline" />} onPress={()=>router.push('/life/items')}/>
       <ListRow title="生活提醒" left={<Tile icon="notifications-outline" />} onPress={()=>router.push('/life/reminders')}/>

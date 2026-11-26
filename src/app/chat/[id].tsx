@@ -1,4 +1,6 @@
 import { parsePlaceCard } from '../../features/play/place-card-model';
+import { GatheringMessage, type ChatInvitation } from '../../features/chat/GatheringMessage';
+import { useRecord } from '../../features/social/ui';
 import { useDirectory } from '../../features/friends/store';
 import { useFontScale } from '../../components/Typography';
 import { useHistoryJump } from '../../features/chat/history';
@@ -42,6 +44,7 @@ import { PeerSendMenu, type PeerSendOptions } from '../../features/chat/PeerSend
 const headerHeight = 54;
 const slowPhotoThreshold = 450;
 const noMarkers = {};
+const noInvitations: ChatInvitation[] = [];
 type QueuedMedia = { id: string; value: Extract<PendingMessage, { kind: 'image' | 'video' }> };
 
 function sameAttachment(first: PendingMessage, second: PendingMessage) {
@@ -62,6 +65,14 @@ function EmptyConversation() {
 function Conversation({ person, initialDraft, chromeHeight }: { person: Relationship; initialDraft: string; chromeHeight: number }) {
   const { session, request } = useSession();
   const demo = useDemo();
+  const [invitationLimit, setInvitationLimit] = useState(40);
+  const { data: chatInvitations } = useRecord<{ invitations: ChatInvitation[]; more: boolean }>(
+    '/p1/gathering-chat/' + person.userId + '?limit=' + invitationLimit, 12000);
+  const invitationRows = chatInvitations?.invitations ?? noInvitations;
+  const localInvitations = useMemo(() => invitationRows.map((gathering) => ({
+    id: 'gathering:' + gathering.id, timestamp: Date.parse(gathering.sentAt),
+    text: '约局邀请 · ' + gathering.title, mine: gathering.mine, gathering,
+  })), [invitationRows]);
   const markDemoRead = demo?.markRead;
   const { value: preferences, clearManualUnread } = useConversationPreferences();
   const preferencesReady = !!preferences;
@@ -303,7 +314,10 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     router.push({ pathname: '/peer-call', params: { peer: person.userId, kind } });
   }
 
-  const base = window ?? shownMessages ?? messages;
+  const regular = shownMessages ?? messages;
+  const base = useMemo(() => window ?? (localInvitations.length
+    ? [...regular, ...localInvitations].sort((a, b) => b.timestamp - a.timestamp) : regular),
+  [window, regular, localInvitations]);
   const items = useMemo(() => {
     if (!manage.history.ready || !recalls.ready) return [];
     if (!window) return applyRecalls(base, markers, manage.history.hidden);
@@ -328,7 +342,8 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     const text = 'text' in message;
     const file = !text && message.kind === 'file';
     const kind = text || file ? 'text' : message.kind as 'image' | 'video' | 'location';
-    const sentAt = demo ? message.timestamp : message.confirmedAt;
+    const invitation = text ? message.gathering : undefined;
+    const sentAt = invitation ? undefined : demo ? message.timestamp : message.confirmedAt;
     const revoke = recalls.available && !!sentAt && canRecall(message.mine, sentAt) ? async () => {
       await recalls.recall(person.userId, message);
       if (manage.quote?.id === message.id) manage.setQuote(undefined);
@@ -339,9 +354,10 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       photoId: message.kind === 'image' ? message.photoId : undefined,
       load: connection && message.source ? () => fetchAttachment(connection, message.source!) : undefined,
     } : undefined;
-    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file && !invitation, replyable: !invitation, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+      authorId: message.mine ? session?.user.id : person.userId,
       body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : message.kind === 'file' ? '[文件] ' + message.name : '',
-      canCopy: (text && !message.recordId && !parsePlaceCard(message.text)) || kind === 'location', recordId: message.recordId,
+      canCopy: (text && !message.recordId && !invitation && !parsePlaceCard(message.text)) || kind === 'location', recordId: message.recordId,
       quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
   }
   const selected = manage.selected && items.filter((message): message is RichMessage => !isRecalled(message) && !!manage.selected?.has(message.id)).map(managed);
@@ -356,6 +372,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       {startsMessageBlock(message.timestamp, items[index + 1]?.timestamp) && <ChatTimestamp value={message.timestamp} />}
       <Text style={local.recalled}>{recalledCaption(message.mine)}</Text>
     </View>;
+    const invitation = 'text' in message ? message.gathering : undefined;
     const openActions: MessageLongPress = ({ nativeEvent }) => manage.setMenu(managed(message), { x: nativeEvent.pageX, y: nativeEvent.pageY });
     const older = items[index + 1];
     const newer = items[index - 1];
@@ -365,13 +382,13 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(message.id)}
       toggle={() => report.selected ? report.toggle(message.id) : manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
       {block && <ChatTimestamp value={message.timestamp} />}
-      <ChatBubble bare={'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
+      <ChatBubble bare={!!invitation || 'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
         </Pressable>}>
         {message.quote && <QuotePreview quote={Object.hasOwn(markers, message.quote.id) ? { ...message.quote, body: recalledQuote } : message.quote} />}
-        {message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
+        {invitation ? <GatheringMessage value={invitation} onLongPress={openActions} /> : message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
           : message.kind === 'image' ? <ImageBubble item={message} onLongPress={openActions} connection={connection} online={online} onDownloaded={changed} />
           : message.kind === 'video' ? <PeerVideo item={message} onLongPress={openActions} connection={connection} /> : message.kind === 'file' ? <PeerFile item={message} connection={connection} onLongPress={openActions} /> : <LocationBubble value={message} onLongPress={openActions} />}
         <MessageMarks sharing={message.noReply} silent={message.silent} />
@@ -402,9 +419,12 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
           contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }]}
           keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
           ListEmptyComponent={EmptyConversation}
-          ListFooterComponent={!window && cursor && online ? (
+          ListFooterComponent={!window && (cursor && online || chatInvitations?.more) ? (
             <Button label={loadingOlder ? '加载中…' : '加载更早消息'} variant="quiet" disabled={loadingOlder}
-              onPress={() => void loadOlder()} />
+              onPress={() => {
+                if (chatInvitations?.more) setInvitationLimit((current) => Math.min(400, current + 40));
+                if (cursor && online) void loadOlder();
+              }} />
           ) : undefined}
           renderItem={renderMessage}
         />
