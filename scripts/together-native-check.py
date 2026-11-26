@@ -3,7 +3,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 from subprocess import run, Popen, PIPE, DEVNULL
 import re
-import signal
+import struct
 import sys
 import time
 
@@ -67,12 +67,44 @@ def hub():
     shell('input','swipe','226','340','235','978','550');time.sleep(.3)
     shell('input','keyevent','4');find('约朋友一起玩')
 
-def sharing():
+def preview():
     route('gathering/preview-gathering?together=1');tap('活动操作');tap('预览分享内容')
-    find('导出邀请卡');capture('03-share-preview');tap('导出邀请卡');find('邀请卡已导出。')
+    find('导出邀请卡')
+
+def album_export():
+    preview()
+    capture('03-share-preview')
+    uri = 'content://media/external/images/media'
+
+    def exports():
+        rows = shell('content','query','--uri',uri,'--projection','_id:_display_name')
+        return set(re.findall(r'_id=(\d+), _display_name=invitation-[^\n]+?\.png',rows))
+
+    original = exports()
+    tap('导出邀请卡')
+    for _ in range(14):
+        new = exports() - original
+        if new:
+            data = adb('exec-out','content','read','--uri',uri+'/'+new.pop(),binary=True)
+            assert data.startswith(b'\x89PNG\r\n\x1a\n') and struct.unpack('>II',data[16:24]) == (600,760)
+            (out/'exported-invitation.png').write_bytes(data)
+            return
+        time.sleep(1)
+    shell('input','swipe','230','1002','230','465','440')
+    # This emulator contains only the offline fixture. Report the on-screen export result.
+    for node in tree().iter('node'):
+        text=node.get('text','')
+        if text: log('Export screen: '+text[:180])
+    raise AssertionError('No new invitation PNG in MediaStore')
+
+def system_share():
+    preview()
     tap('分享活动名称')
-    assert re.search('ResolverActivity|ChooserActivity|intentresolver',shell('dumpsys','activity','activities'))
-    capture('04-system-share');shell('input','keyevent','4');find('导出邀请卡')
+    current = shell('dumpsys','window')
+    assert re.search(r'mCurrentFocus[^\n]*(?:ResolverActivity|ChooserActivity|intentresolver)',current)
+    capture('04-system-share')
+    shell('input','keyevent','4');find('导出邀请卡')
+    capture('04b-return-from-share')
 
 def form():
     route('gathering/new?together=1');find('选择活动封面');capture('05-create')
@@ -93,6 +125,8 @@ def photo():
         try: x,y=find(label,tries=1);shell('input','tap',str(x),str(y));break
         except ValueError: pass
     find('更换封面');capture('08-picked-cover')
+    shell('input','swipe','230','940','230','575','700');time.sleep(.5)
+    capture('14-glass-scroll')
 
 def page(path,label,name):
     route(path+'?together=1' if '?' not in path else path+'&together=1')
@@ -106,16 +140,22 @@ adb('push','assets/demo/alley.jpg','/sdcard/Pictures/Together-test.jpg')
 shell('am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Pictures/Together-test.jpg')
 check('cold-start',cold)
 # Record the compositor output, including scrolling, transitions and system surfaces.
-video=Popen(['adb','shell','screenrecord','--time-limit','150','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
+video=Popen(['adb','shell','screenrecord','--time-limit','178','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
 try:
     check('open-scroll-back',hub)
-    check('share-album-export',sharing)
+    check('share-album-export',album_export)
+    check('system-share-return',system_share)
     check('form-keyboard',form)
     check('select-photo',photo)
     for path,label,name in [
         ('life/calendar','生活日程','09-calendar'),('social?section=events','邀请与消息','10-inbox'),
         ('life/memories','共同回忆','11-memories'),('life/reminders','生活提醒','12-reminders'),
-        ('world?kind=world','共同世界','13-world')]:
+        ('world?kind=world','共同世界','13-world'),
+        ('playground/with-friends','约朋友一起玩','16-with-friends'),
+        ('life/projects?kind=trip','共同旅行','17-trip'),('life/items?kind=place','愿望地图','18-place'),
+        ('world?kind=relay','瞬间共鸣','19-relay'),('social?section=collections','共同记录','20-journal'),
+        ('life/projects?kind=capsule','时光胶囊','21-capsule'),('life/projects?kind=list','共同清单','22-list'),
+        ('life/items','我的收藏与好友推荐','23-favorites')]:
         check(name,lambda:page(path,label,name))
 finally:
     if video.poll() is None: shell('pkill','-INT','screenrecord')
