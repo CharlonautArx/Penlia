@@ -2,7 +2,9 @@ name: Verify the existing Together Release on Android
 on:
   push:
     branches: [codex/together-invitations]
-    paths: ['.github/workflows/together-native-recheck.yml']
+    paths:
+      - '.github/workflows/together-native-recheck.yml'
+      - 'scripts/together-native-check.py'
   workflow_dispatch:
 permissions:
   contents: read

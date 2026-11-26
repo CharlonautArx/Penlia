@@ -54,6 +54,7 @@ def check(name,task):
     try: task();log('PASS '+name)
     except Exception as exc:
         errors.append(name);log('INCOMPLETE '+name+' ('+str(type(exc).__name__)+')')
+        if isinstance(exc,ValueError): log('Missing control: '+str(exc)[:80])
         capture('incomplete-'+name)
 
 def cold():
@@ -68,7 +69,11 @@ def hub():
     shell('input','keyevent','4');find('约朋友一起玩')
 
 def preview():
-    route('gathering/preview-gathering?together=1');tap('活动操作');tap('预览分享内容')
+    try:
+        find('分享活动名称',tries=1)
+    except ValueError:
+        route('gathering/preview-gathering?together=1')
+        tap('活动操作');tap('预览分享内容')
     find('导出邀请卡')
 
 def album_export():
@@ -116,10 +121,15 @@ def form():
 def photo():
     route('gathering/new?together=1');tap('选择活动封面')
     time.sleep(1);capture('07-photo-picker')
-    for key in ['icon_thumbnail','thumbnail','album_thumbnail']:
-        try: x,y=find(key=key,tries=1);break
-        except ValueError: pass
-    else: raise ValueError('no picker thumbnail')
+    # The seeded alley photo predates the newly exported title card.
+    # Select the last visible media tile so the blur test runs against a photograph.
+    tiles = []
+    for node in tree().iter('node'):
+        if not node.get('resource-id','').endswith(('/icon_thumbnail','/thumbnail')): continue
+        left,top,right,bottom=map(int,re.findall(r'\d+',node.get('bounds','')))
+        if left < right and top < bottom: tiles.append(((left+right)//2,(top+bottom)//2))
+    if not tiles: raise ValueError('no picker thumbnail')
+    x,y=tiles[-1]
     shell('input','tap',str(x),str(y));time.sleep(.7)
     for label in ['Add','Done','添加','完成']:
         try: x,y=find(label,tries=1);shell('input','tap',str(x),str(y));break
@@ -127,6 +137,11 @@ def photo():
     find('更换封面');capture('08-picked-cover')
     shell('input','swipe','230','940','230','575','700');time.sleep(.5)
     capture('14-glass-scroll')
+    shell('settings','put','secure','high_text_contrast_enabled','1')
+    try:
+        time.sleep(.7);capture('14b-high-contrast')
+    finally:
+        shell('settings','put','secure','high_text_contrast_enabled','0')
 
 def page(path,label,name):
     route(path+'?together=1' if '?' not in path else path+'&together=1')
