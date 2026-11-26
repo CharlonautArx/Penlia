@@ -1,0 +1,14 @@
+Android 15 original x86_64 Release check
+PASS cold-start
+PASS legacy-place-in-favorites
+PASS favorites-and-detail
+INCOMPLETE date-wheels-friend-invite-chat (ValueError)
+Missing control: 2026-11-28
+PASS profile-background-fullscreen-crop
+PASS capsule-self-exit
+Android API 35; ABI x86_64
+
+Android 15 focused recheck, same x86_64 APK
+PASS cold-start
+PASS date-wheels-friend-invite-chat
+Android API 35; ABI x86_64

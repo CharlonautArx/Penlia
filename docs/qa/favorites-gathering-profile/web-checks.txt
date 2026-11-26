@@ -1,0 +1,15 @@
+PASS favorite-legacy-place
+PASS favorite-text-and-sender
+PASS gathering-calendar-wheel-and-card
+PASS profile-background-entry
+PASS capsule-member-can-only-leave
+Renderer errors: 0
+PASS: editing a friend remark changed both the favorite card and its detail
+PASS: chat image was favorited, thumbnail shown and image detail opened
+PASS: compact favorites retain the edit menu
+PASS: favorite categories remained reachable on a 350px viewport with extra large type
+PASS: a horizontal drag moves the collection/recommendation segment
+PASS: a real selected cover rendered on the invitation card
+MATCH 好友 · 文案、图像来源和按钮位置
+MATCH 动态 · 文案、图像来源和按钮位置
+MATCH 私聊原消息 · 文案、图像来源和按钮位置
