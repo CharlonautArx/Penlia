@@ -115,6 +115,7 @@ test('Together HTTP integration on isolated PostgreSQL', async (t) => {
         due = async (who) => ok(await p1(who, '/activity-reminders')).reminders.some((r) => r.id === id);
       for (const who of [b, c, d])
         ok(await post(who, base + '/personal', { action: 'answer', answer: '甲店' }));
+      ok(await post(a, base + '/roster', { action: 'remove', userId: userId(d) }), 409);
       assert.equal(ok(await p1(b, base)).gathering.confirmed, false);
       assert.equal(ok(await p1(a, base)).gathering.agreedChoice, null);
       const message = { action: 'post', text: '我会带茶', clientId: randomUUID() };

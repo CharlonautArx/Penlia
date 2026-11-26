@@ -559,7 +559,7 @@ export async function manageRoster(user, id, body) {
       (row.ballotClosed ||
         (
           await db.query(
-            'SELECT 1 FROM p1_gathering_members WHERE gathering_id=$1 AND intention IS NOT NULL LIMIT 1',
+            'SELECT 1 FROM p1_gathering_members WHERE gathering_id=$1 AND (intention IS NOT NULL OR answer IS NOT NULL) LIMIT 1',
             [id],
           )
         ).rowCount)
