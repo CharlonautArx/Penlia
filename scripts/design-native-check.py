@@ -13,6 +13,7 @@ import time
 from xml.etree import ElementTree
 
 from PIL import Image, ImageChops, ImageStat
+from design_world_match import assess as world_rank, qualifies as world_matches
 
 
 PACKAGE = 'app.penlia.mobile.designpilot'
@@ -48,7 +49,8 @@ def animated_tree():
     # so ask UiAutomation directly while the product's animation is still running.
     status = shell('am', 'instrument', '-w', PROBE + '/.WindowProbe')
     if 'probe=ready' not in status:
-        raise ValueError('Animated test window not ready')
+        reason = re.search(r'probe=([A-Za-z]+)', status)
+        raise ValueError('Animated window probe: ' + (reason.group(1) if reason else 'no result'))
     xml = adb('exec-out', 'run-as', PROBE, 'cat', 'files/window.xml', binary=True)
     return ElementTree.fromstring(xml.strip())
 
@@ -169,10 +171,55 @@ def route(variant, screen):
     assert_page(variant, screen)
 
 
+def visual_world(variant):
+    # Verify the live foreground window twice so a stale screenshot or transition
+    # cannot be accepted. Actual delivered PNGs are captured afresh by capture().
+    def sample():
+        focus = shell('dumpsys', 'window')
+        if not re.search(r'mCurrentFocus=[^\n]*\b' + re.escape(PACKAGE) + '/', focus):
+            return None
+        data = adb('exec-out', 'screencap', '-p', binary=True)
+        with Image.open(io.BytesIO(data)) as frame:
+            if frame.size != screen_size: return None
+            return world_rank(frame, config.api)
+    # Ask the standard native tree first where the OS can return it promptly;
+    # its idle wait is normally unavailable on this intentionally animated page.
+    try:
+        dumped = shell('timeout', '3', 'uiautomator', 'dump', '/sdcard/design-room.xml', timeout=8, check=False)
+        if 'dumped to' in dumped:
+            root = ElementTree.fromstring(adb('exec-out','cat','/sdcard/design-room.xml', binary=True))
+            nodes = [n for n in root.iter('node') if points(n)]
+            ids = {n.get('resource-id','').rsplit('/',1)[-1] for n in nodes}
+            values = [v for n in nodes for v in labels(n)]
+            if ({'pilot-' + variant + '-world', 'world-title-' + variant} & ids and
+                any('晚风小院' in v for v in values) and
+                any(term in v for v in values for term in ('软风','摆件与纪念物','海岸'))):
+                log('World verification: native ID + fixture title + secondary room content')
+                return True
+    except (ValueError, ElementTree.ParseError, subprocess.SubprocessError):
+        pass
+    last = None
+    confirmed = 0
+    for _ in range(4):
+        last = sample()
+        confirmed = confirmed + 1 if last and world_matches(last, variant) else 0
+        if confirmed == 2:
+            winner, (title, grid) = last[0]
+            margin = (title + grid - sum(last[1][1])) / 2
+            log(f'World verification: two fresh foreground frames, layout {winner}, title={title:.3f}, grid={grid:.3f}, margin={margin:.3f}')
+            return True
+        time.sleep(.35)
+    if last: log('World visual candidates: ' + str([(v, round(a,2), round(b,2)) for v,(a,b) in last[:2]]))
+    return False
+
+
 def assert_page(variant, screen):
     marker = f'pilot-{variant}-{screen}'
     found_ids = set()
+    if screen == 'world' and visual_world(variant):
+        return
     inspector = animated_tree if screen == 'world' else tree
+    probe_error = ''
     for _ in range(4):
         try:
             nodes = list(inspector().iter('node'))
@@ -187,12 +234,13 @@ def assert_page(variant, screen):
             else:
                 matched = marker in ids
             if matched and content:
+                if screen == 'world': log('World verification: exact native accessibility ID, title and room content')
                 time.sleep(.35)
                 return
-        except (ElementTree.ParseError, ValueError, subprocess.SubprocessError):
-            pass
+        except (ElementTree.ParseError, ValueError, subprocess.SubprocessError) as exc:
+            probe_error = str(exc)[:100]
         time.sleep(.6)
-    raise ValueError(f'missing {marker} or fixture; visible pilot route markers {sorted(found_ids)}')
+    raise ValueError(f'missing {marker} or fixture; visible pilot route markers {sorted(found_ids)}; {probe_error}')
 
 
 def swipe(up=True):
