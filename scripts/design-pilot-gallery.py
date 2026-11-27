@@ -48,11 +48,14 @@ def package(light, dark, out, source):
                     archive.write(path, path.name)
                     if not prefix:
                         copyfile(path, out / ('native-' + path.name))
-                # Append one full-resolution page at a time to bound peak memory use.
-                board.save(comparison, 'PDF', append=bool(pages), resolution=190.0, quality=93)
-                board.close()
-                pages.append(screen)
+                pages.append(board)
             archive.write(folder / 'checks.txt', ('compact-dark-' if prefix else '') + 'checks.txt')
+    # One document write keeps page references valid across Pillow versions.
+    try:
+        pages[0].save(comparison, 'PDF', save_all=True, append_images=pages[1:], resolution=190.0, quality=93)
+    finally:
+        for page in pages:
+            page.close()
     for variant in 'ABCD':
         copyfile(light / (variant + '-interaction.mp4'), out / (variant + '-interaction.mp4'))
     copyfile(light / 'checks.txt', out / 'Android-15.txt')

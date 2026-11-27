@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           # Format: penlia-design-preview-ARM_BUILD-API35_RUN-API30_RUN
-          [[ $GITHUB_REF_NAME =~ ^penlia-design-preview-([0-9]+)-([0-9]+)-([0-9]+)$ ]]
+          [[ $GITHUB_REF_NAME =~ ^penlia-design-preview-([0-9]+)-([0-9]+)-([0-9]+)(-r[0-9]+)?$ ]]
           api_build=${BASH_REMATCH[1]}
           run35=${BASH_REMATCH[2]}
           run30=${BASH_REMATCH[3]}
