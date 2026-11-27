@@ -1,3 +1,4 @@
+import { isBuiltInStickerOnly, stickerCaption } from '../stickers/wire.ts';
 import { placeCaption } from '../play/place-card-model.ts';
 import { parseQuote, readRecordId, type MessageReferences } from '../chat/record-model.ts';
 import type { ChatMessage } from 'react-native-chat-sdk';
@@ -19,7 +20,11 @@ export type PendingMessage = (
 
 export function summaryOf(message: RichMessage) {
   if (message.recordId) return '[聊天记录]';
-  if ('text' in message) return message.sticker ? '[表情] ' + message.text : placeCaption(message.text);
+  if ('text' in message) {
+    if (isBuiltInStickerOnly(message.text)) return '[表情]';
+    const caption = stickerCaption(placeCaption(message.text));
+    return message.sticker ? '[表情] ' + caption : caption;
+  }
   if (message.kind === 'image') return '[图片]';
   if (message.kind === 'video') return '[视频]';
   return message.kind === 'file' ? '[文件] ' + message.name : '[位置] ' + message.name;
@@ -54,7 +59,7 @@ export function readPeerMessage(connection: ImConnection, message: ChatMessage |
     ...(message.attributes?.penlia_quiet === true ? { silent:true } : {}),
     ...(message.attributes?.penlia_no_reply === true ? { noReply:true } : {}) };
   if (message.body instanceof sdk.ChatTextMessageBody) return { ...metadata, text: message.body.content,
-    sticker: message.attributes?.penlia_sticker === true };
+    sticker: isBuiltInStickerOnly(message.body.content) || message.attributes?.penlia_sticker === true };
   if (typeof sdk.ChatCustomMessageBody === 'function' && message.body instanceof sdk.ChatCustomMessageBody
     && message.body.event === 'penlia_sticker' && typeof message.body.params?.label === 'string')
     return { ...metadata, text: message.body.params.label.slice(0, 32), sticker: true };
@@ -85,7 +90,7 @@ export function buildPeerMessage(connection: ImConnection, peer: string, value: 
     message.attributes.em_ignore_notification=true;
   }
   if (value.noReply && value.kind !== 'location') message.attributes.penlia_no_reply=true;
-  if (value.kind === 'text' && value.sticker) message.attributes.penlia_sticker = true;
+  if (value.kind === 'text' && (value.sticker || isBuiltInStickerOnly(value.text))) message.attributes.penlia_sticker = true;
   if (value.quote) message.attributes.penlia_quote = JSON.stringify(value.quote);
   if (value.recordId) message.attributes.penlia_record = value.recordId;
   return message;

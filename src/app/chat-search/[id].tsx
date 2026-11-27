@@ -1,3 +1,4 @@
+import { isBuiltInStickerOnly } from '../../features/stickers/wire';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -118,7 +119,7 @@ export default function ChatSearch() {
     return history.filter((row) => !hidden.has(row.id) && !Object.hasOwn(marker ?? {}, row.id));
   }, [accepted, demo, demoMedia, demoText, hidden, marker, ready, recallsReady, rows]);
   const index = useMemo(() => indexHistory(entries.map((row) => ({
-    id: row.id, timestamp: row.timestamp, kind: 'text' in row ? row.sticker ? 'sticker' : 'text' : row.kind,
+    id: row.id, timestamp: row.timestamp, kind: 'text' in row ? row.sticker || isBuiltInStickerOnly(row.text) ? 'sticker' : 'text' : row.kind,
     caption: summaryOf(row), row,
   }))), [entries]);
   const results = useMemo(() => index.matching(term, category), [category, index, term]);

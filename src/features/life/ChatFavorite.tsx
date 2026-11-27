@@ -8,6 +8,7 @@ import { useDirectory } from '../friends/store';
 import type { RecordEntry } from '../chat/MessageManagement';
 import { type Media, useProtectedSource } from '../moments/media';
 import { lifeDemoImages } from '../../demo/life-assets';
+import { stickerCaption } from '../stickers/wire';
 import { placeCaption } from '../play/place-card-model';
 import { createdTime } from '../space/model';
 
@@ -51,7 +52,7 @@ export function ChatFavorite({ preview, fallback, open, options }: {
 }) {
   const { line, thumbnail, count } = preview ?? { line: undefined, thumbnail: undefined, count: 0 };
   const { name } = useSavedSender(line ?? { author: '' });
-  const label = line?.body ? placeCaption(line.body) : thumbnail ? '图片' : line?.kind === 'video' ? '短视频' : fallback;
+  const label = line?.body ? stickerCaption(placeCaption(line.body)) : thumbnail ? '图片' : line?.kind === 'video' ? '短视频' : fallback;
   return <View style={local.row}>
     <Pressable accessibilityRole="button" accessibilityLabel={'查看收藏 ' + label} onPress={open}
       style={({ pressed }) => [local.content, pressed && { opacity: 0.68 }]}>

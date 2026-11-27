@@ -9,6 +9,7 @@ import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { createdTime } from '../space/model';
 import { chooseMomentPhotos, DraftMediaTile, MomentMediaTile, type LocalMedia } from './media';
+import { stickerCaption } from '../stickers/wire';
 import type { MomentComment } from './model';
 
 export const commentEmoji = ['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'];
@@ -44,19 +45,20 @@ export function CommentList({ comments, owner, reply, remove, showEmpty, compact
   }
   function line(item: MomentComment, inset = false) {
     const parent = item.replyTo && byId.get(item.replyTo);
+    const body = stickerCaption(item.body);
     if (compact) {
       const content = <>
         <Text style={local.author}>{item.author}</Text>
         {!!parent && <Text style={styles.small}> 回复 <Text style={local.author}>{parent.author}</Text></Text>}
-        <Text>{'：' + item.body + (item.photo ? (item.body ? ' [图片]' : '[图片]') : '')}</Text>
+        <Text>{'：' + body + (item.photo ? (body ? ' [图片]' : '[图片]') : '')}</Text>
       </>;
-      return reply ? <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.author + '：' + (item.body || '图片')}
+      return reply ? <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.author + '：' + (body || '图片')}
         onPress={() => reply(item)} style={({ pressed }) => [local.compact, pressed && local.pressed]}>
         <Text style={styles.small}>{content}</Text>
       </Pressable> : <Text key={item.id} style={[styles.small, local.compact]}>{content}</Text>;
     }
     return <View key={item.id} style={[local.line, inset && local.inset]}>
-      <Pressable accessibilityRole={reply ? 'button' : undefined} accessibilityLabel={item.author + '：' + (item.body || '图片')}
+      <Pressable accessibilityRole={reply ? 'button' : undefined} accessibilityLabel={item.author + '：' + (body || '图片')}
         onPress={reply && (() => reply(item))} onLongPress={item.body || (remove && (own === owner || own === item.authorId)) ? () => {
           Keyboard.dismiss(); setMenu(item); setProblem(''); setDeleting(false);
         } : undefined}
@@ -65,7 +67,7 @@ export function CommentList({ comments, owner, reply, remove, showEmpty, compact
         <View style={styles.grow}>
           <Text style={styles.small}><Text style={styles.strong}>{item.author}</Text>{'  ' + createdTime(Date.parse(item.createdAt))}</Text>
           {!!parent && inset && <Text style={styles.small}>{'回复：' + parent.author}</Text>}
-          {!!item.body && <Text style={styles.body}>{item.body}</Text>}
+          {!!item.body && <Text style={styles.body}>{body}</Text>}
         </View>
       </Pressable>
       {item.photo && <View style={local.photo}>{item.photo.demoUri?.startsWith('space-local:')

@@ -1,3 +1,4 @@
+import { stickerCaption } from '../stickers/wire';
 import { usePlaceDelivery } from '../play/PlaceShare';
 import { parsePlaceCard, placeCaption } from '../play/place-card-model';
 import type { MessageLongPress } from './record-model';
@@ -181,7 +182,7 @@ export function SelectionCheck({ active, checked, toggle, children }: { active: 
 export function QuotePreview({ quote, cancel }: { quote: Quote; cancel?: () => void }) {
   return <View style={[local.quote, !cancel && local.bubbleQuote]}>
     <Icon name="return-down-back-outline" color={colors.quiet} size={15} />
-    <Text style={[styles.small, styles.grow]} numberOfLines={1}>{quote.author} · {quote.body}</Text>
+    <Text style={[styles.small, styles.grow]} numberOfLines={1}>{quote.author} · {stickerCaption(quote.body)}</Text>
     {cancel && <IconButton label="取消引用" icon="close" onPress={cancel} />}
   </View>;
 }
@@ -247,7 +248,7 @@ function useRecordDelivery() {
         operation.recordId = recordId;
       }
       if (!target) {
-        await request('/chat-favorites', { method: 'POST', body: { recordId, title: ('聊天 · ' + batch[0].author + ' · ' + placeCaption(shareSafeText(batch[0].body))).slice(0, 120) } });
+        await request('/chat-favorites', { method: 'POST', body: { recordId, title: ('聊天 · ' + batch[0].author + ' · ' + stickerCaption(placeCaption(shareSafeText(batch[0].body)))).slice(0, 120) } });
       } else if (target.kind === 'group') {
         await request('/groups/' + target.id + '/messages', { method: 'POST',
           body: { clientId: operation.clientId, content: '', recordId } });

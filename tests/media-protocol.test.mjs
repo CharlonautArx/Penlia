@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildPeerMessage, easemobAttachmentUrl, readPeerMessage, locationValue, summaryOf } from '../src/features/media/protocol.ts';
+import { isBuiltInStickerOnly, splitStickerMessage, stickerCaption } from '../src/features/stickers/wire.ts';
 import { transitionCall } from '../src/features/calls/model.ts';
 
 class Text { constructor(content) { this.content = content; } }
@@ -106,4 +107,25 @@ test('all four friend text send modes reach the receiver and survive persisted h
       }
     }
   }
+});
+
+test('built-in sticker IDs survive text transport without uploading images', () => {
+  const token = '〔表情:test-pack/one〕';
+  const next = '〔表情:second-pack/two〕';
+  assert.deepEqual(splitStickerMessage('你好 ' + token + ' 😊' + next), [
+    { kind: 'text', value: '你好 ' },
+    { kind: 'sticker', packId: 'test-pack', stickerId: 'one' },
+    { kind: 'text', value: ' 😊' },
+    { kind: 'sticker', packId: 'second-pack', stickerId: 'two' },
+  ]);
+  const sent = buildPeerMessage(connection, 'friend', { kind: 'text', text: token + next });
+  assert.equal(sent.body.content, token + next);
+  assert.equal(sent.attributes.penlia_sticker, true);
+  const restored = readPeerMessage(connection, { ...sent, from: 'friend', to: 'me' }, 'me', 'friend');
+  assert.equal(restored.text, token + next);
+  assert.equal(summaryOf(restored), '[表情]');
+  assert.equal(stickerCaption('你好 ' + token + ' 😊'), '你好 [表情] 😊');
+  assert.equal(isBuiltInStickerOnly('😊'), false);
+  assert.equal(isBuiltInStickerOnly('你好 ' + token), false);
+  assert.equal(stickerCaption('〔表情:pack/https://example.net/a.png〕'), '〔表情:pack/https://example.net/a.png〕');
 });

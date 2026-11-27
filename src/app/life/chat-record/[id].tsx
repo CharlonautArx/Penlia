@@ -1,3 +1,4 @@
+import { stickerCaption } from '../../../features/stickers/wire';
 import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 import { Avatar, Empty, Notice, Screen } from '../../../components/ui';
@@ -51,7 +52,7 @@ function EntryBody({ line }: { line: RecordEntry }) {
   const place = parsePlaceCard(line.body);
   return <>
     {!!line.quote && <Text style={styles.small}>{'引用：' + line.quote}</Text>}
-    {place ? <PlaceMessage value={place} /> : !!line.body && <Text style={styles.body}>{line.body}</Text>}
+    {place ? <PlaceMessage value={place} /> : !!line.body && <Text style={styles.body}>{stickerCaption(line.body)}</Text>}
     <MomentMediaGrid media={line.media} />
   </>;
 }
