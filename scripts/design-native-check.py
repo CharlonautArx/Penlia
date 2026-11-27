@@ -16,6 +16,7 @@ from PIL import Image, ImageChops, ImageStat
 
 
 PACKAGE = 'app.penlia.mobile.designpilot'
+PROBE = 'app.penlia.pilot.probe'
 SCREENS = ('inbox', 'chat', 'moments', 'world', 'gathering')
 VARIANTS = ('original', 'A', 'B', 'C', 'D')
 VARIANT_LABELS = {'A': '温润生活主义', 'B': '现代原生极简主义', 'C': 'Apple 风格', 'D': 'Claude 风格'}
@@ -40,6 +41,16 @@ def tree():
     if 'dumped to' not in result:
         raise ValueError('Android accessibility tree temporarily unavailable')
     return ElementTree.fromstring(adb('exec-out', 'cat', '/sdcard/design-pilot.xml', binary=True).strip())
+
+
+def animated_tree():
+    # The pet keeps moving. Android's uiautomator dump refuses a non-idle tree,
+    # so ask UiAutomation directly while the product's animation is still running.
+    status = shell('am', 'instrument', '-w', PROBE + '/.WindowProbe')
+    if 'probe=ready' not in status:
+        raise ValueError('Animated test window not ready')
+    xml = adb('exec-out', 'run-as', PROBE, 'cat', 'files/window.xml', binary=True)
+    return ElementTree.fromstring(xml.strip())
 
 
 def labels(node):
@@ -161,12 +172,21 @@ def route(variant, screen):
 def assert_page(variant, screen):
     marker = f'pilot-{variant}-{screen}'
     found_ids = set()
-    for _ in range(6):
+    inspector = animated_tree if screen == 'world' else tree
+    for _ in range(4):
         try:
-            nodes = list(tree().iter('node'))
+            nodes = list(inspector().iter('node'))
             ids = {n.get('resource-id', '').rsplit('/', 1)[-1] for n in nodes if points(n)}
             found_ids.update(i for i in ids if i.startswith('pilot-'))
-            if marker in ids and any(term in v for n in nodes for v in labels(n) for term in CONTENTS[screen]):
+            values = tuple(v for n in nodes if points(n) for v in labels(n))
+            content = any(term in v for v in values for term in CONTENTS[screen])
+            if screen == 'world':
+                content = any('晚风小院' in v for v in values) and any(
+                    term in v for v in values for term in ('软风', '摆件与纪念物', '布景与宠物名字', '海岸'))
+                matched = marker in ids or ('world-title-' + variant) in ids
+            else:
+                matched = marker in ids
+            if matched and content:
                 time.sleep(.35)
                 return
         except (ElementTree.ParseError, ValueError, subprocess.SubprocessError):
@@ -250,9 +270,16 @@ def interact(variant):
         assert re.search(r'mInputShown=true|mIsInputViewShown=true', shell('dumpsys', 'input_method')), 'IME closed'
         shell('input', 'keyevent', '4')
         tap_label('发送')
-        visible(lambda n: any('See you' in v for v in labels(n)))
+        # Reading older messages preserves the viewport. Verify delivery in the
+        # real thread summary and then in the newly opened transcript.
         shell('input', 'keyevent', '4')
         assert_page(variant, 'inbox')
+        sent = visible(lambda n: n.get('clickable') == 'true' and
+                       any('小满' in v and 'See you' in v for v in labels(n)))
+        x, y = points(sent)
+        shell('input', 'tap', str(x), str(y))
+        assert_page(variant, 'chat')
+        visible(lambda n: any('See you' in v for v in labels(n)))
         route(variant, 'moments'); swipe(); swipe(False)
         route(variant, 'world'); swipe(); swipe(False)
         route(variant, 'gathering')
@@ -357,6 +384,7 @@ if __name__ == '__main__':
     adb('root')
     adb('wait-for-device')
     adb('install', '-r', str(config.apk), timeout=120)
+    adb('install', '-r', str(Path(os.environ['RUNNER_TEMP']) / 'design-window-probe.apk'))
     settings_for_device()
     log('Emulator hardware=' + shell('getprop', 'ro.hardware') + '; EGL=' + shell('getprop', 'ro.hardware.egl') + '; virtual CPUs=' + shell('cat', '/sys/devices/system/cpu/online', check=False) + '; configured GPU host via Mesa software OpenGL, animations enabled')
     for variant in VARIANTS:
@@ -378,5 +406,6 @@ if __name__ == '__main__':
         case('last-choice-survives-cold-start', verify_persistence)
     for screen in SCREENS:
         case(screen + '-comparison', lambda s=screen: compare_frames(s))
+    adb('uninstall', PROBE, check=False)
     if failures:
         raise SystemExit('Incomplete checks: ' + ', '.join(failures))
