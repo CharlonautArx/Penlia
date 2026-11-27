@@ -39,25 +39,23 @@ jobs:
       - name: Install SDK, build tools and NDK
         run: sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
       - run: npm ci && npm ci --prefix server && npm run typecheck && node --test --test-isolation=none tests/*.test.mjs
+      - name: Use the CI-provisioned Java toolchain for ARM64
+        if: matrix.abi == 'arm64-v8a'
+        run: |
+          # React Native needs Java 17, which setup-java already installed.
+          # Avoid resolving the optional download plugin from the Gradle Plugin Portal.
+          java -version 2>&1 | grep -E '^openjdk version "17[.]'
+          settings=node_modules/@react-native/gradle-plugin/settings.gradle.kts
+          resolver='plugins { id("org.gradle.toolchains.foojay-resolver-convention").version("1.0.0") }'
+          test "$(grep -Fxc "$resolver" "$settings")" = 1
+          sed -i '/^plugins { id("org[.]gradle[.]toolchains[.]foojay-resolver-convention")[.]version("1[.]0[.]0") }$/d' "$settings"
+          ! grep -F 'foojay-resolver-convention' "$settings"
       - name: Compile Android Release with R8
         run: |
           test ! -L node_modules/react-native-worklets/android/build
           npx expo prebuild --platform android --no-install
           (
             cd android
-            if [[ "${{ matrix.abi }}" == arm64-v8a ]]; then
-              # Check plugin resolution before the single full native compile.
-              for attempt in 1 2 3; do
-                if ./gradlew help --max-workers=3 -PreactNativeArchitectures=arm64-v8a --refresh-dependencies > "$RUNNER_TEMP/penlia-gradle-plugins.log" 2>&1; then
-                  break
-                fi
-                cat "$RUNNER_TEMP/penlia-gradle-plugins.log"
-                if [[ "$attempt" == 3 ]] || ! grep -q "foojay-resolver-convention.*was not found" "$RUNNER_TEMP/penlia-gradle-plugins.log"; then
-                  exit 1
-                fi
-                sleep "$((attempt * 5))"
-              done
-            fi
             ./gradlew :app:assembleRelease --max-workers=3 -PreactNativeArchitectures=${{ matrix.abi }} -Pandroid.enableMinifyInReleaseBuilds=true
           )
           mkdir out
