@@ -579,6 +579,7 @@ function GatheringDetail({ id }: { id: string }) {
     title={g.title} category={categories[g.category]} state={g.directProposal && g.state === 'interest' ? '待商量' : stateNames[g.state]}
     cover={g.cover} description={g.description} meetingNote={g.meetingNote} selected={selected}
     candidate={!selected ? data.options[0] : undefined}
+    proposal={singleProposal && host ? { selected: choice === data.options[0].id, choose: () => setChoice(data.options[0].id) } : undefined}
   />;
   return (
     <SocialPage title="约局详情" back={back} refreshing={busy} onRefresh={() => void load()}>
@@ -602,7 +603,6 @@ function GatheringDetail({ id }: { id: string }) {
               <Text style={styles.muted}>{host ? '选一个时间发给朋友，请他们自愿确认。' : '等发起者提议时间后，你可以自愿确认。'}</Text>
             </View>
             {host && <>
-              <CheckRow label="选择要提议的时间" selected={choice === data.options[0].id} action={() => setChoice(data.options[0].id)} />
               <SocialButton label="提议时间并开放确认" disabled={!choice || busy} onPress={() => organize('choose', { optionId: choice })} />
             </>}
           </>}
@@ -1111,7 +1111,7 @@ function GatheringDetail({ id }: { id: string }) {
         />
       )}
       {host && !['completed', 'cancelled'].includes(g.state) && (
-        <Button label="取消约局" variant="danger" onPress={() => setPanel('cancel')} />
+        <SocialButton label="取消约局" variant="danger" onPress={() => setPanel('cancel')} />
       )}
       {!!error && <Notice>{error}</Notice>}
       {panel && (

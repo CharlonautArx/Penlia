@@ -402,9 +402,9 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   }, [changed, connection, items, online, person, manage.selected, manage.quote, report.selected, markers, position, recalls.available, session?.user.name, demo, pilot]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
-  // Anchor the readable transcript below the controls. The small remaining overlap lets
-  // the existing fog sample moving content without hiding a whole line under the title.
-  const transcriptInset = pilot.variant !== 'original' && !hasTopNotice && !window ? Math.max(0, chromeHeight - 8) : 0;
+  // The header and transcript have separate hit regions. Its trailing fog samples only
+  // the boundary as messages scroll, leaving the first complete line fully legible.
+  const transcriptInset = pilot.variant !== 'original' && !hasTopNotice && !window ? chromeHeight + 2 : 0;
   const sendDisabled = (!demo && !online) || !encodedDraft || encodedDraft.length > 500 || sending
     || !!(pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === encodedDraft);
   return (
@@ -555,7 +555,7 @@ export default function ConversationScreen() {
           <View style={local.headerClearance}>
             <Empty busy={!relationships && !error}>{error || (relationships ? '只能与已接受请求的好友聊天。' : '正在加载会话…')}</Empty>
           </View>}
-        <View pointerEvents="box-none" style={[local.headerOverlay, { height: chromeHeight + space.xxl }]}>
+        <View pointerEvents="box-none" style={[local.headerOverlay, { height: chromeHeight + (custom ? 5 : space.xxl) }]}>
           <PeerChatFog ready={!!person} />
           <View style={[local.header, { height: chromeHeight }]} pointerEvents="box-none">
             <IconButton label="返回" icon="chevron-back" color={custom ? pilot.colors.text : undefined} onPress={goBack} />

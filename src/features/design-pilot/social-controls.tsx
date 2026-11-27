@@ -27,25 +27,26 @@ export function SocialPage(props: ComponentProps<typeof Screen>) {
 
 export function SocialButton(props: ComponentProps<typeof Button>) {
   const { variant, colors, dark } = useDesignPilot();
-  if (variant === 'original' || props.variant === 'danger') return <Button {...props} />;
+  if (variant === 'original') return <Button {...props} />;
   const prominent = !props.variant || props.variant === 'primary' || props.variant === 'gradient';
   const quiet = props.variant === 'quiet';
   const book = variant === 'D';
   const flat = variant === 'B' || book;
-  const filled = prominent && !book;
-  const ink = filled && variant === 'B' ? colors.accent : filled ? colors.background : quiet ? colors.muted : colors.text;
+  const filled = prominent && !book && !props.disabled;
+  const danger = props.variant === 'danger';
+  const ink = danger ? (dark ? '#F4AEAA' : '#983F3B') : props.disabled ? colors.muted : filled && variant === 'B' ? colors.accent : filled ? colors.background : quiet ? colors.muted : colors.text;
   return <Pressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ disabled: !!props.disabled }}
     disabled={props.disabled} onPress={props.onPress} onLongPress={props.onLongPress}
     android_ripple={{ color: dark ? '#ffffff28' : '#00000010' }}
     style={({ pressed }) => [local.action, {
-      alignSelf: 'stretch', backgroundColor: filled && variant === 'B' ? colors.tint : filled ? colors.text : flat || quiet ? 'transparent' : colors.surface,
+      alignSelf: 'stretch', backgroundColor: filled && variant === 'B' ? colors.tint : filled ? colors.text : flat || quiet || danger || props.disabled ? 'transparent' : colors.surface,
       borderRadius: variant === 'C' ? 22 : variant === 'A' ? 15 : 0, borderColor: colors.line,
       borderBottomWidth: flat && !filled ? StyleSheet.hairlineWidth : 0,
-      paddingHorizontal: flat && !filled ? 3 : 15, opacity: props.disabled ? 0.48 : pressed ? 0.72 : 1,
+      paddingHorizontal: flat && !filled ? 3 : 15, opacity: props.disabled ? 0.82 : pressed ? 0.72 : 1,
     }]}>
     {props.icon && <Icon name={props.icon} size={18} color={ink} />}
     <Text style={{ color: ink, flexShrink: 1, fontSize: 15, fontWeight: prominent ? '700' : '500' }}>{props.label}</Text>
-    {book && <View style={{ flex: 1, alignItems: 'flex-end' }}><Icon name="chevron-forward" size={15} color={colors.muted} /></View>}
+    {book && !props.disabled && !danger && <View style={{ flex: 1, alignItems: 'flex-end' }}><Icon name="chevron-forward" size={15} color={colors.muted} /></View>}
   </Pressable>;
 }
 

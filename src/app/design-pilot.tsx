@@ -55,7 +55,7 @@ export default function DesignPilotScreen() {
       <Text accessibilityLiveRegion="polite" style={[s.note, { color: choice.muted }]}>{description[variant]}</Text>
       <Text accessibilityRole="header" style={[s.subtitle, { color: choice.text }]}>体验页面</Text>
       <View style={[s.routes, { backgroundColor: tone.background, borderColor: tone.line }]}>
-        {scenes.map((scene) => <Pressable key={scene.key} accessibilityRole="button" onPress={() => router.push(scene.route)}
+        {scenes.map((scene) => <Pressable key={scene.key} accessibilityRole="button" accessibilityLabel={scene.name} onPress={() => router.push(scene.route)}
           style={({ pressed }) => [s.route, pressed && s.pressed]}>
           <Icon name={scene.icon} color={tone.accent} size={20} />
           <Text style={[s.name, { color: tone.text }]}>{scene.name}</Text>

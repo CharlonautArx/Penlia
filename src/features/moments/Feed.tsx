@@ -204,7 +204,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     contentContainerStyle: immersive ? local.homeList : local.list, ListHeaderComponent: header,
     refreshing: pane === 'thought' && busy, onRefresh: pane === 'thought' ? () => void load() : undefined,
     renderItem: ({ item: row }) => {
-      if (row.entry) return <View style={local.column}><EntryCard entry={row.entry} timeline={mine} /></View>;
+      if (row.entry) return <View style={local.column}><EntryCard edition={edition} entry={row.entry} timeline={mine} /></View>;
       const item = row.moment;
       const post = <PostCard edition={edition} item={item} onRemove={() => { void load(); }} onUpdate={(change) => update(item.id, change)}
         showPin={!home}

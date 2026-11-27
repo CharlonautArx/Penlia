@@ -3,10 +3,23 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle,
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Icon, type IconName } from '../../components/ui';
+import { readingFont } from './reading';
 import { useDesignPilot } from './context';
 import type { SpacePane } from '../space/SpaceHeader';
 
-type Edition = 'A' | 'B' | 'C' | 'D';
+export type FeedEdition = 'A' | 'B' | 'C' | 'D';
+type Edition = FeedEdition;
+
+export function feedCaptionStyle(edition: Edition, color: string, text: string): TextStyle {
+  if (edition === 'D') {
+    const excerpt = text.length > 0 && text.length <= 46 && !text.includes('\n');
+    return excerpt ? { color, fontSize: 24, lineHeight: 35, fontFamily: readingFont(text) }
+      : { color, fontSize: 17, lineHeight: 29 };
+  }
+  const fontSize = edition === 'A' ? 18 : 16;
+  const lineHeight = edition === 'A' ? 28 : 24;
+  return { color, fontSize, lineHeight };
+}
 const tabs: { key: SpacePane; label: string; icon: IconName }[] = [
   { key: 'thought', label: '动态', icon: 'chatbubble-ellipses-outline' },
   { key: 'journal', label: '日志', icon: 'book-outline' },
@@ -46,7 +59,7 @@ export function MomentsToolbar({ edition, pane, onPane, onPublish, onPrivacy, co
     {(fontScale > 1.3 || width > 600) && <Text accessibilityRole="header" style={{ color: colors.text, paddingVertical: 8,
       fontSize: 27, fontWeight: edition === 'D' ? '400' : '600', fontFamily: edition === 'D' ? 'PenliaReading' : undefined }}>好友动态</Text>}
     <View style={[barStyle, { flexDirection: doubleRow ? 'column' : 'row', alignItems: doubleRow ? 'stretch' : 'center', gap: rounded ? 4 : 6 }]}>
-      <View accessibilityRole="tablist" onLayout={event => setRowWidth(event.nativeEvent.layout.width)}
+      <View accessibilityRole="tablist" accessibilityLabel="空间栏目" onLayout={event => setRowWidth(event.nativeEvent.layout.width)}
         style={[layout.panes, !doubleRow && layout.grow, rounded && { backgroundColor: colors.tint, borderRadius: 16, padding: 2 }]}>
         {available.map(tab => {
           const selected = tab.key === pane;
@@ -93,7 +106,7 @@ export function PilotPostArticle({ edition, author, body, media, before, footer,
       {Number.isFinite(date.valueOf()) && <View style={[layout.calendar, { borderColor: colors.line }]} accessible
         accessibilityLabel={date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}>
         {date.getFullYear() !== new Date().getFullYear() && <Text style={{ color: colors.muted, fontSize: 12 }}>{date.getFullYear()}</Text>}
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{date.getMonth() + 1}月</Text>
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{date.getMonth() + 1}月</Text>
         <Text style={{ color: colors.accent, fontSize: 21, lineHeight: 27, fontVariant: ['tabular-nums'] }}>{date.getDate()}</Text>
       </View>}
       <View style={layout.grow}>{body}</View>
@@ -109,7 +122,9 @@ export function PilotPostArticle({ edition, author, body, media, before, footer,
     {footer}
   </View>;
   if (edition === 'C') return <View style={[layout.group, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-    {author}{before}{body}{media}{footer}
+    {author}{before}{body}
+    {!!media && <View style={{ marginHorizontal: -9 }}>{media}</View>}
+    {footer}
   </View>;
   return <View style={[layout.letter, edges]}>
     {body}{before}{author}{media}{footer}
@@ -123,9 +138,9 @@ const layout = StyleSheet.create({
   selection: { position: 'absolute', bottom: 4, height: 2, borderRadius: 2 },
   tools: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tool: { minWidth: 48, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  album: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  album: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4, gap: 9, borderBottomWidth: StyleSheet.hairlineWidth },
   albumCaption: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  calendar: { alignItems: 'center', justifyContent: 'center', minWidth: 36, borderRightWidth: StyleSheet.hairlineWidth, paddingRight: 8 },
+  calendar: { alignItems: 'center', justifyContent: 'center', minWidth: 39, borderRightWidth: StyleSheet.hairlineWidth, paddingRight: 8 },
   grow: { flex: 1, minWidth: 0 },
   stream: { paddingHorizontal: 16, paddingTop: 11, paddingBottom: 2, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   digest: { flexDirection: 'row', gap: 16, alignItems: 'center' },

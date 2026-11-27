@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { useAppearance } from '../../components/appearance';
+import { readingFont } from '../design-pilot/reading';
 import { useFontScale } from '../../components/Typography';
 import { Icon } from '../../components/ui';
 import { UnreadMark } from '../../components/material';
@@ -32,7 +34,7 @@ export function PilotInboxHeader({ pilot, value, onChange, onFocus }: {
     { borderColor: focused ? colors.accent : colors.line, borderWidth: letter || minimal ? 0 : hair },
     letter && { borderBottomWidth: hair }]}>
     <Icon name="search-outline" color={colors.muted} size={18} />
-    <TextInput accessibilityLabel="搜索会话" placeholder={minimal && !large ? '搜索会话' : '搜索联系人或消息'}
+    <TextInput accessibilityLabel="搜索会话" placeholder="搜索联系人或消息"
       value={value} onChangeText={onChange} onFocus={() => { onFocus(); setFocused(true); }} onBlur={() => setFocused(false)}
       returnKeyType="search" placeholderTextColor={colors.muted} selectionColor={colors.accent}
       style={[s.input, { color: colors.text }]} />
@@ -60,7 +62,19 @@ export function PilotInboxRow({ pilot, lead, name, avatar, preview, time, unread
   pilot: Pilot; lead: boolean;
 }) {
   const { colors, variant } = pilot;
-  const large = useFontScale() > 1.2;
+  const fontScale = useFontScale();
+  const large = fontScale > 1.2;
+  const { width } = useWindowDimensions();
+  const narrow = width < 355 || large;
+  const { reduced } = useAppearance();
+  const pressScale = useRef(new Animated.Value(1)).current;
+  function contactPress(active: boolean) {
+    if (reduced || variant !== 'C') return;
+    pressScale.stopAnimation();
+    Animated.timing(pressScale, {
+      toValue: active ? 0.984 : 1, duration: active ? 80 : 125, useNativeDriver: true,
+    }).start();
+  }
   const featured = variant === 'A' && lead;
   const utility = variant === 'B';
   const native = variant === 'C';
@@ -71,8 +85,8 @@ export function PilotInboxRow({ pilot, lead, name, avatar, preview, time, unread
       native && s.nativeName, letter && s.byline]}>{name}</Text>
     {pinned && <Icon name="pin-outline" size={13} color={colors.muted} />}{signal}
   </View>;
-  const summary = <Text numberOfLines={featured || large || letter ? 2 : 1} style={[s.summary,
-    { color: featured || letter ? colors.text : colors.muted }, featured && s.featureSummary, letter && s.letterSummary]}>{preview}</Text>;
+  const summary = <Text numberOfLines={featured || narrow || letter ? 2 : 1} style={[s.summary,
+    { color: featured || letter ? colors.text : colors.muted }, featured && s.featureSummary, letter && [s.letterSummary, { fontFamily: readingFont(preview) }]]}>{preview}</Text>;
   const stamp = <Text numberOfLines={1} style={[s.time, utility && s.railStamp, { color: colors.muted }]}>{time}</Text>;
   const marks = <MessageMarks sharing={noReply} silent={silent} preview />;
   const label = [name, pinned && '置顶', unread ? unread + ' 条未读消息' : manualUnread && '已标为未读', preview].filter(Boolean).join('，');
@@ -81,19 +95,22 @@ export function PilotInboxRow({ pilot, lead, name, avatar, preview, time, unread
     <View style={s.summaryLine}>{summary}{marks}</View>
     <View style={s.bylineRow}>{avatar}{nameLine}<View style={s.fill} />{stamp}{count}</View>
   </Pressable>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+  return <Animated.View style={native && !reduced ? { transform: [{ scale: pressScale }] } : undefined}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+    android_ripple={utility ? { color: colors.tint } : undefined}
+    onPressIn={() => contactPress(true)} onPressOut={() => contactPress(false)}
     style={({ pressed }) => [s.row, utility && s.utilityRow, native && s.nativeRow, featured && s.featureRow,
       { backgroundColor: pressed || pinned ? colors.tint : native ? colors.surface : colors.background }]}>
-    {utility && !large && <View style={s.timeRail}>{stamp}</View>}
+    {utility && !narrow && <View style={s.timeRail}>{stamp}</View>}
     {featured ? <View style={[s.portraitFrame, { borderColor: colors.line }]}>{avatar}</View> : avatar}
     <View style={[s.content, utility && s.utilityContent, { borderColor: colors.line },
       (!featured && variant === 'A') && s.noSeparator]}>
-      <View style={s.nameLine}>{nameLine}<View style={s.fill} />{utility && !large ? count : stamp}</View>
+      <View style={s.nameLine}>{nameLine}<View style={s.fill} />{utility && !narrow ? count : stamp}</View>
       <View style={s.summaryLine}>{summary}{marks}<View style={s.fill} />
-        {utility && !large ? null : count}
+        {utility && !narrow ? null : count}
       </View>
     </View>
-  </Pressable>;
+  </Pressable></Animated.View>;
 }
 
 const s = StyleSheet.create({
@@ -116,7 +133,7 @@ const s = StyleSheet.create({
   fill: { flexGrow: 1 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', minHeight: 76, paddingLeft: 18 },
   utilityRow: { minHeight: 67, paddingLeft: 16, gap: 10 },
-  nativeRow: { minHeight: 77, paddingLeft: 12 },
+  nativeRow: { minHeight: 77, paddingLeft: 15 },
   featureRow: { minHeight: 111, gap: 15, paddingLeft: 17 },
   portraitFrame: { padding: 3, borderWidth: StyleSheet.hairlineWidth, borderRadius: 50 },
   content: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center', gap: 3,
@@ -133,5 +150,5 @@ const s = StyleSheet.create({
   letterRow: { paddingVertical: 12, paddingHorizontal: 2, gap: 6, borderBottomWidth: hair },
   bylineRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   byline: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
-  letterSummary: { fontFamily: letterFont, fontSize: 18, lineHeight: 28 },
+  letterSummary: { fontSize: 18, lineHeight: 28 },
 });

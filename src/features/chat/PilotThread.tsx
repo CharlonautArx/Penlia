@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { readingFont } from '../design-pilot/reading';
 import type { useDesignPilot } from '../design-pilot/context';
 import { Icon } from '../../components/ui';
 
@@ -14,17 +15,17 @@ export function ContactHeading({ pilot, name, avatar, onPress }: {
     {(variant === 'A' || variant === 'C') && avatar}
     <View style={s.headingLine}>
       <Text accessibilityRole="header" numberOfLines={2} style={[s.contact, { color: colors.text },
-        variant === 'D' && s.letterHeading, variant === 'C' && s.centerName]}>{name}</Text>
+        variant === 'D' && [s.letterHeading, { fontFamily: readingFont(name) }], variant === 'C' && s.centerName]}>{name}</Text>
       {variant === 'A' && <Icon name="chevron-forward" size={13} color={colors.muted} />}
     </View>
   </Pressable>;
 }
 
-export function threadPaper(pilot: ThreadPilot, mine: boolean): ViewStyle {
+export function threadPaper(pilot: ThreadPilot, mine: boolean, wallpaper: boolean): ViewStyle {
   const { variant, colors } = pilot;
   if (variant === 'D') return mine ? {
     borderRadius: 13, borderBottomRightRadius: 4, paddingHorizontal: 15, paddingVertical: 10, backgroundColor: colors.tint,
-  } : { borderRadius: 5, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: colors.surface };
+  } : { borderRadius: 5, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: wallpaper ? colors.surface : 'transparent' };
   if (variant === 'B') return {
     borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7,
     backgroundColor: mine ? colors.tint : colors.surface,
@@ -42,7 +43,7 @@ export function threadPaper(pilot: ThreadPilot, mine: boolean): ViewStyle {
 
 export function threadInk(pilot: ThreadPilot): TextStyle {
   const { variant, colors } = pilot;
-  return variant === 'D' ? { color: colors.text, fontFamily: 'PenliaReading', fontSize: 18, lineHeight: 29 } :
+  return variant === 'D' ? { color: colors.text, fontSize: 17, lineHeight: 28 } :
     { color: colors.text, fontSize: variant === 'B' ? 16 : 17, lineHeight: variant === 'B' ? 22 : 25 };
 }
 
@@ -64,7 +65,7 @@ const s = StyleSheet.create({
   headingLine: { minWidth: 0, flexShrink: 1, flexDirection: 'row', gap: 3, alignItems: 'center' },
   contact: { fontSize: 19, lineHeight: 25, fontWeight: '600', flexShrink: 1 },
   centerName: { fontSize: 17, lineHeight: 23, fontWeight: '600', textAlign: 'center' },
-  letterHeading: { fontFamily: 'PenliaReading', fontWeight: '400', fontSize: 24, lineHeight: 33 },
+  letterHeading: { fontWeight: '400', fontSize: 24, lineHeight: 33 },
   pressed: { opacity: 0.65 },
   date: { paddingTop: 17, paddingBottom: 9, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
   startDate: { justifyContent: 'flex-start' }, tightDate: { paddingTop: 9, paddingBottom: 5 },

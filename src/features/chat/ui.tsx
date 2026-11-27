@@ -92,7 +92,7 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
         onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); }}
         delayLongPress={380}
         style={({ pressed }) => [bare ? ui.bareBubble : [ui.bubble, mine ? ui.sent : ui.received,
-          custom && threadPaper(pilot, mine), !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>
+          custom && threadPaper(pilot, mine, !!wall), !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>
         {children}
       </Pressable>
     </View>

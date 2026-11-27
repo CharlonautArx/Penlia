@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useDesignPilot } from '../design-pilot/context';
-import { PilotPostArticle } from '../design-pilot/Moments';
+import { feedCaptionStyle, PilotPostArticle, type FeedEdition } from '../design-pilot/Moments';
 import { Button, Icon, IconButton, ListRow, Notice, Sheet, Tag, type IconName } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
@@ -18,7 +18,7 @@ import { CommentList } from './Comments';
 import { MomentShareSheet } from './ShareSheet';
 
 export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = false, hideComments = false, showPin = true, edition }: {
-  edition?: 'A' | 'B' | 'C' | 'D';
+  edition?: FeedEdition;
   item: Moment;
   onReply?: (comment?: MomentComment) => void;
   detail?: boolean;
@@ -103,7 +103,7 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
   const before = item.forwarded && <ListRow title="查看转发的原动态" left={<Icon name="arrow-redo-outline" />}
       onPress={() => router.push({ pathname: '/life/moment/[id]', params: { id: item.id, original: '1' } })} separator={false} />;
   const body = <>{!detail && <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openDetail()} style={edition ? ({ pressed }) => ({ opacity: pressed ? 0.72 : 1, minHeight: 44, justifyContent: 'center' }) : undefined}>
-      {!!item.body ? <Text style={[local.caption, edition && { color: pilot.colors.text, fontSize: edition === 'D' ? 24 : edition === 'A' ? 18 : 16, lineHeight: edition === 'D' ? 35 : edition === 'A' ? 28 : 24, fontFamily: edition === 'D' ? 'PenliaReading' : undefined }]}>{item.body}</Text> : <Text style={styles.small}>查看动态详情</Text>}
+      {!!item.body ? <Text style={[local.caption, edition && feedCaptionStyle(edition, pilot.colors.text, item.body)]}>{item.body}</Text> : <Text style={styles.small}>查看动态详情</Text>}
     </Pressable>}
     {detail && !!item.body && <Text style={local.caption}>{item.body}</Text>}</>;
   const media = !!item.media.length && <MomentMediaGrid media={item.media} mode={detail ? 'detail' : 'feed'} onMore={() => openDetail()} />;

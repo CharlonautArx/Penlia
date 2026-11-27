@@ -1,3 +1,4 @@
+import { readingFont } from './reading';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Icon } from '../../components/ui';
@@ -69,7 +70,7 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
   </View>;
   const display = (size: number, color = colors.text) => <Text accessibilityRole="header" style={{
     color, fontSize: size, lineHeight: Math.ceil(size * 1.26), fontWeight: book ? '400' : '700',
-    fontFamily: book ? 'PenliaReading' : undefined, letterSpacing: book ? 0.5 : -0.45,
+    fontFamily: book ? readingFont(space.title) : undefined, letterSpacing: book ? 0.5 : -0.45,
   }}>{space.title}</Text>;
   const scene = (color = colors.muted) => <Text style={{ color, fontSize: 14, fontWeight: '500' }}>{space.eventDay ?? sceneNames[space.scene]}</Text>;
   const slots = <Places records={records} choose={choose} add={add} />;
@@ -87,13 +88,15 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
     {slots}
   </View>;
   if (book) return <View style={{ gap: 15, paddingTop: 12 }}>
-    <View style={{ paddingVertical: 12, borderTopColor: colors.text, borderTopWidth: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }}>
+    <View style={{ paddingVertical: 12, borderTopColor: colors.text, borderTopWidth: 1 }}>
       {scene(colors.accent)}
     </View>
     {display(36)}
     <View style={{ flexDirection: split ? 'row' : 'column', gap: split ? 10 : 12, alignItems: 'stretch' }}>
-      <View style={{ borderRightWidth: split ? StyleSheet.hairlineWidth : 0, borderColor: colors.line, paddingRight: split ? 8 : 0, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, backgroundColor: colors.tint, borderRadius: 3 }}>
+      <View style={{ borderRightWidth: split ? StyleSheet.hairlineWidth : 0, borderColor: colors.line, paddingRight: split ? 8 : 0, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: 6 }}>
         {pet(71, colors.text)}
+        <LinearGradient colors={(dark ? darkTints : sceneTints)[space.scene]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={{ width: 40, height: 3, borderRadius: 1 }} />
       </View>
       <View style={{ flex: split ? 1 : undefined }}>{slots}</View>
     </View>
@@ -101,7 +104,11 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
   if (variant === 'B') return <View style={{ gap: 8 }}>
     <View style={{ flexDirection: split ? 'row' : 'column', alignItems: split ? 'center' : 'flex-start', gap: 9, paddingVertical: 8 }}>
       <View style={{ flex: split ? 1 : undefined, gap: 6 }}>{scene()}{display(27)}</View>
-      {pet(56, colors.text)}
+      <View style={{ alignItems: 'center', gap: 3 }}>
+        {pet(56, colors.text)}
+        <LinearGradient colors={(dark ? darkTints : sceneTints)[space.scene]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={{ width: 30, height: 3, borderRadius: 2 }} />
+      </View>
     </View>
     <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.line }}>{slots}</View>
   </View>;

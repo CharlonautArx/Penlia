@@ -1,3 +1,5 @@
+import { feedCaptionStyle, PilotPostArticle, type FeedEdition } from '../design-pilot/Moments';
+import { useDesignPilot } from '../design-pilot/context';
 import { momentPhotoGrid } from '../moments/photo-grid';
 import { router } from 'expo-router';
 import { Fragment, useState } from 'react';
@@ -35,8 +37,9 @@ export function JournalLink({ entry, viewer }: { entry: Entry; viewer?: string }
   </Pressable>;
 }
 
-export function EntryCard({ entry, full = false, viewer, timeline = false, onReply }: { entry: Entry; full?: boolean; viewer?: string; timeline?: boolean; onReply?: (comment?: MomentComment) => void }) {
+export function EntryCard({ entry, full = false, viewer, timeline = false, onReply, edition }: { edition?: FeedEdition; entry: Entry; full?: boolean; viewer?: string; timeline?: boolean; onReply?: (comment?: MomentComment) => void }) {
   const state = useSpace();
+  const pilot = useDesignPilot();
   const author = state.person(entry.ownerId);
   const mine = state.owns(entry.ownerId);
   const [sheet, setSheet] = useState<'options' | 'share' | 'delete' | 'video'>();
@@ -96,15 +99,17 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
 
   const authorPhoto = demoPortrait((mine && state.demoAvatarKey) || author.username);
   const openAuthor = () => router.push({ pathname: '/space/[id]', params: { id: entry.ownerId, ...(viewer ? { viewer } : {}) } });
-  const stamp = createdTime(entry.at) + (entry.editedAt ? ' · 已编辑' : '');
+  const date = new Date(entry.at);
+  const time = edition === 'A' && Number.isFinite(date.valueOf())
+    ? date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }) : createdTime(entry.at);
+  const stamp = time + (entry.editedAt ? ' · 已编辑' : '');
   const actions = <>
     {timeline && entry.pinned && <Tag>置顶</Tag>}
     {mine && !viewer && <IconButton label={timeline ? '管理这条动态' : '动态选项'} icon="ellipsis-horizontal" onPress={() => setSheet('options')} />}
   </>;
 
-  return <View style={[local.post, full && local.full]}>
-    {entry.kind === 'thought' ? <MomentAuthor id={author.id} name={author.name} photo={authorPhoto}
-      stamp={stamp} visibility={visibilityText(null, entry.audience.mode === 'self' ? 'self' : entry.audience.mode === 'friends' ? 'friends' : 'partial')}
+  const byline = entry.kind === 'thought' ? <MomentAuthor id={author.id} name={author.name} photo={authorPhoto}
+      stamp={stamp} typography={edition ? { text: pilot.colors.text, muted: pilot.colors.muted } : undefined} visibility={visibilityText(null, entry.audience.mode === 'self' ? 'self' : entry.audience.mode === 'friends' ? 'friends' : 'partial')}
       onPress={openAuthor}>{actions}</MomentAuthor> : <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel={author.name + '的空间'} onPress={() =>
         router.push({ pathname: '/space/[id]', params: { id: entry.ownerId, ...(viewer ? { viewer } : {}) } })}>
@@ -116,8 +121,8 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
       </View>
       {mine && !viewer && <Tag>{audienceName(entry.audience)}</Tag>}
       {actions}
-    </View>}
-    {entry.kind === 'journal' && !full
+    </View>;
+  const body = entry.kind === 'journal' && !full
       ? <JournalLink entry={entry} viewer={viewer} />
       : entry.kind === 'journal'
         ? <>
@@ -130,22 +135,21 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
         : <>
           {full ? <Text style={styles.body}>{entry.text}</Text> :
             <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openEntry(entry.id, viewer)}>
-              <Text style={styles.body}>{entry.text || '查看动态详情'}</Text>
+              <Text style={[styles.body, edition && feedCaptionStyle(edition, pilot.colors.text, entry.text)]}>{entry.text || '查看动态详情'}</Text>
             </Pressable>}
-          {!entry.videoPreview && thoughtPhotos(entry.photos)}
-        </>}
-    {entry.videoPreview && <Pressable accessibilityRole="button" accessibilityLabel="视频动态样式预览"
+        </>;
+  const media = entry.videoPreview ? <Pressable accessibilityRole="button" accessibilityLabel="视频动态样式预览"
       style={local.video} onPress={() => setSheet('video')}>
       {entry.photos[0] && <SpacePhoto photo={entry.photos[0]} style={local.image} />}
       <View style={local.videoLabel}><Icon name="play-circle-outline" color="#FFFFFF" />
         <Text style={local.videoText}>视频样式</Text></View>
-    </Pressable>}
-    {!!entry.location && <View style={local.location}><Icon size={13} name="location-outline" color={colors.accent} />
+    </Pressable> : entry.kind === 'thought' && thoughtPhotos(entry.photos);
+  const footer = <>{!!entry.location && <View style={local.location}><Icon size={13} name="location-outline" color={colors.accent} />
       <Text style={styles.small}>{entry.location}</Text></View>}
     {!!entry.sourceId && (source ? <ListRow title={source.title || '查看原动态'} detail={state.person(source.ownerId)?.name}
       left={<Icon name="arrow-redo-outline" />} onPress={() => openEntry(source.id, viewer)} />
       : <Text style={styles.small}>原动态当前不可见。</Text>)}
-    {!viewer && <View style={local.actions}>
+    {!viewer && <View style={[local.actions, edition === 'B' && { justifyContent: 'flex-start', gap: 6 }, edition === 'D' && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pilot.colors.line }]}>
       <Action label={entry.liked ? '取消比耶' : '比耶'} icon="peace" active={entry.liked}
         text={String(entry.likes)} onPress={() => state.updateEntry(entry.id, (current) => ({
           ...current, liked: !current.liked, likes: current.likes + (current.liked ? -1 : 1),
@@ -167,7 +171,8 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
       }} />}
     {!visibleReplies && full && <Text style={styles.small}>评论仅空间主人可见。</Text>}
     {!canReply && full && !viewer && <Text style={styles.small}>空间主人关闭了好友评论。</Text>}
-    {focusPhoto && <Sheet title="照片" onClose={() => setFocusPhoto(undefined)}>
+  </>;
+  const panels = <>{focusPhoto && <Sheet title="照片" onClose={() => setFocusPhoto(undefined)}>
       <SpacePhoto photo={focusPhoto} style={local.fullPhoto} />
     </Sheet>}
     {sheet === 'options' && <Sheet title="动态选项" onClose={() => setSheet(undefined)}>
@@ -194,8 +199,10 @@ export function EntryCard({ entry, full = false, viewer, timeline = false, onRep
     </Sheet>}
     {sheet === 'video' && <Sheet title="视频动态样式" onClose={() => setSheet(undefined)}>
       <Text style={styles.muted}>此处仅预览视频封面与入口。</Text>
-    </Sheet>}
-  </View>;
+    </Sheet>}</>;
+  return <>{edition ? <PilotPostArticle edition={edition} author={byline} before={undefined} body={body} media={media} footer={footer}
+    date={date} singlePhoto={!entry.videoPreview && entry.photos.length === 1} />
+    : <View style={[local.post, full && local.full]}>{byline}{body}{media}{footer}</View>}{panels}</>;
 }
 
 function Action({ label, icon, text, active, onPress }: {

@@ -1,4 +1,5 @@
-import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { readingFont } from './reading';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Icon, type IconName } from '../../components/ui';
 import { Backdrop } from '../together/Backdrop';
@@ -15,6 +16,7 @@ type Invitation = {
   state: string;
   selected?: WhenWhere;
   candidate?: WhenWhere;
+  proposal?: { selected: boolean; choose: () => void };
 };
 
 function Cover({ value }: { value?: string }) {
@@ -22,19 +24,28 @@ function Cover({ value }: { value?: string }) {
     : <Backdrop />;
 }
 
-function Fact({ label, icon, value }: { label: string; icon: IconName; value: string }) {
+function Fact({ label, icon, value, proposal }: { label: string; icon: IconName; value: string; proposal?: Invitation['proposal'] }) {
   const { colors, variant } = useDesignPilot();
   const compact = variant === 'B';
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: compact ? 9 : 12, minHeight: compact ? 45 : 53, paddingVertical: 6 }}>
+  const content = <View style={{ flexDirection: 'row', alignItems: 'center', gap: compact ? 9 : 12, minHeight: 48, paddingVertical: 7 }}>
     <Icon name={icon} size={compact ? 18 : 21} color={colors.accent} />
     <View style={{ flex: 1, gap: 3 }}>
-      <Text style={{ fontSize: 12, color: colors.muted }}>{label}</Text>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <Text style={{ fontSize: 12, color: colors.muted }}>{label}</Text>
+        {proposal && <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+          <Icon name={proposal.selected ? 'checkmark-circle' : 'ellipse-outline'} size={17} color={colors.accent} />
+          <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '600' }}>{proposal.selected ? '已选择' : '选择'}</Text>
+        </View>}
+      </View>
       <Text style={{ fontSize: compact ? 15 : 16, color: colors.text, fontWeight: '500' }}>{value}</Text>
     </View>
   </View>;
+  return proposal ? <Pressable accessibilityRole="radio" aria-checked={proposal.selected} accessibilityLabel="选择要提议的时间" accessibilityHint={value}
+    accessibilityState={{ checked: proposal.selected }} onPress={proposal.choose}
+    style={({ pressed }) => ({ opacity: pressed ? 0.64 : 1 })}>{content}</Pressable> : content;
 }
 
-export function GatheringLead({ title, cover, description, meetingNote, category, state, selected, candidate }: Invitation) {
+export function GatheringLead({ title, cover, description, meetingNote, category, state, selected, candidate, proposal }: Invitation) {
   const { colors, variant } = useDesignPilot();
   const { width, fontScale } = useWindowDimensions();
   const schedule = selected ?? candidate;
@@ -45,14 +56,14 @@ export function GatheringLead({ title, cover, description, meetingNote, category
   const place = schedule?.place || meetingNote || '待商量';
   const split = width >= 365 && fontScale < 1.3;
   const titleText = (size: number, ink = colors.text, reading = false) => <Text accessibilityRole="header" style={{
-    fontSize: width < 350 ? size - 4 : size, lineHeight: Math.ceil((width < 350 ? size - 4 : size) * (reading ? 1.33 : 1.2)), color: ink, fontFamily: reading ? 'PenliaReading' : undefined,
+    fontSize: width < 350 ? size - 4 : size, lineHeight: Math.ceil((width < 350 ? size - 4 : size) * (reading ? 1.33 : 1.2)), color: ink, fontFamily: reading ? readingFont(title) : undefined,
     fontWeight: reading ? '400' : '700', letterSpacing: reading ? 0.2 : -0.55, flexShrink: 1,
   }}>{title}</Text>;
   const metadata = (ink = colors.muted) => <Text style={{ fontSize: 13, color: ink, fontWeight: '500' }}>{category}　·　{state}</Text>;
   const aside = !!description && <Text style={{ color: colors.text, fontSize: 16, lineHeight: 25 }}>{description}</Text>;
   const note = !!schedule?.place && !!meetingNote && <Text style={{ color: colors.muted, fontSize: 15 }}>{meetingNote}</Text>;
   const facts = <>
-    <Fact label={timeLabel} icon="calendar-clear-outline" value={time} />
+    <Fact label={timeLabel} icon="calendar-clear-outline" value={time} proposal={proposal} />
     <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.line }} />
     <Fact label={placeLabel} icon="location-outline" value={place} />
   </>;

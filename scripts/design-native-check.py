@@ -18,6 +18,7 @@ from PIL import Image, ImageChops, ImageStat
 PACKAGE = 'app.penlia.mobile.designpilot'
 SCREENS = ('inbox', 'chat', 'moments', 'world', 'gathering')
 VARIANTS = ('original', 'A', 'B', 'C', 'D')
+VARIANT_LABELS = {'A': '温润生活主义', 'B': '现代原生极简主义', 'C': 'Apple 风格', 'D': 'Claude 风格'}
 CONTENTS = {
     'inbox': ('小满',), 'chat': ('表情',), 'moments': ('发布动态', '日志', '相册'),
     'world': ('晚风小院', '共同世界', '共同小宠物'), 'gathering': ('周末到河边喝杯咖啡',),
@@ -64,8 +65,8 @@ def visible(predicate, tries=4):
     raise ValueError('Expected control unavailable')
 
 
-def tap_label(label):
-    node = visible(lambda n: any(v == label or v.startswith(label + '，') or v.startswith(label + ',') for v in labels(n)))
+def tap_label(label, tries=4):
+    node = visible(lambda n: any(v == label or v.startswith(label + '，') or v.startswith(label + ',') for v in labels(n)), tries=tries)
     x, y = points(node)
     shell('input', 'tap', str(x), str(y))
     time.sleep(.35)
@@ -163,6 +164,25 @@ def swipe(up=True):
     time.sleep(.25)
 
 
+def tap_after_scroll(label):
+    for turn in range(5):
+        try:
+            tap_label(label, tries=1)
+            return
+        except ValueError:
+            if turn < 4: swipe()
+    raise ValueError('Control outside scrollable viewport: ' + label)
+
+
+def choose_by_touch(variant):
+    tap_label('我的')
+    tap_after_scroll('切换设计方案')
+    tap_label(VARIANT_LABELS[variant])
+    visible(lambda n: n.get('checked') == 'true' and VARIANT_LABELS[variant] in labels(n))
+    tap_after_scroll('聊天')
+    assert_page(variant, 'inbox')
+
+
 def screenshot_page(variant, screen):
     route(variant, screen)
     capture(('compact-dark-' if compact else '') + variant + '-' + screen)
@@ -191,9 +211,10 @@ def record(variant):
 
 def interact(variant):
     # Navigate to the real conversation by touch; use the internal switch for distant destinations.
-    route(variant, 'inbox')
+    route('original', 'inbox')
     shell('dumpsys', 'gfxinfo', PACKAGE, 'reset')
     with record(variant):
+        choose_by_touch(variant)
         swipe(); swipe(False)
         friend = visible(lambda n: n.get('clickable') == 'true' and any('小满' in text for text in labels(n)))
         x, y = points(friend)
@@ -224,6 +245,26 @@ def interact(variant):
     stats = shell('dumpsys', 'gfxinfo', PACKAGE)
     section = [s.strip() for s in stats.splitlines() if s.strip().startswith(('Total frames rendered:', 'Janky frames:', '90th percentile:', '95th percentile:'))]
     log(variant + ' emulator compositor sample: ' + ' / '.join(section[:4]))
+
+
+def compact_input(variant):
+    route(variant, 'chat')
+    editor = visible(lambda n: n.get('class') == 'android.widget.EditText')
+    x, y = points(editor)
+    shell('input', 'tap', str(x), str(y))
+    shell('input', 'text', 'Hello')
+    time.sleep(.6)
+    assert re.search(r'mInputShown=true|mIsInputViewShown=true', shell('dumpsys', 'input_method')), 'IME is not visible'
+    editor = visible(lambda n: n.get('class') == 'android.widget.EditText' and 'Hello' in n.get('text', ''))
+    frames = re.findall(r'type=ime frame=\[0,(\d+)\]\[\d+,\d+\] visible=true', shell('dumpsys', 'window', 'displays'))
+    if frames: assert points(editor)[1] < int(frames[-1]), 'Editor intersects the IME'
+    capture('compact-keyboard-' + variant)
+    shell('input', 'keyevent', '4')
+    assert_page(variant, 'chat')
+    tap_label('表情')
+    visible(lambda n: '大哭' in labels(n))
+    shell('input', 'keyevent', '4')
+    assert_page(variant, 'chat')
 
 
 def compare_frames(screen):
@@ -260,8 +301,17 @@ if __name__ == '__main__':
         reset_fixture()
         for screen in SCREENS:
             case(variant + '-' + screen, lambda s=screen: screenshot_page(variant, s))
-        if not compact and variant != 'original':
-            case(variant + '-interaction', lambda: interact(variant))
+        if variant != 'original':
+            if compact:
+                case(variant + '-compact-input', lambda: compact_input(variant))
+            else:
+                case(variant + '-interaction', lambda: interact(variant))
+    if not compact:
+        def verify_persistence():
+            shell('am', 'force-stop', PACKAGE)
+            shell('am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
+            assert_page('D', 'inbox')
+        case('last-choice-survives-cold-start', verify_persistence)
     for screen in SCREENS:
         case(screen + '-comparison', lambda s=screen: compare_frames(s))
     if failures:

@@ -1,0 +1,90 @@
+name: Publish the reviewed design pilot preview
+on:
+  push:
+    tags: ['penlia-design-preview-*']
+permissions: {}
+jobs:
+  collect:
+    if: github.repository == 'CharlonautArx/Penlia'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Match the tag to the tested source and the two emulator runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Format: penlia-design-preview-ARM_BUILD-API35_RUN-API30_RUN
+          [[ $GITHUB_REF_NAME =~ ^penlia-design-preview-([0-9]+)-([0-9]+)-([0-9]+)$ ]]
+          api_build=${BASH_REMATCH[1]}
+          run35=${BASH_REMATCH[2]}
+          run30=${BASH_REMATCH[3]}
+          for run in "$api_build" "$run35" "$run30"; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "$RUNNER_TEMP/run-$run.json"
+            jq -e '.event == "push" and .path == ".github/workflows/design-native-pilot.yml" and .head_repository.full_name == "CharlonautArx/Penlia"' "$RUNNER_TEMP/run-$run.json"
+          done
+          jq -e '.head_branch == "codex/design-native-pilot"' "$RUNNER_TEMP/run-$api_build.json"
+          source=$(jq -r .head_sha "$RUNNER_TEMP/run-$api_build.json")
+          # A tag may point to a documentation/check-harness update, never a different client.
+          git fetch --no-tags --depth=1 origin "$source"
+          git diff --exit-code "$source" HEAD -- src assets app.json app.config.js package.json package-lock.json plugins modules tooling metro.config.js
+          download() {
+            local kind="$1" run="$2" dir="$3" revision
+            revision=$(jq -r .head_sha "$RUNNER_TEMP/run-$run.json")
+            gh run download "$run" -R "$GITHUB_REPOSITORY" -n "design-$kind-$revision" -D "$dir"
+          }
+          download arm64-v8a "$api_build" arm
+          download api-35 "$run35" light
+          download api-30 "$run30" dark
+          test "$(cat arm/source.txt)" = "$source"
+          grep -Fq "Build source $source;" light/checks.txt
+          grep -Fq "Build source $source;" dark/checks.txt
+          for check in light/checks.txt dark/checks.txt; do
+            for v in original A B C D; do
+              for route in inbox chat moments world gathering; do grep -Fxq "PASS $v-$route" "$check"; done
+            done
+          done
+          for v in A B C D; do grep -Fxq "PASS $v-interaction" light/checks.txt; done
+          ! grep -Fq INCOMPLETE light/checks.txt
+          ! grep -Fq INCOMPLETE dark/checks.txt
+          mkdir dist-pilot
+          checksum=$(cut -d' ' -f1 arm/sha256.txt)
+          echo "$checksum  arm/Penlia-arm64-v8a.apk" | sha256sum --check
+          cp arm/Penlia-arm64-v8a.apk dist-pilot/Penlia-design-pilot-arm64.apk
+          echo "SOURCE_SHA=$source" >> "$GITHUB_ENV"
+      - name: Build a side-by-side document from the captured frames
+        run: |
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc || sudo apt-get install -y fonts-noto-cjk
+          /usr/bin/python3 -c 'from PIL import Image' || sudo apt-get install -y python3-pil
+          /usr/bin/python3 scripts/design-pilot-gallery.py light dark dist-pilot "$SOURCE_SHA"
+          cp arm/source.txt dist-pilot/source.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-design-delivery
+          path: dist-pilot/
+          retention-days: 2
+  release:
+    needs: collect
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: verified-design-delivery
+          path: delivery
+      - name: Attach the verified files to the experiment tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd delivery && sha256sum --check SHA256SUMS.txt)
+          source=$(cat delivery/source.txt)
+          printf '离线 Android 审美试用版。代码提交 %s。安装包仅含 ARM64。截图与录屏来自 Android 模拟器。\n' "$source" > notes.txt
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --verify-tag --prerelease --latest=false --title '朋聊 · 四方案 Android 设计试用' --notes-file notes.txt delivery/*
