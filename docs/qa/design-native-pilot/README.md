@@ -2,6 +2,8 @@
 
 本分支以官方表情版 `002ea5514cdc56f87865bd2d4d38e3af447836fd` 为共同起点。四个方案使用朋聊现有的本机演示账号、相册、宠物、消息和约局。安装名称为「朋聊 · 设计试用」，Android 标识为 `app.penlia.mobile.designpilot`。原正式包和此前预览包各自拥有独立的数据目录。
 
+[下载 ARM64 安装包](https://github.com/CharlonautArx/Penlia/releases/download/penlia-design-preview-46044871021-46046972479-46046972479-r2/Penlia-design-pilot-arm64.apk) · [原生截图、四段录屏、构建和性能验收](android.md)
+
 ## 在手机上比较
 
 首次启动会进入「切换设计方案」。选 A、B、C、D 或「原版对照」，再点一个体验页面。在各方案的聊天首页点「方案」可以再次选择；五种外观也都可以从「我的 → 偏好设置 → 切换设计方案」进入。再次打开时恢复上次的选择。选择只改变当前设备的外观，同一个账号的测试内容继续保留。
