@@ -3,6 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
+import { useOpaqueMaterial } from './liquid-access';
+import { colors } from '../theme';
 import { useAppearance } from './appearance';
 import { LiquidSurface, type GlassTarget } from './liquid-surface';
 
@@ -27,6 +29,7 @@ export function LiquidDock({ active, count, safeBottom, target }: {
 }) {
   const [width, setWidth] = useState(0);
   const { reduced, scheme } = useAppearance();
+  const opaque = useOpaqueMaterial();
   const item = width / count;
   const position = item * (active + 0.5) - 22;
   const slide = useRef(new Animated.Value(position)).current;
@@ -46,8 +49,9 @@ export function LiquidDock({ active, count, safeBottom, target }: {
   }, [position, reduced, slide, width]);
   return <View pointerEvents="none" accessible={false} aria-hidden style={StyleSheet.absoluteFill}
     onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
+    {safeBottom > 0 && <View style={[s.system, { height: safeBottom }]} />}
     <View style={[s.frame, { bottom: safeBottom + 1 }, scheme === 'dark' ? s.dark : s.light]}>
-      <LiquidSurface finish="dock" roundness={31} target={target} />
+      <LiquidSurface finish="dock" roundness={31} target={target} opaque={opaque} />
     </View>
     {width > 0 && <Animated.View style={[s.bubble, { transform: [{ translateX: slide }] }]}>
       <LiquidSurface finish="bubble" roundness={19} />
@@ -56,8 +60,10 @@ export function LiquidDock({ active, count, safeBottom, target }: {
 }
 
 const s = StyleSheet.create({
-  scene: { flex: 1 }, frame: { position: 'absolute', top: 1, left: 7, right: 7, borderRadius: 31 },
-  light: { boxShadow: '0px 3px 8px #39304524, 0px 1px 2px #39304514' },
+  scene: { flex: 1 },
+  system: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.panel },
+  frame: { position: 'absolute', top: 1, left: 7, right: 7, borderRadius: 31 },
+  light: { boxShadow: '0px 2px 6px #3930451C, 0px 1px 2px #3930450D' },
   dark: { boxShadow: '0px 3px 8px #00000070, 0px 1px 2px #00000035' },
   bubble: { position: 'absolute', top: 5, left: 0, width: 44, height: 30, borderRadius: 19,
     boxShadow: '0px 1px 3px #3930452A' },

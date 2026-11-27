@@ -1,6 +1,7 @@
+import { LiquidSwitch } from '../../components/liquid-switch';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Button, Empty, ListRow, Notice, Screen, Section } from '../../components/ui';
 import { MomentMediaTile, type Media } from '../../features/moments/media';
 import { reportKinds } from '../../features/social/ReportSheet';
@@ -146,7 +147,7 @@ function Case({ id }: { id: string }) {
               {data.kind === 'harassment' && (
                 <ListRow
                   title="紧急风险，立即生效"
-                  trailing={<Switch accessibilityLabel="紧急风险" value={urgent} onValueChange={setUrgent} />}
+                  trailing={<LiquidSwitch accessibilityLabel="紧急风险" value={urgent} onValueChange={setUrgent} />}
                 />
               )}
               <Field

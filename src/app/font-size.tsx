@@ -1,3 +1,5 @@
+import { LiquidSurface } from '../components/liquid-surface';
+import { isLiquidGlass } from '../demo/mode';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -56,7 +58,9 @@ export default function FontSizeScreen() {
       style={local.track} {...slider.panHandlers}>
       <GlassLayer roundness={radius.pill} />
       <Animated.View pointerEvents="none" style={[local.thumb, { width: Math.max(0, width / 4 - 8),
-        transform: [{ translateX: Animated.multiply(position, width / 4) }] }]}><GlassLayer tone="control" roundness={radius.pill} /></Animated.View>
+        transform: [{ translateX: Animated.multiply(position, width / 4) }] }]}>
+        {isLiquidGlass ? <LiquidSurface finish="bubble" roundness={radius.pill} /> : <GlassLayer tone="control" roundness={radius.pill} />}
+      </Animated.View>
       {fontSizes.map(({ label }, index) => <Pressable key={label} accessibilityRole="button"
         accessibilityLabel={label + '字号'} accessibilityState={{ selected: index === preview }}
         style={local.slot} onPress={() => settle(readFontSize(index))}><Text style={styles.strong}>{label}</Text></Pressable>)}

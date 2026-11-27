@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { PenliaAppearance, useAppearance } from '../components/appearance';
 import { LoadingSkeleton, Screen } from '../components/ui';
 
-import { isUiDemo } from '../demo/mode';
+import { isLiquidGlass, isUiDemo } from '../demo/mode';
 import { PetProvider } from '../features/pet/store';
 import { ConversationPreferencesProvider } from '../features/chat/useConversationPreferences';
 import { ChatBackgroundProvider } from '../features/chat/background/store';
@@ -72,6 +72,9 @@ function AppNavigation() {
                   <Stack.Screen name="boundary" />
                   <Stack.Screen name="boundary/[id]" />
                   <Stack.Screen name="review/[id]" />
+                </Stack.Protected>
+                <Stack.Protected guard={!!session && isLiquidGlass}>
+                  <Stack.Screen name="glass-preview" />
                 </Stack.Protected>
                 <Stack.Protected guard={!!session && isUiDemo}>
                   <Stack.Screen name="pet/[id]" />

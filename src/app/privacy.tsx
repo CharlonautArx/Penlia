@@ -1,7 +1,8 @@
+import { LiquidSwitch } from '../components/liquid-switch';
 import { formatHandle } from '../services/handle';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Platform, Share, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Share, Text, TextInput, View } from 'react-native';
 
 import { Button, Empty, Icon, ListRow, Notice, Screen, Section, SettingGroup, Sheet } from '../components/ui';
 import { weekdays, type Day, type Device, type RelationGroup, type Settings } from '../features/privacy/types';
@@ -95,7 +96,7 @@ export default function PrivacyScreen() {
       title={label}
       detail={detail}
       trailing={
-        <Switch
+        <LiquidSwitch
           accessibilityLabel={label}
           disabled={busy}
           value={value}
@@ -467,7 +468,7 @@ function QuietForm({
       <ListRow
         title="启用这一天"
         trailing={
-          <Switch
+          <LiquidSwitch
             accessibilityLabel="启用这一天"
             value={!!hours[day]}
             onValueChange={(value) => {

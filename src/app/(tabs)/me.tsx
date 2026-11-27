@@ -1,3 +1,4 @@
+import { isLiquidGlass } from '../../demo/mode';
 import { useFontSize } from '../../components/Typography';
 import { fontSizes } from '../../font-scale';
 import { formatHandle } from '../../services/handle';
@@ -74,6 +75,8 @@ export default function MeScreen() {
       <ListRow title="字体大小" detail={fontSizes[size].label} left={<Tile icon="text-outline" />}
         onPress={() => router.push('/font-size')} />
       <ListRow title="主题与外观" left={<Tile icon="color-palette-outline" />} onPress={() => setSheet('主题与外观')} />
+      {isLiquidGlass && <ListRow title="体验入口" left={<Tile icon="compass-outline" />}
+        onPress={() => router.push('/glass-preview')} />}
       <ListRow title="通用设置" left={<Tile icon="settings-outline" />} onPress={() => setSheet('通用设置')} />
     </SettingGroup>
     {!!avatarNotice && !sheet && <Notice>{avatarNotice}</Notice>}

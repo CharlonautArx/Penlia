@@ -7,10 +7,14 @@ import subprocess
 import sys
 import time
 from xml.etree import ElementTree
+from hashlib import sha256
+from PIL import ImageDraw, ImageFont, ImageChops
 from PIL import Image
 
 APK, OUT, MODE = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 PKG = 'app.penlia.mobile.liquidglass'
+BASE = 'app.penlia.mobile.preview'
+API = int(subprocess.check_output(['adb','shell','getprop','ro.build.version.sdk'],text=True).strip())
 OUT.mkdir(exist_ok=True)
 errors = []
 
@@ -133,6 +137,8 @@ def simulate():
         tap('聊天')
         swipe(1020, 520, 600)
         screen('01-scroll')
+        swipe(460, 1060, 350)
+        time.sleep(.45)
         tap(kind='android.widget.EditText')
         shell('input', 'text', 'xiaoman')
         assert re.search(r'mInputShown=true|mIsInputViewShown=true', shell('dumpsys','input_method'))
@@ -152,7 +158,7 @@ def accelerator():
 
 
 def performance():
-    route('(tabs)/moments')
+    route('moments')
     find('动态')
     shell('dumpsys','gfxinfo',PKG,'reset')
     for i in range(6):
@@ -173,23 +179,94 @@ def details(path, name, expected=None):
 
 
 adb('install', '-r', str(APK))
+if MODE == '--full':
+    adb('install', '-r', 'original/Penlia-x86_64.apk')
 shell('wm','size','540x1200')
 shell('wm','density','240')
-shell('settings','put','system','font_scale','1.0')
+shell('settings','put','system','font_scale','1.30' if API < 31 else '1.0')
+shell('cmd','uimode','night','yes' if API < 31 else 'no')
+shell('settings','put','global','sysui_demo_allowed','1')
+for extra in [('enter',), ('clock','--es','hhmm','0846'), ('battery','--es','level','100','--es','plugged','false')]:
+    shell('am','broadcast','-a','com.android.systemui.demo','--es','command',*extra)
 shell('settings','put','secure','show_ime_with_hard_keyboard','1')
 shell('svc','wifi','disable')
 shell('svc','data','disable')
 log('Android API ' + shell('getprop','ro.build.version.sdk') + '; ABI ' + shell('getprop','ro.product.cpu.abi') + '; offline; 540x1200 / 240dpi')
+log('Artifact SHA-256 ' + sha256(APK.read_bytes()).hexdigest())
+def original_comparison():
+    result = shell('am','start','-W','-n',BASE + '/.MainActivity')
+    assert 'Status: ok' in result
+    tap('直接进入')
+    find('搜索会话')
+    screen('00-original-inbox')
+    packages = shell('pm','list','packages','-U')
+    uid = lambda name: re.search(r'package:' + re.escape(name) + r' uid:(\d+)', packages)[1]
+    assert uid(BASE) != uid(PKG), 'Expected separate application UIDs'
+    for app in (BASE,PKG):
+        entry = shell('dumpsys','package',app)
+        assert 'dataDir=/data/user/0/' + app in entry
+    shell('am','force-stop',BASE)
+if MODE == '--full':
+    check('side-by-side-installation', original_comparison)
 check('cold-start-inbox', launch)
 check('navigation-scroll-keyboard', simulate)
 check('sdk-optics-path', accelerator)
 check('six-scroll-hwui', performance)
-if MODE == '--full':
-    check('single-chat', lambda: details('chat/demo-xiaoman', '06-chat', '表情'))
-    check('profile', lambda: details('profile', '07-profile'))
-    check('privacy', lambda: details('privacy', '08-privacy'))
-    check('gathering', lambda: details('gathering/preview-gathering?together=1', '09-gathering', '活动操作'))
-    check('life-hub', lambda: details('life', '10-life', '约朋友一起玩'))
-    check('boundary', lambda: details('boundary', '11-boundary'))
+if MODE == '--full' and (OUT/'00-original-inbox.png').exists() and (OUT/'01-inbox.png').exists():
+    with Image.open(OUT/'00-original-inbox.png') as one, Image.open(OUT/'01-inbox.png') as two:
+        board = Image.new('RGB',(1104, 1224),'white')
+        board.paste(one,(0,24))
+        board.paste(two,(564,24))
+        draw = ImageDraw.Draw(board)
+        draw.text((7,4),'Original',fill='#303038')
+        draw.text((571,4),'Liquid Glass',fill='#303038')
+        board.save(OUT/'00-inbox-comparison.png')
+if MODE != '--core':
+    for route_path, image_name, expected in [
+        ('chat/demo-xiaoman','06-chat','表情'),
+        ('group/preview-weekend','07-group',None),
+        ('chat-settings/demo-xiaoman','08-settings','消息免打扰'),
+        ('profile','09-profile',None),
+        ('privacy','10-privacy',None),
+        ('gathering/preview-gathering?together=1','11-gathering','活动操作'),
+        ('life','12-life','约朋友一起玩'),
+        ('boundary','13-boundary',None),
+        ('friend-requests','14-requests',None),
+        ('life/calendar','15-calendar',None),
+        ('life/projects?kind=trip','16-projects','共同旅行'),
+        ('life/items','17-items',None),
+        ('my-qr','18-qr',None),
+        ('space/compose?kind=thought','19-compose',None),
+        ('world/preview-world?together=1','24-world',None),
+        ('peer-call?peer=demo-xiaoman&kind=video','25-video-call',None),
+        ('playground/place/sample-coffee','26-place',None),
+        ('collection/preview-journal?together=1','27-journal',None),
+    ]:
+        check(image_name,lambda r=route_path,n=image_name,e=expected: details(r,n,e))
+    def controls():
+        route('chat-settings/demo-xiaoman')
+        with record('controls'):
+            tap('消息免打扰')
+            control = next(n for n in nodes() if '消息免打扰' in n.get('content-desc','') and n.get('checkable') == 'true')
+            during = control.get('checked')
+            screen('20-surface-switch')
+            tap('消息免打扰')
+            confirm = next(n for n in nodes() if '消息免打扰' in n.get('content-desc','') and n.get('checkable') == 'true')
+            assert during != confirm.get('checked')
+            route('chat/demo-xiaoman')
+            tap('表情')
+            find('大哭')
+            screen('21-stickers')
+            back()
+            tap(kind='android.widget.EditText')
+            shell('input','text','Hello')
+            assert re.search(r'mInputShown=true|mIsInputViewShown=true', shell('dumpsys','input_method'))
+            screen('22-ime')
+            back()
+            route('gathering/preview-gathering?together=1')
+            tap('活动操作')
+            find('预览分享内容')
+            screen('23-actions')
+    check('toggle-stickers-IME-actions',controls)
 if errors:
     raise SystemExit('Incomplete: ' + ', '.join(errors))

@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { Avatar, Icon, type IconName } from '../../components/ui';
+import { LiquidSurface } from '../../components/liquid-surface';
+import { isLiquidGlass } from '../../demo/mode';
 import { WallpaperImage } from '../chat/background/WallpaperImage';
 import type { LocalPicture } from '../chat/background/model';
 import { space, type } from '../../theme';
@@ -26,6 +28,7 @@ export function CallAction({ action, small = false }: { action: Action; small?: 
         blurMethod="dimezisBlurViewSdk31Plus" style={StyleSheet.absoluteFill} />}
     <LinearGradient pointerEvents="none" colors={['#FFFFFF28', '#FFFFFF06', '#FFFFFF14']}
       start={{ x: 0.1, y: 0 }} end={{ x: 0.8, y: 1 }} style={StyleSheet.absoluteFill} />
+    {isLiquidGlass && <LiquidSurface finish="quiet" roundness={28} rimOnly />}
     <Icon name={action.icon} size={small ? 20 : 27} color="#FFFFFF" />
   </Pressable>;
 }

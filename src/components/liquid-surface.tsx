@@ -19,8 +19,8 @@ const finishes = {
   quiet: { tint: 0.02, shoulder: 0.05, shine: 0.40 },
 } as const;
 
-export function LiquidSurface({ finish, roundness, target, opaque }: {
-  finish: Finish; roundness: number; target?: GlassTarget; opaque?: boolean;
+export function LiquidSurface({ finish, roundness, target, opaque, rimOnly }: {
+  finish: Finish; roundness: number; target?: GlassTarget; opaque?: boolean; rimOnly?: boolean;
 }) {
   const { scheme } = useAppearance();
   const dark = scheme === 'dark';
@@ -39,12 +39,12 @@ export function LiquidSurface({ finish, roundness, target, opaque }: {
   const materialHeight = finish === 'dock' ? 56 : finish === 'sheet' ? 175 : 49;
   const r = Math.min(materialHeight / 2, radius);
   return <View pointerEvents="none" accessible={false} aria-hidden
-    style={[StyleSheet.absoluteFill, local.surface, { borderRadius: radius, backgroundColor: fill }]}>
+    style={[StyleSheet.absoluteFill, local.surface, { borderRadius: radius, backgroundColor: rimOnly ? 'transparent' : fill }]}>
     {sample && <OpticalSample enabled={sdk >= 33} style={StyleSheet.absoluteFill}>
-      <BlurView blurTarget={target} tint="default" intensity={30} blurReductionFactor={4}
+      <BlurView blurTarget={target} tint="default" intensity={23} blurReductionFactor={5}
         blurMethod="dimezisBlurViewSdk31Plus" style={StyleSheet.absoluteFill} />
     </OpticalSample>}
-    {sample && <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? '#24222B80' : '#FFFFFF55' }]} />}
+    {sample && <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? '#24222B91' : '#FFFFFF68' }]} />}
     <Svg width="100%" height="100%" viewBox={`0 0 ${materialWidth} ${materialHeight}`}
       preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
       <Defs>
@@ -61,12 +61,12 @@ export function LiquidSurface({ finish, roundness, target, opaque }: {
           <Stop offset="0%" stopColor="#ACDDD9" stopOpacity={shoulder * (dark ? .52 : 1)} />
           <Stop offset="100%" stopColor="#ACDDD9" stopOpacity="0" />
         </RadialGradient>
-        <LinearGradient id={uid + 'surface'} x1="0%" y1="0%" x2="12%" y2="100%">
+        <LinearGradient id={uid + 'surface'} x1="0%" y1="0%" x2="0%" y2="100%">
           <Stop offset="0%" stopColor={reflection} stopOpacity={shine * (dark ? .25 : 1)} />
           <Stop offset="19%" stopColor={reflection} stopOpacity={dark ? .06 : .30} />
           <Stop offset="58%" stopColor={reflection} stopOpacity="0" />
-          <Stop offset="92%" stopColor={separation} stopOpacity={dark ? .08 : .05} />
-          <Stop offset="100%" stopColor={separation} stopOpacity={dark ? .14 : .13} />
+          <Stop offset="91%" stopColor={separation} stopOpacity={dark ? .055 : .016} />
+          <Stop offset="100%" stopColor={separation} stopOpacity={dark ? .10 : .06} />
         </LinearGradient>
         <LinearGradient id={uid + 'rim'} x1="4%" y1="0%" x2="94%" y2="100%">
           <Stop offset="0%" stopColor={reflection} stopOpacity={dark ? .31 : .95} />
@@ -81,10 +81,12 @@ export function LiquidSurface({ finish, roundness, target, opaque }: {
           <Stop offset="100%" stopColor={reflection} stopOpacity={dark ? .12 : .42} />
         </LinearGradient>
       </Defs>
+      {!rimOnly && <>
       <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}body)`} />
       <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}warm)`} />
       <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}cool)`} />
       <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}surface)`} />
+      </> }
       <Rect x={.7} y={.7} width={materialWidth - 1.4} height={materialHeight - 1.4}
         rx={Math.max(0,r-.7)} fill="none" stroke={`url(#${uid}rim)`} strokeWidth={1.4} />
       <Rect x={bevel/2} y={bevel/2} width={materialWidth-bevel} height={materialHeight-bevel}

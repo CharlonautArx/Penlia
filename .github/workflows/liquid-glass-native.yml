@@ -78,6 +78,8 @@ jobs:
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-${{ matrix.abi }}.apk | tee out/badging.txt
           grep -Fx "application-label:'朋聊 · Liquid Glass 体验版'" out/badging.txt
           grep -F "package: name='app.penlia.mobile.liquidglass'" out/badging.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump xmltree out/Penlia-${{ matrix.abi }}.apk AndroidManifest.xml |
+            grep -F 'android:allowBackup(0x01010280)=(type 0x12)0x0' > out/data-isolation.txt
           echo "$GITHUB_SHA" > out/source.txt
           ! grep -F "朋聊演示" out/badging.txt
           grep -Fx "native-code: '${{ matrix.abi }}'" out/badging.txt
@@ -97,8 +99,45 @@ jobs:
           name: liquid-glass-${{ matrix.abi }}-${{ github.sha }}
           path: out/
           retention-days: 30
+  device:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        api: ${{ contains(github.event.head_commit.message, '[glass-review]') && fromJSON('[35]') || fromJSON('[35,30]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: liquid-glass-x86_64-${{ github.sha }}
+          path: out/
+      - name: Verify the client matches the build
+        run: |
+          test "$(cat out/source.txt)" = "$GITHUB_SHA"
+          sha256sum -c out/sha256.txt
+      - name: Retrieve the unmodified original simulator package
+        if: ${{ !contains(github.event.head_commit.message, '[glass-review]') }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45998981394
+          name: together-x86_64-f78d89295d78762259b2862ee5bdc799a14d1ab6
+          path: original/
+      - name: Verify the original artifact checksum
+        if: ${{ !contains(github.event.head_commit.message, '[glass-review]') }}
+        run: sed 's#  out/#  original/#' original/sha256.txt | sha256sum -c
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          cmdline-tools-version: '16111833'
+          packages: platform-tools
       - name: Allow hardware acceleration
-        if: matrix.abi == 'x86_64'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -107,7 +146,6 @@ jobs:
           sudo chown "$(id -u):$(id -g)" /dev/kvm
           sudo chmod u+rw /dev/kvm
       - name: Start a virtual display for host-side recording
-        if: matrix.abi == 'x86_64'
         run: |
           # Limit apt to Ubuntu's base packages, independent of third-party tool mirrors.
           opts=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
@@ -126,12 +164,11 @@ jobs:
           echo 'LIBGL_ALWAYS_SOFTWARE=1' >> "$GITHUB_ENV"
           echo 'QT_QPA_PLATFORM=xcb' >> "$GITHUB_ENV"
       - name: Review the real Android client
-        if: matrix.abi == 'x86_64'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           emulator-boot-timeout: 150
           emulator-build: '16970787'
-          api-level: 35
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: default
           profile: pixel_6
@@ -140,7 +177,7 @@ jobs:
           script: /usr/bin/python3 scripts/liquid-glass-check.py out/Penlia-x86_64.apk evidence ${{ contains(github.event.head_commit.message, '[glass-review]') && '--core' || '--full' }}
       - name: Scan the evidence allowlist
         id: scan_evidence
-        if: always() && matrix.abi == 'x86_64'
+        if: always()
         run: |
           python3 - <<'PYTHON'
           from pathlib import Path
@@ -150,12 +187,18 @@ jobs:
           with ZipFile('emulator.zip','w') as z:
               for p in files: z.write(p,p.name)
           PYTHON
+          curl -fSsL --retry 2 -o "$RUNNER_TEMP/gitleaks.tar.gz" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          (
+            cd "$RUNNER_TEMP"
+            echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | sha256sum --check
+            tar -xzf gitleaks.tar.gz gitleaks
+          )
           python3 scripts/scan-release.py --config .gitleaks.toml --scanner "$RUNNER_TEMP/gitleaks" emulator.zip
       - name: Upload emulator evidence
         if: always() && steps.scan_evidence.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: liquid-glass-emulator-${{ github.sha }}
+          name: liquid-glass-android-${{ matrix.api }}-${{ github.sha }}
           path: |
             evidence/*.png
             evidence/*.mp4

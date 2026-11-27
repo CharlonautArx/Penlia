@@ -1,6 +1,7 @@
+import { LiquidSwitch } from '../../components/liquid-switch';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
-import { Switch, Text, TextInput, View, type ImageSourcePropType } from 'react-native';
+import { Text, TextInput, View, type ImageSourcePropType } from 'react-native';
 import { Avatar, Button, Empty, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { GroupPortrait, useGroupPortraitPicker } from './GroupPortrait';
 import { ScanCode } from '../privacy/CodeSheet';
@@ -134,7 +135,7 @@ export function GroupChats({ render }: { render?: (props: {
           <ListRow
             title="允许普通成员邀请"
             trailing={
-              <Switch accessibilityLabel="允许普通成员邀请" value={inviteMembers} onValueChange={setInviteMembers} />
+              <LiquidSwitch accessibilityLabel="允许普通成员邀请" value={inviteMembers} onValueChange={setInviteMembers} />
             }
           />
           {!!error && <Notice>{error}</Notice>}

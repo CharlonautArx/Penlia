@@ -1,5 +1,7 @@
 package app.penlia.chatinsets
 
+import android.app.ActivityManager
+import android.os.PowerManager
 import android.content.Context
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
@@ -13,6 +15,12 @@ import expo.modules.kotlin.views.ExpoView
 class PenliaOpticalSample : Module() {
   override fun definition() = ModuleDefinition {
     Name("PenliaOpticalSample")
+    Function("backdropBudgetAllows") {
+      val context = appContext.reactContext ?: return@Function false
+      val memory = context.getSystemService(ActivityManager::class.java)
+      val battery = context.getSystemService(PowerManager::class.java)
+      Build.VERSION.SDK_INT >= 31 && memory?.isLowRamDevice != true && battery?.isPowerSaveMode != true
+    }
     View(OpticalSampleView::class) {
       Prop("enabled") { view: OpticalSampleView, value: Boolean -> view.enable(value) }
     }

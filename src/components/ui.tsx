@@ -65,6 +65,7 @@ export function Screen({ title, actions, children, inset = true, refreshing, onR
 export function TopBar({ title, actions, back }: { title: string; actions?: ReactNode; back?: () => void }) {
   const large = useFontScale() > 1;
   return <View style={ui.barWrap}>
+    {isLiquidGlass && <LiquidSurface finish="quiet" roundness={0} />}
     <View style={[ui.bar, ui.width, back && ui.backBar]}>
       {back && <IconButton label="返回" icon="chevron-back" onPress={back} />}
       <Text accessibilityRole="header" numberOfLines={large ? undefined : 1} style={[ui.title, back && ui.pageTitle]}>{title}</Text>
@@ -108,6 +109,7 @@ export function Button({ label, icon, onPress, onLongPress, disabled, variant = 
   label: string; icon?: IconName; onPress: () => void; onLongPress?: PressableProps['onLongPress']; disabled?: boolean;
   variant?: 'primary' | 'soft' | 'danger' | 'gradient' | 'quiet';
 }) {
+  const { reduced } = useAppearance();
   const primary = variant === 'primary' || variant === 'gradient';
   const foreground = variant === 'danger' ? colors.danger : colors.ink;
   return (
@@ -115,8 +117,10 @@ export function Button({ label, icon, onPress, onLongPress, disabled, variant = 
       disabled={disabled} onPress={onPress} onLongPress={onLongPress}
       style={({ pressed }) => [
         ui.button, variant === 'soft' && ui.soft,
-        variant === 'danger' && ui.danger, pressed && ui.pressed, disabled && ui.disabled,
+        variant === 'danger' && ui.danger, pressed && ui.pressed,
+        isLiquidGlass && pressed && !reduced && ui.compress, disabled && ui.disabled,
       ]}>
+      {isLiquidGlass && variant === 'soft' && <LiquidSurface finish="quiet" roundness={radius.control} />}
       {primary && <GlassLayer tone={variant === 'gradient' ? 'feature' : 'control'} />}
       {icon && <Icon name={icon} size={17} color={foreground} />}
       <Text style={[ui.buttonText, { color: foreground }]}>{label}</Text>
@@ -209,7 +213,8 @@ export function Sheet({ title, onClose, children, footer, tone, surface, avoidKe
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
       }]}>
       <SafeAreaView edges={['bottom', 'left', 'right']} accessibilityViewIsModal style={[ui.sheet, !!surface && { backgroundColor: 'transparent' }]}>
-        {surface ?? (tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />)}
+        {surface ?? (isLiquidGlass ? <LiquidSurface finish={tone === 'neutral' ? 'quiet' : 'sheet'}
+          roundness={radius.sheet} /> : (tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />))}
         <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
           <Text accessibilityRole="header" style={[styles.section, styles.grow]}>{title}</Text>
@@ -281,6 +286,7 @@ const ui = StyleSheet.create({
   soft: { backgroundColor: colors.search },
   danger: { backgroundColor: colors.dangerSurface },
   pressed: { opacity: 0.76 },
+  compress: { transform: [{ scale: .986 }] },
   disabled: { opacity: 0.48 },
   buttonText: { ...type.control, flexShrink: 1, textAlign: 'center' },
   search: { minHeight: touch, borderRadius: radius.control, backgroundColor: colors.search, flexDirection: 'row',

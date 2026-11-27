@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 
 import { glass, glassStops, unread, type GlassTone } from '../material';
 import { radius, type } from '../theme';
+import { LiquidSurface } from './liquid-surface';
+import { isLiquidGlass } from '../demo/mode';
 import { useAppearance } from './appearance';
 
 const start = { x: 0, y: 0.2 };
@@ -10,6 +12,8 @@ const end = { x: 1, y: 0.84 };
 
 export function GlassLayer({ tone = 'soft', roundness = radius.control }: { tone?: GlassTone; roundness?: number }) {
   const { scheme } = useAppearance();
+  if (isLiquidGlass && tone !== 'feature') return <LiquidSurface
+    finish={tone === 'control' ? 'control' : tone === 'chrome' ? 'sheet' : 'quiet'} roundness={roundness} />;
   const material = glass[scheme];
   return <View pointerEvents="none" accessible={false} aria-hidden
     style={[StyleSheet.absoluteFill, local.layer, { borderRadius: roundness, backgroundColor: material.base }]}>

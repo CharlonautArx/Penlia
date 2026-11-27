@@ -1,6 +1,6 @@
+import { LiquidSwitch } from '../../components/liquid-switch';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Switch } from 'react-native';
 import { Empty, Icon, ListRow, Notice, Screen, SettingGroup } from '../../components/ui';
 import { nativeChatBackgrounds } from '../../features/chat/background/store';
 import { setConversationPreference } from '../../features/chat/conversation-preferences';
@@ -72,10 +72,10 @@ export default function ChatSettings() {
       </SettingGroup>
       <SettingGroup>
         <ListRow title="特别关心" left={<Icon name="heart-outline" />}
-          trailing={<Switch accessibilityLabel="特别关心" disabled={busy || !store.value} value={!!settings?.priority}
+          trailing={<LiquidSwitch accessibilityLabel="特别关心" disabled={busy || !store.value} value={!!settings?.priority}
             trackColor={{ true: colors.accent }} onValueChange={(value) => void change('priority', value)} />} />
         <ListRow title="消息免打扰" left={<Icon name="notifications-off-outline" />} separator={false}
-          trailing={<Switch accessibilityLabel="消息免打扰" disabled={busy || !store.value}
+          trailing={<LiquidSwitch accessibilityLabel="消息免打扰" disabled={busy || !store.value}
             value={providerMuted ?? !!settings?.muted} trackColor={{ true: colors.accent }}
             onValueChange={(value) => void change('muted', value)} />} />
       </SettingGroup>

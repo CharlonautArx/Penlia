@@ -1,3 +1,4 @@
+import { LiquidSurface } from '../../components/liquid-surface';
 import { useDockClearance } from '../../components/liquid-dock';
 import NativeMaskedView from '@react-native-masked-view/masked-view';
 import { BlurTargetView, BlurView } from 'expo-blur';
@@ -11,7 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useAppearance } from '../../components/appearance';
 import { Button, Empty, Icon, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar, type IconName } from '../../components/ui';
-import { isUiDemo } from '../../demo/mode';
+import { isLiquidGlass, isUiDemo } from '../../demo/mode';
 import { ApiError, errorMessage, type User } from '../../services/api';
 import { useSession } from '../../services/session';
 import { colors, contentWidth, radius, space, styles, touch } from '../../theme';
@@ -220,6 +221,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
           : barCenter >= metrics.resting - 72 ? 'profile' : 'cover';
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
       }} /> : <FlatList {...list} />}
+    {isLiquidGlass && home && focused && statusSurface !== 'cover' &&
+      <View pointerEvents="none" accessible={false} style={[local.statusSurface, { height: insets.top }]} />}
     {immersive && focused && person && statusSurface !== 'feed' && <StatusBar
       style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...metrics }} onClose={() => setPanel(undefined)} />}
@@ -287,10 +290,12 @@ function HomePublishBar({ onPublish }: { onPublish: () => void }) {
   return <View style={local.publishRow}>
     <Pressable accessibilityRole="button" accessibilityLabel="空间隐私" onPress={() => router.push('/space/privacy')}
       style={({ pressed }) => [local.publishSurface, surface, local.privacyButton, pressed && local.pressed]}>
+      {isLiquidGlass && <LiquidSurface finish="quiet" roundness={radius.pill} />}
       <Icon name="shield-checkmark-outline" size={21} />
     </Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="发布动态" accessibilityHint="选择普通或共创发布方式"
       onPress={onPublish} style={({ pressed }) => [local.publishSurface, surface, local.publishButton, pressed && local.pressed]}>
+      {isLiquidGlass && <LiquidSurface finish="control" roundness={radius.pill} />}
       <Icon name="create-outline" size={19} />
       <Text style={[styles.strong, local.publishLabel]}>发布动态</Text>
     </Pressable>
@@ -298,6 +303,7 @@ function HomePublishBar({ onPublish }: { onPublish: () => void }) {
 }
 
 const local = StyleSheet.create({
+  statusSurface: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.panel },
   safe: { flex: 1, backgroundColor: colors.backdrop },
   list: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', paddingBottom: space.xl },
   header: { gap: space.sm, padding: space.md },

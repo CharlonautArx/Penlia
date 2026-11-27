@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fixed, radius, space, styles, touch, type } from '../theme';
 import { useAppearance } from './appearance';
 import { Icon } from './ui';
+import { LiquidSurface } from './liquid-surface';
+import { isLiquidGlass } from '../demo/mode';
 
 export function MediaViewer({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { reduced } = useAppearance();
@@ -13,6 +15,7 @@ export function MediaViewer({ title, onClose, children }: { title: string; onClo
       <View style={local.bar}>
         <Pressable accessibilityRole="button" accessibilityLabel="关闭预览" onPress={onClose}
           style={({ pressed }) => [local.close, pressed && local.pressed]}>
+          {isLiquidGlass && <LiquidSurface finish="quiet" roundness={radius.pill} rimOnly />}
           <Icon name="close" color={fixed.onLens} size={23} />
         </Pressable>
         <Text accessibilityRole="header" style={local.title}>{title}</Text>

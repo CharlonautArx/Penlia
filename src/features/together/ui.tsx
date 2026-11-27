@@ -1,3 +1,5 @@
+import { LiquidSurface } from '../../components/liquid-surface';
+import { isLiquidGlass } from '../../demo/mode';
 import { Backdrop } from './Backdrop';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -111,6 +113,7 @@ export function Sheet(props: ComponentProps<typeof UI.Sheet>) {
               style={StyleSheet.absoluteFill}
             />
           )}
+          {isLiquidGlass && <LiquidSurface finish="sheet" roundness={24} rimOnly />}
         </View>
       }
     />
@@ -147,6 +150,7 @@ export function Button(props: ComponentProps<typeof UI.Button>) {
           style={StyleSheet.absoluteFill}
         />
       )}
+      {isLiquidGlass && <LiquidSurface finish="control" roundness={18} rimOnly />}
       {props.icon && <UI.Icon name={props.icon} size={18} />}
       <Text style={[styles.strong, { flexShrink: 1, textAlign: 'center' }]}>{props.label}</Text>
     </Pressable>
@@ -176,6 +180,7 @@ function Navigation({
           style={StyleSheet.absoluteFill}
         />
       )}
+      {isLiquidGlass && <LiquidSurface finish="quiet" roundness={30} rimOnly />}
       {back && <UI.IconButton label="返回" icon="chevron-back" onPress={back} />}
       <Text accessibilityRole="header" style={[styles.grow, styles.strong]}>
         {title}

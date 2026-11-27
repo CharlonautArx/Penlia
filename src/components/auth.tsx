@@ -1,3 +1,5 @@
+import { isLiquidGlass } from '../demo/mode';
+import { LiquidSurface } from './liquid-surface';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -66,6 +68,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
           <View style={local.fields}>
             <Text style={styles.strong}>朋聊号</Text>
             <View style={local.field}>
+              {isLiquidGlass && <LiquidSurface finish="quiet" roundness={radius.control} />}
               <Icon name="person-outline" size={18} color={colors.quiet} />
               <TextInput accessibilityLabel="朋聊号" placeholder="字母、数字或下划线" placeholderTextColor={colors.quiet}
                 autoCapitalize="none" autoCorrect={false} autoComplete="username" value={username} onChangeText={setUsername}
@@ -74,6 +77,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
             {register && <>
               <Text style={styles.strong}>昵称</Text>
               <View style={local.field}>
+              {isLiquidGlass && <LiquidSurface finish="quiet" roundness={radius.control} />}
                 <Icon name="id-card-outline" size={18} color={colors.quiet} />
                 <TextInput accessibilityLabel="昵称" placeholder="朋友会怎么称呼你？" placeholderTextColor={colors.quiet}
                   value={name} onChangeText={setName} maxLength={16} editable={!enterDemo && !busy} style={local.input} />
@@ -82,6 +86,7 @@ function LegacyAuth({ onDemoPhone }: { onDemoPhone?: () => void }) {
             {register && !enterDemo && <AvatarEditor account="registration" name={name || '朋友'} value={avatarPhoto} onChange={setAvatarPhoto} />}
             <Text style={styles.strong}>密码</Text>
             <View style={local.field}>
+              {isLiquidGlass && <LiquidSurface finish="quiet" roundness={radius.control} />}
               <Icon name="lock-closed-outline" size={17} color={colors.quiet} />
               <TextInput accessibilityLabel="密码" placeholder={register ? '至少 10 个字符' : '输入你的密码'}
                 placeholderTextColor={colors.quiet} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false}
