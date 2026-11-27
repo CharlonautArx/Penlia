@@ -31,6 +31,6 @@ const local = StyleSheet.create({
   preview: { paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 3 },
   cell: { minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.control },
-  art: { width: '94%', maxWidth: 48, aspectRatio: 1 },
+  art: { width: '94%', maxWidth: 44, height: 44 },
   pressed: { backgroundColor: colors.search, transform: [{ scale: 0.93 }] },
 });

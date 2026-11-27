@@ -286,7 +286,10 @@ def revised_capsule():
 def sticker_peer():
     route('chat/demo-xiaoman')
     tap('表情')
-    find('大哭')
+    first_row = find('大哭')
+    second_row = find('轻戳脸颊')
+    # At 240 dpi, 44 dp rows should remain compact after asset intrinsic sizing.
+    assert 48 <= second_row[1] - first_row[1] <= 78, (first_row, second_row)
     capture('60-sticker-panel-light')
     tap('大哭')
     tap('完成选择')
