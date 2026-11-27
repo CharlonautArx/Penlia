@@ -6,6 +6,7 @@ const publicKeys = new Set([
   'EXPO_PUBLIC_API_URL',
   'EXPO_PUBLIC_EASEMOB_APP_KEY',
   'EXPO_PUBLIC_PENLIA_UI_DEMO',
+  'EXPO_PUBLIC_PENLIA_LIQUID_GLASS',
 ]);
 
 function validatePublicConfig(env) {
@@ -17,6 +18,10 @@ function validatePublicConfig(env) {
   }
   const stage = env.EAS_BUILD_PROFILE;
   const api = env.EXPO_PUBLIC_API_URL?.trim();
+  if (env.EXPO_PUBLIC_PENLIA_LIQUID_GLASS === '1' &&
+      (env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1' || stage !== 'ui-demo' || api || env.EXPO_PUBLIC_EASEMOB_APP_KEY?.trim())) {
+    throw new Error('Liquid Glass requires the isolated offline UI demo profile.');
+  }
   if (api) {
     let url;
     try { url = new URL(api); }

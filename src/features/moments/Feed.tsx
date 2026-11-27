@@ -1,3 +1,4 @@
+import { useDockClearance } from '../../components/liquid-dock';
 import NativeMaskedView from '@react-native-masked-view/masked-view';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -184,9 +185,10 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     </View>
   </View>;
 
+  const clearance = useDockClearance();
   const list: FlatListProps<TimelineRow> = {
     data: pane === 'thought' ? rows : [], keyExtractor: (entry) => entry.key, initialNumToRender: 5,
-    contentContainerStyle: immersive ? local.homeList : local.list, ListHeaderComponent: header,
+    contentContainerStyle: [immersive ? local.homeList : local.list, !!clearance && { paddingBottom: space.xl + clearance }], ListHeaderComponent: header,
     refreshing: pane === 'thought' && busy, onRefresh: pane === 'thought' ? () => void load() : undefined,
     renderItem: ({ item: row }) => {
       if (row.entry) return <View style={local.column}><EntryCard entry={row.entry} timeline={mine} /></View>;

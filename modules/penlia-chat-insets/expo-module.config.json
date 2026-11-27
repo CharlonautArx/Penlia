@@ -1,6 +1,12 @@
 {
-  "platforms": ["android"],
+  "platforms": [
+    "android"
+  ],
   "android": {
-    "modules": ["app.penlia.chatinsets.PenliaChatInsetsModule", "app.penlia.chatinsets.PenliaCallModule"]
+    "modules": [
+      "app.penlia.chatinsets.PenliaChatInsetsModule",
+      "app.penlia.chatinsets.PenliaCallModule",
+      "app.penlia.chatinsets.PenliaOpticalSample"
+    ]
   }
 }

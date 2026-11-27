@@ -9,7 +9,7 @@ import {
 
 import { useLocalDocument } from '../features/local/document';
 import { demoPeople, demoUser } from '../demo/data';
-import { isUiDemo } from '../demo/mode';
+import { isLiquidGlass, isUiDemo } from '../demo/mode';
 import { DemoProvider, useDemo } from '../demo/state';
 import { handlePattern, normalizeHandle, nextHandleChange, presentLocalIdentity, type ProfilePatch } from './profile-model';
 import { api, ApiError, errorMessage, type Session, type User } from './api';
@@ -79,7 +79,7 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
   const key = 'penlia.demo.session.v1';
   const profileDoc = useLocalDocument<{ user: User; avatarKey?: string; active: boolean }>(key, async () => {
     const record = await AsyncStorage.getItem(key);
-    return record ? JSON.parse(record) : { user: demoUser, active: false };
+    return record ? JSON.parse(record) : { user: demoUser, active: isLiquidGlass };
   });
   const profile = profileDoc.value;
   const session = profile?.active && !demo.loading ? { user: profile.user, token: 'demo-only' } : null;

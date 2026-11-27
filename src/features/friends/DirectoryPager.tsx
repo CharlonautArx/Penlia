@@ -1,3 +1,4 @@
+import { useDockClearance } from '../../components/liquid-dock';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, ScrollView, usePanGesture } from 'react-native-gesture-handler';
@@ -97,8 +98,9 @@ export function DirectoryPager({ children }: {
 }
 
 export function DirectoryScroll({ pan, contentContainerStyle, ...props }: ComponentProps<typeof ScrollView> & { pan: DirectoryPan }) {
+  const clearance = useDockClearance();
   return <ScrollView {...props} requireToFail={pan} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
-    contentContainerStyle={[local.list, contentContainerStyle]} />;
+    contentContainerStyle={[local.list, contentContainerStyle, !!clearance && { paddingBottom: space.xl + clearance }]} />;
 }
 
 const local = StyleSheet.create({

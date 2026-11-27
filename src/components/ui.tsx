@@ -16,6 +16,9 @@ import { useFontScale } from './Typography';
 import { useAppearance } from './appearance';
 import { KeyboardInsets } from './keyboard-insets';
 import { GlassLayer } from './material';
+import { useDockClearance } from './liquid-dock';
+import { LiquidSurface } from './liquid-surface';
+import { isLiquidGlass } from '../demo/mode';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -45,10 +48,11 @@ export function Screen({ title, actions, children, inset = true, refreshing, onR
   onRefresh?: () => void; solid?: boolean; back?: () => void; onScroll?: ScrollViewProps['onScroll']; fill?: boolean;
   renderScroll?: (props: ScrollViewProps) => ReactNode;
 }) {
+  const clearance = useDockClearance();
   const scrollProps: ScrollViewProps = {
     onScroll, keyboardShouldPersistTaps: 'handled', showsVerticalScrollIndicator: false,
     refreshControl: onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.accent} /> : undefined,
-    contentContainerStyle: [ui.column, inset && ui.inset, fill && ui.fill], children,
+    contentContainerStyle: [ui.column, inset && ui.inset, fill && ui.fill, !!clearance && { paddingBottom: space.xl + clearance }], children,
   };
   return (
     <SafeAreaView style={[ui.safe, solid && ui.white]} edges={back ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
@@ -129,7 +133,8 @@ export function SearchField({ label, value, onChangeText, onFocus, onBlur, varia
   const capsule = glazed || neutral;
   return <View style={[ui.search, capsule && ui.glassSearch,
     neutral && ui.neutralSearch]}>
-    {glazed && <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />}
+    {glazed && (isLiquidGlass ? <LiquidSurface finish="search" roundness={radius.pill} />
+      : <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />)}
     <Icon name="search-outline" size={19} color={colors.quiet} />
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
       onFocus={capsule ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
@@ -281,7 +286,7 @@ const ui = StyleSheet.create({
   search: { minHeight: touch, borderRadius: radius.control, backgroundColor: colors.search, flexDirection: 'row',
     alignItems: 'center', paddingLeft: space.sm, gap: space.xs },
   glassSearch: { minHeight: touch + space.xxs, borderRadius: radius.pill, backgroundColor: 'transparent',
-    paddingLeft: space.md },
+    paddingLeft: space.md, ...(isLiquidGlass && { boxShadow: '0px 3px 7px #51465523' }) },
   neutralSearch: { backgroundColor: colors.panel, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   searchFocus: { ...StyleSheet.absoluteFill, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.accent },
   searchInput: { flex: 1, minWidth: 0, minHeight: touch, paddingVertical: space.xs, paddingRight: space.xs, ...type.support, color: colors.text },

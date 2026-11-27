@@ -21,13 +21,16 @@ module.exports = ({ config: base }) => {
     // Setting either permission to false blocks the same permission for expo-camera.
     return [plugin[0], { ...plugin[1], cameraPermission, microphonePermission }];
   });
+  const liquidGlass = process.env.EXPO_PUBLIC_PENLIA_LIQUID_GLASS === '1';
+  const packageId = liquidGlass ? 'app.penlia.mobile.liquidglass' : 'app.penlia.mobile.preview';
   return {
     ...config,
+    name: liquidGlass ? '朋聊 · Liquid Glass 体验版' : config.name,
     version: '0.1.11',
-    scheme: 'penlia-preview',
+    scheme: liquidGlass ? 'penlia-liquid' : 'penlia-preview',
     platforms: ['android', 'ios', 'web'],
     plugins: [...plugins, './plugins/with-penlia-call-pip', ['expo-camera', { cameraPermission, microphonePermission, barcodeScannerEnabled: true }]],
-    android: { ...config.android, package: 'app.penlia.mobile.preview', versionCode: 23 },
-    ios: { ...config.ios, bundleIdentifier: 'app.penlia.mobile.preview' },
+    android: { ...config.android, package: packageId, versionCode: 23, ...(liquidGlass && { allowBackup: false }) },
+    ios: { ...config.ios, bundleIdentifier: packageId },
   };
 };

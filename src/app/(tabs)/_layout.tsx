@@ -1,11 +1,14 @@
 import { useFontScale } from '../../components/Typography';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Tabs } from 'expo-router/js-tabs';
+import { BottomTabBar, Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glint } from '../../components/Glint';
+import { DockScene, LiquidDock } from '../../components/liquid-dock';
+import type { GlassTarget } from '../../components/liquid-surface';
+import { isLiquidGlass } from '../../demo/mode';
 import { GlassLayer, UnreadMark } from '../../components/material';
 import type { IconName } from '../../components/ui';
 import { ConversationUnread } from '../../features/chat/unread';
@@ -32,9 +35,24 @@ export default function TabLayout() {
   const scaledAndroidBar = Platform.OS === 'android' && fontScale > 1
     ? { height: 49 + bottom + Math.ceil(type.tag.lineHeight * (fontScale - 1)) + space.xxs }
     : undefined;
+  const [sample, setSample] = useState<GlassTarget>();
+  const selectedDock = ({ state, descriptors, ...props }: BottomTabBarProps) => {
+    const selected = state.routes[state.index].key;
+    const options = {
+      ...descriptors[selected].options,
+      tabBarBackground: () => <LiquidDock active={state.index} count={state.routes.length}
+        safeBottom={bottom} target={sample} />,
+    };
+    return <BottomTabBar {...props} state={state}
+      descriptors={{ ...descriptors, [selected]: { ...descriptors[selected], options } }} />;
+  };
+  const clearance = 55 + bottom + Math.max(0, Math.ceil(type.tag.lineHeight * (fontScale - 1)));
+
   return <ConversationUnread.Provider value={reportUnread}>
     <Tabs
       backBehavior="initialRoute"
+      tabBar={isLiquidGlass ? selectedDock : undefined}
+      screenLayout={isLiquidGlass ? ({ children }) => <DockScene height={clearance} register={setSample}>{children}</DockScene> : undefined}
       screenOptions={{
         headerShown: false,
         animation: reduced || Platform.OS === 'web' ? 'none' : 'fade',
@@ -44,7 +62,7 @@ export default function TabLayout() {
         tabBarLabelStyle: [local.label, Platform.OS === 'web' && local.webLabel, fontScale !== 1 && {
           fontSize: type.tag.fontSize * fontScale, lineHeight: Math.ceil(type.tag.lineHeight * fontScale),
         }],
-        tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar, scaledAndroidBar],
+        tabBarStyle: [local.bar, Platform.OS === 'web' && local.webBar, scaledAndroidBar, isLiquidGlass && [local.floating, { height: clearance }]],
         tabBarBackground: () => <GlassLayer tone="chrome" roundness={0} />,
         tabBarButton: Platform.OS === 'android' ? ({
           children, onPress, onLongPress, accessibilityLabel, accessibilityState, testID, style,
@@ -76,7 +94,7 @@ function TabIcon({ focused, icon, activeIcon, unread }: {
   focused: boolean; icon?: IconName; activeIcon?: IconName; unread: number;
 }) {
   return <View style={local.icon}>
-    {focused && <GlassLayer tone="control" roundness={radius.pill} />}
+    {focused && !isLiquidGlass && <GlassLayer tone="control" roundness={radius.pill} />}
     {icon ? <Ionicons accessible={false} name={focused ? activeIcon : icon} color={focused ? colors.ink : colors.muted} size={21} />
       : <Glint active={focused} />}
     <UnreadMark count={unread} dot style={local.unread} />
@@ -87,6 +105,7 @@ const local = StyleSheet.create({
   label: { ...type.tag },
   webLabel: { lineHeight: 18, flexShrink: 0 },
   bar: { backgroundColor: colors.panel, borderTopColor: colors.border },
+  floating: { position: 'absolute', borderTopWidth: 0, backgroundColor: 'transparent' },
   webBar: { minHeight: 60, paddingBottom: space.xxs },
   icon: { width: 43, height: 29, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
   unread: { position: 'absolute', top: 2, right: 5 },
