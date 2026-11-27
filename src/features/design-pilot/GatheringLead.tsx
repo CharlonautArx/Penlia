@@ -3,7 +3,6 @@ import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { Icon, type IconName } from '../../components/ui';
 import { Backdrop } from '../together/Backdrop';
-import { formatTime } from '../social/ui';
 import { useDesignPilot } from './context';
 
 type WhenWhere = { startsAt: string; endsAt?: string; place: string };
@@ -18,6 +17,14 @@ type Invitation = {
   candidate?: WhenWhere;
   proposal?: { selected: boolean; choose: () => void };
 };
+
+// Hermes on single-locale emulator images may fall back to English month names.
+function invitationTime(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '时间待定';
+  const clock = [date.getHours(), date.getMinutes()].map(part => String(part).padStart(2, '0')).join(':');
+  return date.getFullYear() + '年' + (date.getMonth() + 1) + '月' + date.getDate() + '日 ' + clock;
+}
 
 function Cover({ value }: { value?: string }) {
   return value ? <Image accessible={false} source={{ uri: 'data:image/jpeg;base64,' + value }} resizeMode="cover" style={StyleSheet.absoluteFill} />
@@ -52,11 +59,11 @@ export function GatheringLead({ title, cover, description, meetingNote, category
   const tentative = !selected && !!candidate;
   const timeLabel = tentative ? '候选时间' : '时间';
   const placeLabel = tentative ? '候选地点' : '地点';
-  const time = schedule ? formatTime(schedule.startsAt) + (schedule.endsAt ? ' 至 ' + formatTime(schedule.endsAt) : '') : '待商量';
+  const time = schedule ? invitationTime(schedule.startsAt) + (schedule.endsAt ? ' 至 ' + invitationTime(schedule.endsAt) : '') : '待商量';
   const place = schedule?.place || meetingNote || '待商量';
   const split = width >= 365 && fontScale < 1.3;
-  const titleText = (size: number, ink = colors.text, reading = false) => <Text accessibilityRole="header" style={{
-    fontSize: width < 350 ? size - 4 : size, lineHeight: Math.ceil((width < 350 ? size - 4 : size) * (reading ? 1.33 : 1.2)), color: ink, fontFamily: reading ? readingFont(title) : undefined,
+  const titleText = (size: number, ink = colors.text, reading = false) => <Text accessibilityRole="header" textBreakStrategy="balanced" style={{
+    fontSize: width < 350 && variant !== 'C' ? size - 4 : size, lineHeight: Math.ceil((width < 350 && variant !== 'C' ? size - 4 : size) * (reading ? 1.33 : 1.2)), color: ink, fontFamily: reading ? readingFont(title) : undefined,
     fontWeight: reading ? '400' : '700', letterSpacing: reading ? 0.2 : -0.55, flexShrink: 1,
   }}>{title}</Text>;
   const metadata = (ink = colors.muted) => <Text style={{ fontSize: 13, color: ink, fontWeight: '500' }}>{category}　·　{state}</Text>;
@@ -67,12 +74,15 @@ export function GatheringLead({ title, cover, description, meetingNote, category
     <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.line }} />
     <Fact label={placeLabel} icon="location-outline" value={place} />
   </>;
+  // Reserve roughly ten full-width ideographs per line on compact devices.
+  // Longer names keep their natural line count, including at system font scales.
+  const coverTitleSize = Math.max(27, Math.min(35, Math.floor((width - 68) / 9.7)));
   if (variant === 'C') return <View style={{ gap: 16 }}>
-    <View style={{ overflow: 'hidden', minHeight: 255, borderRadius: 29, padding: 23, paddingTop: 95, justifyContent: 'flex-end', gap: 9 }}>
+    <View style={{ overflow: 'hidden', minHeight: 255, borderRadius: 29, paddingHorizontal: 18, paddingBottom: 21, paddingTop: 95, justifyContent: 'flex-end', gap: 9 }}>
       <Cover value={cover} />
       <LinearGradient pointerEvents="none" colors={['#10232100','#10232128','#102321ed']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
       {metadata('#F6F6FA')}
-      {titleText(35, '#FFFFFF')}
+      {titleText(coverTitleSize, '#FFFFFF')}
     </View>
     <View style={{ paddingHorizontal: 17, paddingVertical: 3, borderRadius: 19, backgroundColor: colors.surface }}>{facts}</View>
     {aside}{note}

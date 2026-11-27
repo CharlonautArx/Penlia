@@ -87,3 +87,16 @@ VIEWPORT_WIDTH=320 VIEWPORT_HEIGHT=740 COLOR_SCHEME=dark LARGE_TYPE=1 \
 在 360 × 800 深色运行中，首次打开自动进入方案选择；点返回落在原版聊天，在「我的」重新打开选择页。五种选择各跑过一次，以真实点按验证选中态，打开「好友动态」、后退并重新打开，再刷新后仍保持所选方案，无未处理 JS 异常。复查曾发现 Web 的单选项未向辅助技术暴露选中状态，补上 aria-checked 后重做。[实测选择器](picker-dark.png) · [状态检查](picker-state.json)
 
 C 的第四轮还单独验证了向上滚动后搜索留在可操作的位置。单一输入框的顶边从页面初态的 y=87 移至屏内 y=13，在试点上一轮会滑出至 y=−193。滚动后实测搜索、清除与恢复列表。[滚动后画面](round4/C-search-scroll.jpg) · [布局采样](round4/C-search-scroll.json) · [同尺寸五版本首屏密度](density.json)
+
+## 首轮 Android 原生实测与针对性修正
+
+开发提交 0ac6c5c 的 x86_64 Release 安装在 API 35 模拟器。720 × 1600 的 Android 截屏显示，A 的收件首行确实像单项绿色选中，B 管理区视觉过密，C 的聊天标题与滚动内容争夺同一块空间。首条动态相片在 A、C 和 D 的出现位置也比后来几个版本低。后续修订对这些问题有直接对应的画面。[首轮原生聊天对照](round1/api35-chat.jpg) · [首轮原生动态对照](round1/api35-moments.jpg)
+
+这一轮脚本完成 21 个带业务断言的标准画面。四个世界入口留下故障定位帧，四段约 33–34 秒的录屏仅包含部分收件与聊天操作。这次自动化作业报告失败。它用于发现和修正原生端问题，最终安装包的截图与交互通过情况另见对应构建记录。[首轮 Android Actions 记录](https://github.com/CharlonautArx/Penlia/actions/runs/46040876259)
+
+原生运行还暴露出 Web 布局检查无法发现的两处差异。
+
+- 在 A、C、D 单聊无壁纸的空白区域，实测屏幕像素均为纯白，浅色气泡之间缺少各自的背景材质。Android 优先解析 Viewport.android.tsx，而当时只有通用 Viewport.tsx 接受了试点底色属性。已在 Android 专用视口接入相同纸色，同时保留原有键盘补偿和个人壁纸叠放顺序。
+- 英语模拟器下，约局的时间字段会在中文布局中显示英文月份及 AM/PM。试点展示采用中文日期、24 小时制，仍保留设备实际时区。正式页面的共享格式函数不受该调整影响。
+
+在第三轮开发提交 ceb3fd5 上，再以 API 30、540 × 1080、夜间和系统字号 1.30 复核。原生截图中 A、B、C 动态顶部仍有明显的亮色渐变，D 左右窄边下的长标题会换行。这个时点的真实屏幕也解释了第四轮调整夜间无图封面的动机。[第三轮 Android 夜间动态实图](round3/api30-before-night-finish.jpg) · [对应 Android 运行记录](https://github.com/CharlonautArx/Penlia/actions/runs/46041720704)

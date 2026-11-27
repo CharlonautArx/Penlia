@@ -68,7 +68,7 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
     <View style={{ width: size + 22, height: size + 22 }}><PetOrb size={size} vitality={61} fed={space.greetedAt ? Date.parse(space.greetedAt) : 0} onPet={greet} /></View>
     <Text style={{ fontSize: 14, color: ink, fontWeight: '500' }}>{space.petName}</Text>
   </View>;
-  const display = (size: number, color = colors.text) => <Text accessibilityRole="header" style={{
+  const display = (size: number, color = colors.text) => <Text accessibilityRole="header" testID={'world-title-' + variant} style={{
     color, fontSize: size, lineHeight: Math.ceil(size * 1.26), fontWeight: book ? '400' : '700',
     fontFamily: book ? readingFont(space.title) : undefined, letterSpacing: book ? 0.5 : -0.45,
   }}>{space.title}</Text>;
