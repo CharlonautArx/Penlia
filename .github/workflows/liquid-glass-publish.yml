@@ -20,16 +20,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-preview-([0-9]+)(-r[0-9]+)?$ ]]
+          [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-preview-([0-9]+)(-qa-([0-9]+))?(-r[0-9]+)?$ ]]
           build_run="${BASH_REMATCH[1]}"
+          qa_run="${BASH_REMATCH[3]:-$build_run}"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$qa_run" > "$RUNNER_TEMP/checked-qa"
+          jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/checked-qa"
+          qa_source=$(jq -er .head_sha "$RUNNER_TEMP/checked-qa")
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" > "$RUNNER_TEMP/checked-run"
           jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .head_branch == "codex/liquid-glass-native" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/checked-run"
           source=$(jq -er .head_sha "$RUNNER_TEMP/checked-run")
           git diff --exit-code "$source" HEAD -- app.config.js src modules tooling package.json package-lock.json assets plugins
           gh run download "$build_run" -n "liquid-glass-arm64-v8a-$source" -D arm
           gh run download "$build_run" -n "liquid-glass-x86_64-$source" -D x86
-          gh run download "$build_run" -n "liquid-glass-android-35-$source" -D api35
-          gh run download "$build_run" -n "liquid-glass-android-30-$source" -D api30
+          gh run download "$qa_run" -n "liquid-glass-android-35-$qa_source" -D api35
+          gh run download "$qa_run" -n "liquid-glass-android-30-$qa_source" -D api30
           test "$(cat arm/source.txt)" = "$source"
           test "$(cat x86/source.txt)" = "$source"
           expected=$(cut -d' ' -f1 arm/sha256.txt)

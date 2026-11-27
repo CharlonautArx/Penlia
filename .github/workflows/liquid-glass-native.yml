@@ -2,12 +2,14 @@ name: Liquid Glass native Release and device review
 on:
   push:
     branches: [codex/liquid-glass-native]
+    tags: [penlia-liquid-glass-device-*]
     paths: ['src/**', 'modules/**', 'app.config.js', 'tooling/**', '.github/workflows/liquid-glass-native.yml', 'scripts/liquid-glass-check.py']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
+    if: github.ref_type != 'tag' && !contains(github.event.head_commit.message, '[glass-harness]')
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     strategy:
@@ -101,6 +103,7 @@ jobs:
           retention-days: 30
   device:
     needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || github.ref_type == 'tag') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 38
     permissions:
@@ -114,13 +117,33 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+      - name: Select the tested application build
+        id: binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if test "$GITHUB_REF_TYPE" = tag; then
+            [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-device-([0-9]+)(-r[0-9]+)?$ ]]
+            build_run="${BASH_REMATCH[1]}"
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" > "$RUNNER_TEMP/build-run.json"
+            jq -e --arg repo "$GITHUB_REPOSITORY" '.head_repository.full_name == $repo and .head_branch == "codex/liquid-glass-native" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/build-run.json"
+            client=$(jq -er .head_sha "$RUNNER_TEMP/build-run.json")
+          else
+            build_run="$GITHUB_RUN_ID"
+            client="$GITHUB_SHA"
+          fi
+          echo "run=$build_run" >> "$GITHUB_OUTPUT"
+          echo "source=$client" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: liquid-glass-x86_64-${{ github.sha }}
+          name: liquid-glass-x86_64-${{ steps.binary.outputs.source }}
           path: out/
+          run-id: ${{ steps.binary.outputs.run }}
+          github-token: ${{ github.token }}
       - name: Verify the client matches the build
         run: |
-          test "$(cat out/source.txt)" = "$GITHUB_SHA"
+          test "$(cat out/source.txt)" = "${{ steps.binary.outputs.source }}"
           sha256sum -c out/sha256.txt
       - name: Retrieve the unmodified original simulator package
         if: ${{ !contains(github.event.head_commit.message, '[glass-review]') }}

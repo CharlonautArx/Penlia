@@ -8,7 +8,7 @@ import sys
 import time
 from xml.etree import ElementTree
 from hashlib import sha256
-from PIL import ImageDraw, ImageFont, ImageChops
+from PIL import ImageDraw
 from PIL import Image
 
 APK, OUT, MODE = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
@@ -246,13 +246,13 @@ if MODE != '--core':
     def controls():
         route('chat-settings/demo-xiaoman')
         with record('controls'):
-            tap('消息免打扰')
+            tap('消息免打扰', kind='android.widget.Switch')
             control = next(n for n in nodes() if '消息免打扰' in n.get('content-desc','') and n.get('checkable') == 'true')
             during = control.get('checked')
             screen('20-surface-switch')
-            tap('消息免打扰')
+            tap('消息免打扰', kind='android.widget.Switch')
             confirm = next(n for n in nodes() if '消息免打扰' in n.get('content-desc','') and n.get('checkable') == 'true')
-            assert during != confirm.get('checked')
+            assert during != confirm.get('checked'), 'Tapped native toggle did not change the accessible checked value'
             route('chat/demo-xiaoman')
             tap('表情')
             find('大哭')
