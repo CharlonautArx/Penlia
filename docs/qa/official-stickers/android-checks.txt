@@ -1,0 +1,5 @@
+PASS cold-start
+PASS sticker-panel-persistence-and-mixed-chat
+PASS sticker-comment-persistence
+PASS sticker-dark-surfaces
+Android API 35; ABI x86_64

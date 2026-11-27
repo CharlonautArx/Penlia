@@ -1,0 +1,9 @@
+PASS chat-picker-order-send-and-reopen
+PASS history-forward-favorite-quote-and-selection
+PASS group-panel-and-persistence
+PASS comment-panel-send-and-reopen
+PASS recalled-sticker-disappears-after-reload
+PASS compact-responsive-grid
+PASS chat-list-sticker-only-preview
+PASS dark-theme
+Renderer errors: 0

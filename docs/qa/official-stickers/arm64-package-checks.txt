@@ -1,0 +1,8 @@
+APK archive CRC checked.
+GitHub artifact SHA-256 matches downloaded APK.
+Android package app.penlia.mobile.preview versionName 0.1.11 versionCode 23.
+The only native ABI present is arm64-v8a.
+All 84 official sticker source images verified in APK resources.
+APK size: 46562250 bytes.
+SHA-256: ddb116666c83267e6f3a54772a6b09d8e0958f7cf069097014efe83b781ceebe
+APK v2 certificate SHA-256: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
