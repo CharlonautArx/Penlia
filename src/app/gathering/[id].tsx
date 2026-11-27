@@ -1,3 +1,4 @@
+import { GatheringActions } from '../../features/design-pilot/GatheringActions';
 import { useDesignPilot } from '../../features/design-pilot/context';
 import { GatheringLead } from '../../features/design-pilot/GatheringLead';
 import { SocialButton, SocialPage, SocialSection } from '../../features/design-pilot/social-controls';
@@ -564,6 +565,16 @@ function GatheringDetail({ id }: { id: string }) {
     );
   const selected = data.options.find((item) => item.id === g.choiceId);
   const suggestion = data.options.find((item) => item.id === data.suggestion);
+  const singleProposal = together && variant !== 'original' && g.state === 'interest' && g.directProposal && data.options.length === 1;
+  const ended = ['cancelled', 'completed'].includes(g.state);
+  const openPrivate = () => {
+    setNote(g.privateNote ?? '');
+    setResponses(true);
+  };
+  const availabilityAction = {
+    label: availability ? '隐藏空闲参考' : '查看空闲参考',
+    onPress: () => setAvailability(!availability),
+  };
   const pilotLead = <GatheringLead
     title={g.title} category={categories[g.category]} state={g.directProposal && g.state === 'interest' ? '待商量' : stateNames[g.state]}
     cover={g.cover} description={g.description} meetingNote={g.meetingNote} selected={selected}
@@ -584,6 +595,16 @@ function GatheringDetail({ id }: { id: string }) {
           <Text style={styles.body}>{selected?.place || g.meetingNote || '地点待商量'}</Text>
           {!!selected?.place && !!g.meetingNote && <Text style={styles.muted}>{g.meetingNote}</Text>}
           {!!g.description && <Text style={styles.body}>{g.description}</Text>}
+          </>}
+          {singleProposal && <>
+            <View style={{ gap: 4 }}>
+              <SocialSection title="直接提议时间" />
+              <Text style={styles.muted}>{host ? '选一个时间发给朋友，请他们自愿确认。' : '等发起者提议时间后，你可以自愿确认。'}</Text>
+            </View>
+            {host && <>
+              <CheckRow label="选择要提议的时间" selected={choice === data.options[0].id} action={() => setChoice(data.options[0].id)} />
+              <SocialButton label="提议时间并开放确认" disabled={!choice || busy} onPress={() => organize('choose', { optionId: choice })} />
+            </>}
           </>}
           {g.checklist && (
             <ListRow
@@ -610,12 +631,14 @@ function GatheringDetail({ id }: { id: string }) {
           {!!g.agreedChoice && (
             <ListRow title={g.decision ?? '活动内选择'} detail={'共同建议 · ' + g.agreedChoice} />
           )}
-          <SocialButton
+          {variant !== 'original' ? <ActivityDiscussion id={id} ended={ended} trigger={(discuss) =>
+            <GatheringActions privateChoice={ended ? undefined : openPrivate} discuss={discuss}
+              more={() => setActions(true)} availability={ended ? undefined : availabilityAction} />} /> : <SocialButton
             label="活动操作"
             icon="ellipsis-horizontal"
             variant="soft"
             onPress={() => setActions(true)}
-          />
+          />}
           {actions && (
             <Sheet title="活动操作" onClose={() => setActions(false)}>
               <Button
@@ -791,14 +814,11 @@ function GatheringDetail({ id }: { id: string }) {
           )}
           {!['cancelled', 'completed'].includes(g.state) && (
             <>
-              <SocialButton
+              {variant === 'original' && <SocialButton
                 label="我的私密选择"
                 variant="quiet"
-                onPress={() => {
-                  setNote(g.privateNote ?? '');
-                  setResponses(true);
-                }}
-              />
+                onPress={openPrivate}
+              />}
               {responses && (
                 <Sheet title="我的私密选择" avoidKeyboard onClose={() => setResponses(false)}>
                   {!!g.decision && g.state === 'interest' && !g.ballotClosed && (
@@ -849,7 +869,7 @@ function GatheringDetail({ id }: { id: string }) {
               )}
             </>
           )}
-          <ActivityDiscussion id={id} ended={g.state === 'cancelled' || g.state === 'completed'}/>
+          {variant === 'original' && <ActivityDiscussion id={id} ended={ended} />}
           {!!data.updates?.length && (
             <>
               <SocialSection title="活动通知" />
@@ -914,7 +934,7 @@ function GatheringDetail({ id }: { id: string }) {
           )}
         </LifeLead>
       )}
-      {['interest', 'confirming', 'formed'].includes(g.state) && (
+      {(!together || variant === 'original') && ['interest', 'confirming', 'formed'].includes(g.state) && (
         <SocialButton
           label={availability ? '隐藏空闲参考' : '查看空闲参考'}
           icon="calendar-outline"
@@ -944,7 +964,7 @@ function GatheringDetail({ id }: { id: string }) {
           }
         />
       )}
-      {g.state === 'interest' && (
+      {g.state === 'interest' && !singleProposal && (
         <>
           <Section title={g.directProposal ? '直接提议时间' : '匿名意向'} />
           {g.directProposal ? (

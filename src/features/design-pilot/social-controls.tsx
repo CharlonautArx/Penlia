@@ -33,12 +33,12 @@ export function SocialButton(props: ComponentProps<typeof Button>) {
   const book = variant === 'D';
   const flat = variant === 'B' || book;
   const filled = prominent && !book;
-  const ink = filled ? colors.background : quiet ? colors.muted : colors.text;
+  const ink = filled && variant === 'B' ? colors.accent : filled ? colors.background : quiet ? colors.muted : colors.text;
   return <Pressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ disabled: !!props.disabled }}
     disabled={props.disabled} onPress={props.onPress} onLongPress={props.onLongPress}
     android_ripple={{ color: dark ? '#ffffff28' : '#00000010' }}
     style={({ pressed }) => [local.action, {
-      alignSelf: 'stretch', backgroundColor: filled ? colors.text : flat || quiet ? 'transparent' : colors.surface,
+      alignSelf: 'stretch', backgroundColor: filled && variant === 'B' ? colors.tint : filled ? colors.text : flat || quiet ? 'transparent' : colors.surface,
       borderRadius: variant === 'C' ? 22 : variant === 'A' ? 15 : 0, borderColor: colors.line,
       borderBottomWidth: flat && !filled ? StyleSheet.hairlineWidth : 0,
       paddingHorizontal: flat && !filled ? 3 : 15, opacity: props.disabled ? 0.48 : pressed ? 0.72 : 1,

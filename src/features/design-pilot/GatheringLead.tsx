@@ -45,7 +45,7 @@ export function GatheringLead({ title, cover, description, meetingNote, category
   const place = schedule?.place || meetingNote || '待商量';
   const split = width >= 365 && fontScale < 1.3;
   const titleText = (size: number, ink = colors.text, reading = false) => <Text accessibilityRole="header" style={{
-    fontSize: size, lineHeight: Math.ceil(size * (reading ? 1.33 : 1.2)), color: ink, fontFamily: reading ? 'PenliaReading' : undefined,
+    fontSize: width < 350 ? size - 4 : size, lineHeight: Math.ceil((width < 350 ? size - 4 : size) * (reading ? 1.33 : 1.2)), color: ink, fontFamily: reading ? 'PenliaReading' : undefined,
     fontWeight: reading ? '400' : '700', letterSpacing: reading ? 0.2 : -0.55, flexShrink: 1,
   }}>{title}</Text>;
   const metadata = (ink = colors.muted) => <Text style={{ fontSize: 13, color: ink, fontWeight: '500' }}>{category}　·　{state}</Text>;

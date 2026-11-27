@@ -2,8 +2,8 @@ import { useRecalls } from '../../features/chat/recalls';
 import { applyRecalls, recalledCaption } from '../../features/chat/recall-model';
 import { useChatHistory } from '../../features/chat/history';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -25,8 +25,8 @@ import { ConversationSwipe, type ConversationAction } from '../../features/chat/
 import { useConversationPreferences } from '../../features/chat/useConversationPreferences';
 import { useDirectory } from '../../features/friends/store';
 import { formatHandle } from '../../services/handle';
-import { isDesignPilot, useDesignPilot } from '../../features/design-pilot/context';
-import { DesignSwitch, PilotInboxHeader, PilotInboxRow } from '../../features/chat/PilotInbox';
+import { useDesignPilot } from '../../features/design-pilot/context';
+import { PilotInboxHeader, PilotInboxRow } from '../../features/chat/PilotInbox';
 import { ConversationRow } from '../../features/chat/ui';
 import { useReportConversationUnread } from '../../features/chat/unread';
 
@@ -188,9 +188,8 @@ export default function ChatsScreen() {
           onScroll={() => { if (owner.value) closeSwipe(); }}>
           <View style={local.controls}>
             {custom ? <PilotInboxHeader pilot={pilot} value={query} onFocus={closeSwipe}
-              onChange={(next) => { closeSwipe(); setQuery(next); }} /> : <View style={local.searchLine}><View style={styles.grow}>
-            <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query}
-              onFocus={closeSwipe} onChangeText={(next) => { closeSwipe(); setQuery(next); }} returnKeyType="search" /></View>{isDesignPilot && <DesignSwitch color={pilot.colors.muted} />}</View>}
+              onChange={(next) => { closeSwipe(); setQuery(next); }} /> : <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query}
+              onFocus={closeSwipe} onChangeText={(next) => { closeSwipe(); setQuery(next); }} returnKeyType="search" />}
             {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
             {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
             {!!preferences.error && <Notice action="重试" onAction={preferences.retry}>{preferences.error}</Notice>}
@@ -200,7 +199,7 @@ export default function ChatsScreen() {
           {preferences.value && filtered.map((thread, index) => {
             const { person, last, unread, pinned, manualUnread, hidden } = thread;
             const lead = index === 0 && !term;
-            const avatarSize = pilot.variant === 'D' ? 26 : pilot.variant === 'B' ? 36 : pilot.variant === 'A' && lead ? 72 : 48;
+            const avatarSize = pilot.variant === 'D' ? 32 : pilot.variant === 'B' ? 40 : pilot.variant === 'A' && lead ? 67 : 48;
             const rowProps = {
               name: directory?.remarks[person.userId] || person.name,
               avatar: <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={avatarSize} />,
@@ -209,13 +208,23 @@ export default function ChatsScreen() {
               signal: <PetSignal peer={person.userId} />, onPress: () => openPeer(person.userId),
             };
             const row = custom ? <PilotInboxRow {...rowProps} pilot={pilot} lead={lead} /> : <ConversationRow {...rowProps} />;
-            return hidden
+            const threadView = hidden
               ? <View key={person.userId} style={local.searchResult}>
                 <View style={styles.grow}>{row}</View>
                 <Button label="恢复显示" variant="quiet" disabled={busy} onPress={() => void act(thread, 'restore')} />
               </View>
               : <ConversationSwipe key={person.userId} id={person.userId} owner={owner} pinned={pinned}
                 unread={manualUnread || unread > 0} busy={busy} onAction={(action) => void act(thread, action)}>{row}</ConversationSwipe>;
+            if (pilot.variant !== 'A' || term) return threadView;
+            const group = correspondenceDay(thread);
+            const previous = filtered[index - 1];
+            return <Fragment key={person.userId}>
+              {(!previous || correspondenceDay(previous) !== group) && <View style={local.dayBreak}>
+                <Text accessibilityRole="header" style={[local.dayLabel, { color: pilot.colors.muted }]}>{group}</Text>
+                <View style={[local.dayRule, { backgroundColor: pilot.colors.line }]} />
+              </View>}
+              {threadView}
+            </Fragment>;
           })}</View>
           {preferences.loading || (!relationships && !friendsError) || (!demo && connection && !loaded && !listError)
             ? <LoadingSkeleton label="正在加载会话" />
@@ -227,6 +236,15 @@ export default function ChatsScreen() {
       </KeyboardInsets>
     </GestureHandlerRootView>
   );
+}
+
+function correspondenceDay(thread: { pinned: boolean; last: { timestamp: number } }) {
+  if (thread.pinned) return '置顶';
+  const date = new Date(thread.last.timestamp);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) return '今天';
+  now.setDate(now.getDate() - 1);
+  return date.toDateString() === now.toDateString() ? '昨天' : '更早';
 }
 
 function threadTime(timestamp: number) {
@@ -247,7 +265,9 @@ const local = StyleSheet.create({
   blank: { flexGrow: 1 },
   groupedList: { marginHorizontal: 14, marginTop: 6, borderRadius: 23, overflow: 'hidden' },
   letterList: { marginHorizontal: 20 },
-  searchLine: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  dayBreak: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 3 },
+  dayLabel: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  dayRule: { flex: 1, height: StyleSheet.hairlineWidth },
   searchResult: { flexDirection: 'row', alignItems: 'center', paddingRight: space.xs },
   controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm },
 });

@@ -27,9 +27,10 @@ export function CoverPreview({ cover }: { cover: Cover }) {
   </View>;
 }
 
-export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true, pilotPaper }: {
+export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true, pilotPaper, paperWash = false }: {
   person: { id: string; name: string; username: string; bio?: string };
   card: SpaceCard;
+  paperWash?: boolean;
   pilotPaper?: { background: string; text: string; muted: string };
   immersive?: { width: number; resting: number; reserve: number; top: number; reveal: SharedValue<number> };
   avatarKey?: string;
@@ -59,6 +60,7 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
             && Math.hypot(nativeEvent.pageX - start.x, nativeEvent.pageY - start.y) <= space.xs)) onCover();
         }}
         style={({ pressed }) => pressed && local.coverPressed}>{coverImage}</Pressable> : coverImage}
+      {paperWash && pilotPaper && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: pilotPaper.background, opacity: 0.85 }]} />}
       <LinearGradient pointerEvents="none" colors={pilotPaper ? [pilotPaper.background + '00', pilotPaper.background + '28', pilotPaper.background + 'A3', pilotPaper.background + 'F2', pilotPaper.background] : ['#FFFFFF00', '#FFFFFF28', '#FFFFFFA3', '#FFFFFFF2', '#FFFFFF']}
         locations={[0, 0.23, 0.58, 0.86, 1]} style={local.fade} />
     </View> : <CoverPreview cover={card.cover} />}

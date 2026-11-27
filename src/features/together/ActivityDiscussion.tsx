@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -7,11 +8,11 @@ import { Button, Notice, Sheet } from './ui';
 
 type Message = { id: string; name: string; body: string; mine: boolean; createdAt: string };
 
-export function ActivityDiscussion({ id, ended }: { id: string; ended: boolean }) {
+export function ActivityDiscussion({ id, ended, trigger }: { id: string; ended: boolean; trigger?: (open: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button label="活动留言" variant="soft" onPress={() => setOpen(true)} />
+      {trigger ? trigger(() => setOpen(true)) : <Button label="活动留言" variant="soft" onPress={() => setOpen(true)} />}
       {open && <DiscussionPanel key={id} id={id} ended={ended} close={() => setOpen(false)} />}
     </>
   );

@@ -45,7 +45,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const window = useWindowDimensions();
   const focused = useIsFocused();
   const width = Math.max(1, window.width - insets.left - insets.right);
-  const metrics = coverMetrics(width, window.height, insets.top);
+  const regularMetrics = coverMetrics(width, window.height, insets.top);
   const reveal = useSharedValue(0);
   const bellTarget = useRef<ComponentRef<typeof View>>(null);
   const coverHeaderHeight = useRef(0);
@@ -148,6 +148,13 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const person = home || mine ? me : profile;
   const hasLocalProfile = !!person && (home || mine || (isUiDemo && state.spaceVisible(person.id)));
   const card = hasLocalProfile && person ? state.card(person.id) : emptySpace();
+  // A chosen photograph keeps its exact framing. With an empty cover the toolbar and feed can start earlier.
+  const metrics = useMemo(() => {
+    if (!edition || card.cover.photo) return regularMetrics;
+    const titleAndIdentity = (edition === 'B' ? 122 : edition === 'C' ? 168 : edition === 'D' ? 150 : 177) * Math.min(1.3, window.fontScale);
+    const resting = Math.min(regularMetrics.resting, insets.top + titleAndIdentity);
+    return { resting, reserve: Math.min(regularMetrics.reserve, resting * 0.55) };
+  }, [edition, card.cover.photo, regularMetrics.resting, regularMetrics.reserve, window.fontScale, insets.top]);
   const rows = useMemo(() => items ? timelineRows(canUseCache ? state.value?.timelineCache ?? [] : items,
     archiveOwner ? state.value?.entries ?? [] : [], archiveOwner, !!next, home) : [],
     [canUseCache, items, state.value?.timelineCache, state.value?.entries, archiveOwner, home, next]);
@@ -161,7 +168,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   }
   const spaceHeader = person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
     immersive={immersive ? { ...metrics, width, reveal, top: insets.top } : undefined} hidePanes={mine || !!edition}
-    pilotPaper={edition ? pilot.colors : undefined}
+    pilotPaper={edition ? pilot.colors : undefined} paperWash={edition === 'D' && !card.cover.photo}
     pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
     onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
     onCover={home || mine ? () => setPanel('cover') : undefined}
@@ -227,7 +234,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
       }} /> : <FlatList {...list} />}
     {immersive && focused && person && statusSurface !== 'feed' && <StatusBar
-      style={statusSurface === 'cover' && card.cover.photo || (edition && pilot.dark && statusSurface === 'profile') ? 'light' : 'dark'} />}
+      style={(statusSurface === 'cover' && (card.cover.photo || (edition === 'D' && pilot.dark))) || (edition && pilot.dark && statusSurface === 'profile') ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...metrics }} onClose={() => setPanel(undefined)} />}
     {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />

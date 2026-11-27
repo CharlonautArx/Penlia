@@ -89,8 +89,12 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
     }, () => setOptimistic(undefined));
   }
 
+  const publishDate = new Date(item.createdAt);
+  const albumDate = edition === 'A' && Number.isFinite(publishDate.valueOf());
+  const stamp = albumDate ? publishDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : createdTime(Date.parse(item.createdAt));
   const author = <MomentAuthor id={item.authorId} name={item.author} photo={demoPortrait(item.authorUsername ?? '')}
-      stamp={createdTime(Date.parse(item.createdAt))} visibility={visibilityText(item.scope, item.visibility)}
+      stamp={stamp} typography={edition ? { text: pilot.colors.text, muted: pilot.colors.muted } : undefined} visibility={visibilityText(item.scope, item.visibility)}
       onPress={mine ? undefined : () => router.push({ pathname: '/life/timeline/[id]', params: { id: item.authorId } })}>
       {showPin && !!item.pinned && mine && <Tag>置顶</Tag>}
       {mine && <IconButton label={item.pinned ? '管理置顶动态' : '管理这条动态'} icon="ellipsis-horizontal"
@@ -163,7 +167,7 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
         }} separator={false} />}
     </Sheet>}</>;
   return <>{edition ? <PilotPostArticle edition={edition} author={author} before={before} body={body} media={media} footer={footer}
-    date={new Date(item.createdAt)} singlePhoto={item.media.length === 1 && item.media[0].mime !== 'video/mp4'} />
+    date={publishDate} singlePhoto={item.media.length === 1 && item.media[0].mime !== 'video/mp4'} />
     : <View style={local.post}>{author}{before}{body}{media}{footer}</View>}{panels}</>;
 }
 

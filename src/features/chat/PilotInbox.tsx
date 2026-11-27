@@ -73,7 +73,7 @@ export function PilotInboxRow({ pilot, lead, name, avatar, preview, time, unread
   </View>;
   const summary = <Text numberOfLines={featured || large || letter ? 2 : 1} style={[s.summary,
     { color: featured || letter ? colors.text : colors.muted }, featured && s.featureSummary, letter && s.letterSummary]}>{preview}</Text>;
-  const stamp = <Text numberOfLines={1} style={[s.time, { color: colors.muted }]}>{time}</Text>;
+  const stamp = <Text numberOfLines={1} style={[s.time, utility && s.railStamp, { color: colors.muted }]}>{time}</Text>;
   const marks = <MessageMarks sharing={noReply} silent={silent} preview />;
   const label = [name, pinned && '置顶', unread ? unread + ' 条未读消息' : manualUnread && '已标为未读', preview].filter(Boolean).join('，');
   if (letter) return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
@@ -83,15 +83,14 @@ export function PilotInboxRow({ pilot, lead, name, avatar, preview, time, unread
   </Pressable>;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={({ pressed }) => [s.row, utility && s.utilityRow, native && s.nativeRow, featured && s.featureRow,
-      { backgroundColor: pressed || pinned || featured ? colors.tint : native ? colors.surface : colors.background }]}>
+      { backgroundColor: pressed || pinned ? colors.tint : native ? colors.surface : colors.background }]}>
     {utility && !large && <View style={s.timeRail}>{stamp}</View>}
-    {avatar}
+    {featured ? <View style={[s.portraitFrame, { borderColor: colors.line }]}>{avatar}</View> : avatar}
     <View style={[s.content, utility && s.utilityContent, { borderColor: colors.line },
-      (featured || variant === 'A') && s.noSeparator]}>
+      (!featured && variant === 'A') && s.noSeparator]}>
       <View style={s.nameLine}>{nameLine}<View style={s.fill} />{utility && !large ? count : stamp}</View>
       <View style={s.summaryLine}>{summary}{marks}<View style={s.fill} />
         {utility && !large ? null : count}
-        {native && <Icon name="chevron-forward" size={13} color={colors.muted} />}
       </View>
     </View>
   </Pressable>;
@@ -116,21 +115,23 @@ const s = StyleSheet.create({
   clear: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   fill: { flexGrow: 1 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', minHeight: 76, paddingLeft: 18 },
-  utilityRow: { minHeight: 63, paddingLeft: 12, gap: 9 },
+  utilityRow: { minHeight: 67, paddingLeft: 16, gap: 10 },
   nativeRow: { minHeight: 77, paddingLeft: 12 },
-  featureRow: { minHeight: 116, gap: 17, paddingLeft: 17 },
+  featureRow: { minHeight: 111, gap: 15, paddingLeft: 17 },
+  portraitFrame: { padding: 3, borderWidth: StyleSheet.hairlineWidth, borderRadius: 50 },
   content: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center', gap: 3,
     paddingVertical: 9, paddingRight: 16, borderBottomWidth: hair },
-  utilityContent: { paddingVertical: 7, paddingRight: 12 }, noSeparator: { borderBottomWidth: 0 },
+  utilityContent: { paddingVertical: 8, paddingRight: 16, gap: 4 }, noSeparator: { borderBottomWidth: 0 },
   nameLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   nameGroup: { minWidth: 0, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 5 },
   name: { fontSize: 17, lineHeight: 24, fontWeight: '500', flexShrink: 1 },
   featureName: { fontSize: 23, lineHeight: 30, fontWeight: '600' }, nativeName: { fontWeight: '600' },
   summaryLine: { flexDirection: 'row', gap: 5, alignItems: 'center' }, summary: { flexShrink: 1, fontSize: 14, lineHeight: 21 },
   featureSummary: { fontSize: 16, lineHeight: 24 },
-  time: { fontSize: 12, lineHeight: 17, fontVariant: ['tabular-nums'] }, timeRail: { width: 52, alignItems: 'flex-start' },
+  time: { fontSize: 12, lineHeight: 17, fontVariant: ['tabular-nums'] }, timeRail: { width: 47, alignItems: 'flex-start' },
+  railStamp: { fontSize: 13, lineHeight: 18 },
   letterRow: { paddingVertical: 12, paddingHorizontal: 2, gap: 6, borderBottomWidth: hair },
   bylineRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  byline: { fontSize: 14, lineHeight: 21, fontWeight: '500' },
+  byline: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
   letterSummary: { fontFamily: letterFont, fontSize: 18, lineHeight: 28 },
 });

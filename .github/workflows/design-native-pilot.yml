@@ -2,6 +2,7 @@ name: Design pilot • native build and comparison
 on:
   push:
     branches: [codex/design-native-pilot]
+    tags: ['penlia-design-recheck-*']
     paths:
       - 'src/**'
       - 'assets/**'
@@ -16,6 +17,7 @@ permissions:
   contents: read
 jobs:
   build:
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     strategy:
@@ -102,16 +104,20 @@ jobs:
           name: design-${{ matrix.abi }}-${{ github.sha }}
           path: out/
           retention-days: 30
-          compression-level: 0
+          compression-level: 6
 
   device:
     needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || github.ref_type == 'tag') }}
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        api: ${{ contains(github.event.head_commit.message, '[pilot-review]') && fromJSON('[35]') || fromJSON('[35,30]') }}
+        api: ${{ (contains(github.event.head_commit.message, '[pilot-review]') || endsWith(github.ref_name, '-35')) && fromJSON('[35]') || endsWith(github.ref_name, '-30') && fromJSON('[30]') || fromJSON('[35,30]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -120,12 +126,36 @@ jobs:
         with:
           cmdline-tools-version: '16111833'
           packages: platform-tools
+      - name: Select the trusted source build
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if test "$GITHUB_REF_TYPE" = tag; then
+            [[ "$GITHUB_REF_NAME" =~ ^penlia-design-recheck-([0-9]+)-(35|30|both)$ ]]
+            run_id="${BASH_REMATCH[1]}"
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$RUNNER_TEMP/source.json"
+            jq -e --arg repo "$GITHUB_REPOSITORY" '
+              .head_repository.full_name == $repo and .event == "push"
+              and .head_branch == "codex/design-native-pilot"
+              and .path == ".github/workflows/design-native-pilot.yml"
+            ' "$RUNNER_TEMP/source.json"
+            source_sha="$(jq -er '.head_sha' "$RUNNER_TEMP/source.json")"
+          else
+            run_id="$GITHUB_RUN_ID"
+            source_sha="$GITHUB_SHA"
+          fi
+          echo "run=$run_id" >> "$GITHUB_OUTPUT"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "PILOT_SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: design-x86_64-${{ github.sha }}
+          name: design-x86_64-${{ steps.source.outputs.sha }}
           path: out/
+          run-id: ${{ steps.source.outputs.run }}
+          github-token: ${{ github.token }}
       - run: |
-          test "$(cat out/source.txt)" = "$GITHUB_SHA"
+          test "$(cat out/source.txt)" = "$PILOT_SOURCE_SHA"
           sha256sum --check out/sha256.txt
       - name: Allow hardware acceleration
         run: |
@@ -164,7 +194,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -gpu host -timezone Asia/Shanghai -no-skin -skin 540x1200 -memory 3072 -cores 4 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front emulated
-          script: python3 scripts/design-native-check.py out/Penlia-x86_64.apk evidence --api ${{ matrix.api }}
+          script: /usr/bin/python3 scripts/design-native-check.py out/Penlia-x86_64.apk evidence --api ${{ matrix.api }}
       - name: Scan the evidence allowlist
         id: scan
         if: always()

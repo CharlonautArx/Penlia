@@ -1,3 +1,4 @@
+import { PilotWelcome } from '../features/design-pilot/Welcome';
 import { DesignPilotProvider, isDesignPilot } from '../features/design-pilot/context';
 import { ChatRecallsProvider } from '../features/chat/recalls';
 import { TypographyProvider } from '../components/Typography';
@@ -81,6 +82,7 @@ function AppNavigation() {
                   <Stack.Screen name="pet/[id]" />
                 </Stack.Protected>
               </Stack>
+              {isDesignPilot && !!session && <PilotWelcome />}
             </ImProvider></ChatRecallsProvider>
           </PetProvider>
           </MomentDraftProvider>

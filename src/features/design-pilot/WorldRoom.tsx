@@ -32,7 +32,7 @@ function Places({ records, choose, add }: Pick<Props, 'records' | 'choose' | 'ad
   const cabinet = variant === 'A';
   return <View style={{ gap: cabinet ? 8 : 2, paddingHorizontal: variant === 'C' ? 7 : 0 }}>
     {[0,1,2].map((y) => <View key={y} style={{
-      flexDirection: 'row', gap: variant === 'C' ? 5 : 2, borderBottomWidth: cabinet ? 1.5 : book ? StyleSheet.hairlineWidth : 0,
+      flexDirection: 'row', gap: variant === 'C' ? 5 : 2, borderBottomWidth: cabinet ? 1.5 : book || variant === 'B' ? StyleSheet.hairlineWidth : 0,
       borderColor: colors.line, paddingBottom: cabinet ? 3 : 0,
     }}>
       {[0,1,2,3].map((x) => {
@@ -45,7 +45,7 @@ function Places({ records, choose, add }: Pick<Props, 'records' | 'choose' | 'ad
           android_ripple={{ color: colors.line }} onPress={() => record ? choose(record) : add(x,y)}
           style={({ pressed }) => [{
             minHeight: variant === 'C' ? 53 : 48, flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2,
-            backgroundColor: pressed || (occupied && !book) ? colors.tint : variant === 'B' ? colors.surface : 'transparent',
+            backgroundColor: pressed || (occupied && !book) ? colors.tint : 'transparent',
             borderRadius: cabinet || variant === 'C' ? 13 : 2, paddingVertical: 3,
           }]}>
           {occupied ? <>
@@ -62,7 +62,7 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
   const { variant, colors, dark } = useDesignPilot();
   const { fontScale, width } = useWindowDimensions();
   const book = variant === 'D';
-  const split = fontScale < 1.35 && width >= 345;
+  const split = fontScale < 1.25 && width >= 370;
   const pet = (size: number, ink: string) => <View style={{ justifyContent: 'center', alignItems: 'center', gap: 3 }}>
     <View style={{ width: size + 22, height: size + 22 }}><PetOrb size={size} vitality={61} fed={space.greetedAt ? Date.parse(space.greetedAt) : 0} onPet={greet} /></View>
     <Text style={{ fontSize: 14, color: ink, fontWeight: '500' }}>{space.petName}</Text>
@@ -76,17 +76,15 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
   const landscape = <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
     {space.scene === 'coast' && !dark ? <Backdrop /> : <LinearGradient colors={(dark ? darkTints : sceneTints)[space.scene]} style={StyleSheet.absoluteFill} />}
   </View>;
-  if (variant === 'C') return <View style={{ gap: 14 }}>
-    <View style={{ paddingHorizontal: 4 }}>{display(33)}</View>
-    <View style={{ backgroundColor: colors.surface, borderRadius: 29, overflow: 'hidden', paddingBottom: 10 }}>
-      <View style={{ minHeight: 192, justifyContent: 'center', alignItems: 'center', padding: 17, overflow: 'hidden' }}>
-        {landscape}
-        <LinearGradient pointerEvents="none" colors={['transparent','#2636307a']} style={StyleSheet.absoluteFill} />
-        {pet(90, '#FFFFFF')}
-        <View style={{ alignSelf: 'flex-start', marginTop: 4 }}>{scene('#FFFFFF')}</View>
-      </View>
-      <View style={{ paddingTop: 8 }}>{slots}</View>
+  if (variant === 'C') return <View style={{ backgroundColor: colors.surface, borderRadius: 27, overflow: 'hidden', paddingBottom: 7 }}>
+    <View style={{ minHeight: 211, justifyContent: 'flex-end', padding: 20, overflow: 'hidden' }}>
+      {landscape}
+      <LinearGradient pointerEvents="none" colors={['#17272B00','#17272B20','#101F27D8']} style={StyleSheet.absoluteFill} />
+      <View style={{ alignSelf: 'flex-end' }}>{pet(84, '#FFFFFF')}</View>
+      {scene('#E6EBEF')}
+      {display(32, '#FFFFFF')}
     </View>
+    {slots}
   </View>;
   if (book) return <View style={{ gap: 15, paddingTop: 12 }}>
     <View style={{ paddingVertical: 12, borderTopColor: colors.text, borderTopWidth: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }}>
@@ -94,7 +92,7 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
     </View>
     {display(36)}
     <View style={{ flexDirection: split ? 'row' : 'column', gap: split ? 10 : 12, alignItems: 'stretch' }}>
-      <View style={{ borderRightWidth: split ? StyleSheet.hairlineWidth : 0, borderColor: colors.line, paddingRight: split ? 8 : 0, justifyContent: 'center', paddingVertical: 8 }}>
+      <View style={{ borderRightWidth: split ? StyleSheet.hairlineWidth : 0, borderColor: colors.line, paddingRight: split ? 8 : 0, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, backgroundColor: colors.tint, borderRadius: 3 }}>
         {pet(71, colors.text)}
       </View>
       <View style={{ flex: split ? 1 : undefined }}>{slots}</View>
@@ -105,16 +103,18 @@ export function WorldRoom({ space, records, choose, add, greet }: Props) {
       <View style={{ flex: split ? 1 : undefined, gap: 6 }}>{scene()}{display(27)}</View>
       {pet(56, colors.text)}
     </View>
-    <View style={{ backgroundColor: colors.line, padding: 2, borderRadius: 3 }}>{slots}</View>
+    <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.line }}>{slots}</View>
   </View>;
   return <View style={{ gap: 13 }}>
     <View style={{ paddingVertical: 4, gap: 4 }}>{scene(colors.accent)}{display(33)}</View>
-    <View style={{ minHeight: 171, overflow: 'hidden', borderTopLeftRadius: 34, borderTopRightRadius: 8, borderBottomLeftRadius: 8, borderBottomRightRadius: 34,
-      alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }}>
+    <View style={{ borderTopLeftRadius: 32, borderTopRightRadius: 9, borderBottomLeftRadius: 9, borderBottomRightRadius: 28, overflow: 'hidden' }}>
       {landscape}
-      <LinearGradient colors={['transparent', '#192D2870']} style={StyleSheet.absoluteFill} />
-      {pet(90,'#FFFFFF')}
+      <LinearGradient pointerEvents="none" colors={['transparent', dark ? '#28353235' : '#F4EDDE25', colors.surface, colors.surface]}
+        locations={[0,0.25,0.63,1]} style={StyleSheet.absoluteFill} />
+      <View style={{ minHeight: 134, alignItems: 'center', justifyContent: 'center', paddingTop: 12 }}>
+        {pet(78, dark ? '#FFFFFF' : '#162D25')}
+      </View>
+      <View style={{ paddingHorizontal: 11, paddingBottom: 8 }}>{slots}</View>
     </View>
-    {slots}
   </View>;
 }

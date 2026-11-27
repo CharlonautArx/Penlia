@@ -63,7 +63,7 @@ const s = StyleSheet.create({
   stacked: { flexDirection: 'column', justifyContent: 'center', gap: 0 },
   headingLine: { minWidth: 0, flexShrink: 1, flexDirection: 'row', gap: 3, alignItems: 'center' },
   contact: { fontSize: 19, lineHeight: 25, fontWeight: '600', flexShrink: 1 },
-  centerName: { fontSize: 14, lineHeight: 21, fontWeight: '600', textAlign: 'center' },
+  centerName: { fontSize: 17, lineHeight: 23, fontWeight: '600', textAlign: 'center' },
   letterHeading: { fontFamily: 'PenliaReading', fontWeight: '400', fontSize: 24, lineHeight: 33 },
   pressed: { opacity: 0.65 },
   date: { paddingTop: 17, paddingBottom: 9, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },

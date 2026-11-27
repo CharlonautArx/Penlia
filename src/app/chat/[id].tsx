@@ -402,6 +402,9 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   }, [changed, connection, items, online, person, manage.selected, manage.quote, report.selected, markers, position, recalls.available, session?.user.name, demo, pilot]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
+  // Anchor the readable transcript below the controls. The small remaining overlap lets
+  // the existing fog sample moving content without hiding a whole line under the title.
+  const transcriptInset = pilot.variant !== 'original' && !hasTopNotice && !window ? Math.max(0, chromeHeight - 8) : 0;
   const sendDisabled = (!demo && !online) || !encodedDraft || encodedDraft.length > 500 || sending
     || !!(pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === encodedDraft);
   return (
@@ -420,9 +423,10 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
             list.current?.scrollToOffset({ offset: Math.max(0, index - 1) * averageItemLength, animated: false });
             setTimeout(() => { if (searchJump.current) list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
           }}
-          inverted data={items} style={styles.grow}
+          inverted data={items} style={[styles.grow, transcriptInset > 0 && { marginTop: transcriptInset }]}
           contentContainerStyle={[chatLayout.messages, pilot.variant === 'D' && { paddingHorizontal: 18 },
-            pilot.variant === 'B' && { paddingHorizontal: 8 }, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }]}
+            pilot.variant === 'B' && { paddingHorizontal: 8 }, pilot.variant === 'C' && { paddingTop: 20 },
+            !hasTopNotice && !window && { paddingBottom: chromeHeight - transcriptInset + space.lg }]}
           keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
           ListEmptyComponent={EmptyConversation}
           ListFooterComponent={!window && (cursor && online || chatInvitations?.more) ? (
@@ -557,7 +561,7 @@ export default function ConversationScreen() {
             <IconButton label="返回" icon="chevron-back" color={custom ? pilot.colors.text : undefined} onPress={goBack} />
             {pilot.variant === 'C' && !!person && <View pointerEvents="none" style={{ width: touch }} />}
             {custom && person ? <ContactHeading pilot={pilot} name={title || person.name}
-              avatar={<Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={pilot.variant === 'C' ? 33 : 38} />}
+              avatar={<Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={pilot.variant === 'C' ? 36 : 38} />}
               onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })} /> : person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + title + '的个人主页'}
               style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
               onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>

@@ -3,6 +3,7 @@ import argparse
 import contextlib
 import hashlib
 import io
+import itertools
 import os
 from pathlib import Path
 import re
@@ -11,7 +12,7 @@ import subprocess
 import time
 from xml.etree import ElementTree
 
-from PIL import Image, ImageStat
+from PIL import Image, ImageChops, ImageStat
 
 
 PACKAGE = 'app.penlia.mobile.designpilot'
@@ -121,8 +122,10 @@ def reset_fixture():
     # The default AOSP SDK image permits a reproducible emulator clock. Only the phone's
     # isolated test clock is affected. Do not silently compare freshly seeded relative dates.
     shell('settings', 'put', 'global', 'auto_time', '0')
-    shell('date', '-u', '112702002026.00')
-    assert shell('date', '-u', '+%Y%m%d%H%M') == '202611270200'
+    shell('date', '-u', '112702002026.00', check=False)
+    if shell('date', '-u', '+%Y%m%d%H%M') != '202611270200':
+        if 'fixture-clock' not in failures: failures.append('fixture-clock')
+        log('INCOMPLETE fixed fixture clock on this SDK image; thumbnails and texts still use the same offline fixture')
     info = shell('am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     assert 'Status: ok' in info
     log('cold start ' + ', '.join(line.strip() for line in info.splitlines() if line.startswith(('LaunchState:', 'TotalTime:', 'WaitTime:'))))
@@ -223,6 +226,20 @@ def interact(variant):
     log(variant + ' emulator compositor sample: ' + ' / '.join(section[:4]))
 
 
+def compare_frames(screen):
+    prefix = 'compact-dark-' if compact else ''
+    data = {}
+    for variant in VARIANTS:
+        with Image.open(output / (prefix + variant + '-' + screen + '.png')) as source:
+            width, height = source.size
+            data[variant] = source.crop((0, int(height * .04), width, int(height * .93))).convert('RGB').resize((96, 180))
+    for a, b in itertools.combinations(VARIANTS, 2):
+        delta = ImageChops.difference(data[a], data[b])
+        fraction = sum(max(pixel) > 21 for pixel in delta.getdata()) / (delta.width * delta.height)
+        log(f'{screen} {a}/{b} area differing by >21 in at least one RGB channel: {fraction:.1%}')
+        assert fraction > .025, f'{a} and {b} appear almost identical'
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('apk', type=Path)
@@ -234,10 +251,9 @@ if __name__ == '__main__':
     compact = config.api == 30
     screen_size = (540, 1080) if compact else (720, 1600)
     failures = []
-    log(f'Source {os.environ.get("GITHUB_SHA", "local")}; APK SHA256 {hashlib.sha256(config.apk.read_bytes()).hexdigest()}')
+    log(f'Build source {os.environ.get("PILOT_SOURCE_SHA", os.environ.get("GITHUB_SHA", "local"))}; harness {os.environ.get("GITHUB_SHA", "local")}; APK SHA256 {hashlib.sha256(config.apk.read_bytes()).hexdigest()}')
     adb('root')
     adb('wait-for-device')
-    assert 'uid=0' in shell('id'), 'Default emulator image required for deterministic clock'
     adb('install', '-r', str(config.apk), timeout=120)
     settings_for_device()
     for variant in VARIANTS:
@@ -246,5 +262,7 @@ if __name__ == '__main__':
             case(variant + '-' + screen, lambda s=screen: screenshot_page(variant, s))
         if not compact and variant != 'original':
             case(variant + '-interaction', lambda: interact(variant))
+    for screen in SCREENS:
+        case(screen + '-comparison', lambda s=screen: compare_frames(s))
     if failures:
         raise SystemExit('Incomplete checks: ' + ', '.join(failures))

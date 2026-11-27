@@ -4,8 +4,9 @@ import { Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'rea
 import { Avatar } from '../../components/ui';
 import { colors, space, styles, type } from '../../theme';
 
-export function MomentAuthor({ id, name, photo, stamp, visibility, onPress, children }: {
+export function MomentAuthor({ id, name, photo, stamp, visibility, onPress, children, typography }: {
   id: string; name: string; photo?: ImageSourcePropType; stamp: string; visibility: string;
+  typography?: { text: string; muted: string };
   onPress?: () => void; children?: ReactNode;
 }) {
   name = useIdentityResolver()(id)?.name ?? name;
@@ -14,8 +15,8 @@ export function MomentAuthor({ id, name, photo, stamp, visibility, onPress, chil
     {onPress ? <Pressable accessibilityRole="button" accessibilityLabel={name + '的动态'} onPress={onPress}
       hitSlop={4}>{avatar}</Pressable> : avatar}
     <View style={styles.grow}>
-      <Text style={local.name} numberOfLines={2}>{name}</Text>
-      <Text style={styles.small}>{stamp} · {visibility}</Text>
+      <Text style={[local.name, typography && { color: typography.text }]} numberOfLines={2}>{name}</Text>
+      <Text style={[styles.small, typography && { color: typography.muted, fontSize: 13, lineHeight: 19 }]}>{stamp} · {visibility}</Text>
     </View>
     {children}
   </View>;
