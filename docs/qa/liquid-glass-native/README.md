@@ -1,5 +1,7 @@
 # 朋聊 Liquid Glass 独立体验版
 
+[APK、录屏及原生验收](android.md) · [界面覆盖清单](coverage.md)
+
 原版基线为 codex/penlia-official-stickers 的 002ea5514cdc56f87865bd2d4d38e3af447836fd。备份分支与标签 backup/pre-liquid-glass-pilot-2026-11-27 均指向原版，标签对象为 09859e0f48a0923e9638884e7983bceddfab138c。此前 GitHub 拒绝配置仅限该标签的防更新和删除规则。默认分支 main 在开工时为 90e654c37a93c0304cbdcfbd2049d2bcea59c3e2。[原版备份标签](https://github.com/CharlonautArx/Penlia/tree/refs/tags/backup/pre-liquid-glass-pilot-2026-11-27) · [现有原版 APK](https://github.com/CharlonautArx/Penlia/raw/78f8799a6b1ba85f9b40c46446d921696a4431dd/Penlia-0.1.11-arm64-v8a.apk)
 
 原版 APK 的 SHA-256 为 ddb116666c83267e6f3a54772a6b09d8e0958f7cf069097014efe83b781ceebe，本次用已有制品重新核对。体验版以 app.penlia.mobile.liquidglass 安装，使用已有本机演示账号及种子数据。打开「我的 → 体验入口」可直接访问已有示例内容。
