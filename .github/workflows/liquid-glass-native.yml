@@ -38,7 +38,7 @@ jobs:
           packages: platform-tools
       - name: Install SDK, build tools and NDK
         run: sdkmanager --channel=3 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
-      - run: npm ci && npm run typecheck && node --test --test-isolation=none tests/*.test.mjs
+      - run: npm ci && npm ci --prefix server --ignore-scripts && npm run typecheck && node --test --test-isolation=none tests/*.test.mjs
       - name: Use the CI-provisioned Java toolchain for ARM64
         if: matrix.abi == 'arm64-v8a'
         run: |
