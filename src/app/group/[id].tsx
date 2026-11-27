@@ -1,3 +1,6 @@
+import { StickerPanel } from '../../features/stickers/StickerPanel';
+import { appendOfficialSticker, encodeOfficialDraft } from '../../features/stickers/catalog';
+import { isBuiltInStickerOnly } from '../../features/stickers/wire';
 import { parsePlaceCard } from '../../features/play/place-card-model';
 import { canRecall, recalledCaption, recalledQuote, recallWindow } from '../../features/chat/recall-model';
 import type { MessageLongPress } from '../../features/chat/record-model';
@@ -150,8 +153,8 @@ export default function GroupConversation() {
   const own = session?.user.id;
   const back = () => (router.canGoBack() ? router.back() : router.replace('/groups'));
   async function send() {
-    const content = draft.trim();
-    if (!content && !photos.length) return;
+    const content = encodeOfficialDraft(draft.trim());
+    if ((!content && !photos.length) || content.length > 1000) return;
     const signature = JSON.stringify([content, quiet, noReply, manage.quote?.id, photos.map((photo) => photo.id)]);
     if (pending.current?.signature !== signature) pending.current = { id: randomUUID(), signature };
     const mediaIds: string[] = [];
@@ -267,7 +270,7 @@ export default function GroupConversation() {
           return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(item.id)}
             toggle={() => report.selected ? report.toggle(item.id) : manage.toggle(item.id)}><View>
             {block && <ChatTimestamp value={timestamp} />}
-            <ChatBubble bare={!item.recordId && (!item.content && item.media.length > 0 &&
+            <ChatBubble bare={!item.recordId && ((!item.media.length && isBuiltInStickerOnly(item.content)) || !item.content && item.media.length > 0 &&
               item.media.every(({ mime }) => mime.startsWith('image/')) || !!parsePlaceCard(item.content))} mine={mine} first={block || item.senderId !== older?.senderId}
               last={!newer || item.senderId !== newer.senderId || startsMessageBlock(Date.parse(newer.sentAt), timestamp)}
               author={identity(item.senderId)?.name ?? item.name}
@@ -295,18 +298,13 @@ export default function GroupConversation() {
             if (chosen.length) setPhotos(chosen);
           }
         })}
-        sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || busy}
+        sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || encodeOfficialDraft(draft.trim()).length > 1000 || busy}
         onSend={() => void run(send)} mode={manage.quote ? <QuotePreview quote={manage.quote} cancel={() => manage.setQuote(undefined)} />
           : quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />)}
       <ManagementUI manage={manage} />
-      {emoji && <Sheet title="表情" onClose={() => setEmoji(false)}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
-          {['😊', '😂', '🙌', '🤍', '🎉', '☕', '🌿', '👍'].map((value) =>
-            <Button key={value} label={value} variant="soft" onPress={() => {
-              setDraft((text) => text.length + value.length <= 1000 ? text + value : text);
-              setEmoji(false);
-            }} />)}
-        </View>
+      {emoji && <Sheet title="表情" tone="neutral" style={{ maxHeight: 315 }} onClose={() => setEmoji(false)}
+        footer={<Button label="完成选择" variant="soft" onPress={() => setEmoji(false)} />}>
+        <StickerPanel draft={draft} limit={1000} onSelect={(item) => setDraft((current) => appendOfficialSticker(current, item, 1000))} />
       </Sheet>}
       {tools&&<Sheet title="更多群消息选项" onClose={()=>setTools(false)}>
         <Button label={quiet ? '关闭安静送达' : '安静送达'} icon={quiet ? 'moon' : 'moon-outline'}

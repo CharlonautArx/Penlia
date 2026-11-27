@@ -8,6 +8,7 @@ import { useDirectory } from '../friends/store';
 import type { RecordEntry } from '../chat/MessageManagement';
 import { type Media, useProtectedSource } from '../moments/media';
 import { lifeDemoImages } from '../../demo/life-assets';
+import { StickerText } from '../stickers/StickerText';
 import { stickerCaption } from '../stickers/wire';
 import { placeCaption } from '../play/place-card-model';
 import { createdTime } from '../space/model';
@@ -57,7 +58,9 @@ export function ChatFavorite({ preview, fallback, open, options }: {
     <Pressable accessibilityRole="button" accessibilityLabel={'查看收藏 ' + label} onPress={open}
       style={({ pressed }) => [local.content, pressed && { opacity: 0.68 }]}>
       <View style={[styles.grow, local.text]}>
-        <Text style={styles.body} numberOfLines={2}>{label}</Text>
+        {line?.body && stickerCaption(line.body) !== line.body
+          ? <StickerText text={line.body} compact numberOfLines={2} />
+          : <Text style={styles.body} numberOfLines={2}>{label}</Text>}
         {!!line && <Text style={styles.small}>{name} · {createdTime(line.time)}{count > 1 ? ' · ' + count + ' 条消息' : ''}</Text>}
       </View>
       {!!thumbnail && <Thumbnail media={thumbnail} />}

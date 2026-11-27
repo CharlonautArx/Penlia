@@ -1,6 +1,6 @@
 import { setStringAsync } from 'expo-clipboard';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Avatar, Button, IconButton, Notice, Sheet } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
@@ -9,10 +9,11 @@ import { useSession } from '../../services/session';
 import { colors, radius, space, styles, touch } from '../../theme';
 import { createdTime } from '../space/model';
 import { chooseMomentPhotos, DraftMediaTile, MomentMediaTile, type LocalMedia } from './media';
+import { StickerPanel } from '../stickers/StickerPanel';
+import { StickerText } from '../stickers/StickerText';
+import { appendOfficialSticker, encodeOfficialDraft } from '../stickers/catalog';
 import { stickerCaption } from '../stickers/wire';
 import type { MomentComment } from './model';
-
-export const commentEmoji = ['😊', '😂', '🙌', '🤍', '👀', '🎉', '☕', '🌿', '📷', '👍', '🤝', '✨'];
 
 export function CommentList({ comments, owner, reply, remove, showEmpty, compact = false }: {
   comments: MomentComment[]; owner: string; reply?: (comment: MomentComment) => void;
@@ -46,6 +47,14 @@ export function CommentList({ comments, owner, reply, remove, showEmpty, compact
   function line(item: MomentComment, inset = false) {
     const parent = item.replyTo && byId.get(item.replyTo);
     const body = stickerCaption(item.body);
+    if (compact && body !== item.body) {
+      return <Pressable key={item.id} accessibilityRole={reply ? 'button' : undefined}
+        accessibilityLabel={item.author + '：' + body}
+        onPress={reply ? () => reply(item) : undefined} style={local.compact}>
+        <StickerText text={item.author + (parent ? ' 回复 ' + parent.author : '') + '：' + item.body +
+          (item.photo ? ' [图片]' : '')} style={styles.small} compact />
+      </Pressable>;
+    }
     if (compact) {
       const content = <>
         <Text style={local.author}>{item.author}</Text>
@@ -67,7 +76,7 @@ export function CommentList({ comments, owner, reply, remove, showEmpty, compact
         <View style={styles.grow}>
           <Text style={styles.small}><Text style={styles.strong}>{item.author}</Text>{'  ' + createdTime(Date.parse(item.createdAt))}</Text>
           {!!parent && inset && <Text style={styles.small}>{'回复：' + parent.author}</Text>}
-          {!!item.body && <Text style={styles.body}>{body}</Text>}
+          {!!item.body && <StickerText text={item.body} compact />}
         </View>
       </Pressable>
       {item.photo && <View style={local.photo}>{item.photo.demoUri?.startsWith('space-local:')
@@ -112,6 +121,7 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const working = useRef(false);
   const [draft, setDraft] = useState('');
+  const encoded = encodeOfficialDraft(draft.trim());
   const [photo, setPhoto] = useState<LocalMedia>();
   const [emoji, setEmoji] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -152,8 +162,8 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
         onFocus={() => setEmoji(false)} placeholderTextColor={colors.quiet} style={local.input} value={draft}
         editable={!busy} onChangeText={setDraft} maxLength={500} multiline />
       {initialReply && <IconButton label="取消回复" icon="close" disabled={busy} onPress={cancel} />}
-      <Button label="发送" variant="gradient" disabled={busy || (!draft.trim() && !photo)} onPress={() => void run(async () => {
-        await onSend(draft.trim(), initialReply?.id, photo);
+      <Button label="发送" variant="gradient" disabled={busy || (!encoded && !photo) || encoded.length > 500} onPress={() => void run(async () => {
+        await onSend(encoded, initialReply?.id, photo);
         setDraft('');
         setPhoto(undefined);
         setEmoji(false);
@@ -161,8 +171,10 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
         cancel();
       })} />
     </View>
-    {emoji && <View style={local.emoji}>{commentEmoji.map((symbol) => <Button key={symbol} label={symbol} variant="soft"
-      onPress={() => setDraft((value) => value.length + symbol.length <= 500 ? value + symbol : value)} />)}</View>}
+    {emoji && <ScrollView style={local.emoji} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+      <StickerPanel draft={draft} limit={500} disabled={busy}
+        onSelect={(item) => setDraft((value) => appendOfficialSticker(value, item, 500))} />
+    </ScrollView>}
   </View>;
 }
 
@@ -179,5 +191,5 @@ const local = StyleSheet.create({
   composer: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel, padding: space.xs, gap: space.xxs },
   composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   input: { ...styles.input, flex: 1, minWidth: 0, minHeight: touch, maxHeight: 100, borderRadius: radius.pill, paddingHorizontal: space.xs },
-  emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xxs, padding: space.xxs },
+  emoji: { maxHeight: 220 },
 });

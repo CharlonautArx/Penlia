@@ -283,6 +283,60 @@ def revised_capsule():
     tap('确认')
     find('时光胶囊')
 
+def sticker_peer():
+    route('chat/demo-xiaoman')
+    tap('表情')
+    find('大哭')
+    capture('60-sticker-panel-light')
+    tap('大哭')
+    tap('完成选择')
+    tap('发送')
+    find('大哭')
+    capture('61-sticker-chat')
+    tap('表情')
+    for _ in range(4):
+        try:
+            find('拳头', tries=1)
+            break
+        except ValueError:
+            shell('input','swipe','260','1010','260','650','450')
+    find('拳头')
+    capture('62-sticker-panel-bottom')
+    tap('完成选择')
+    x,y = find(cls='android.widget.EditText')
+    shell('input','tap',str(x),str(y));shell('input','text','Native')
+    shell('input','keyevent','4')
+    tap('表情');tap('心动捧脸');tap('捧心微笑')
+    tap('完成选择');tap('发送')
+    assert any(all(part in (n.get('content-desc','') + n.get('text','')) for part in ('Native', '心动捧脸', '捧心微笑')) for n in tree().iter('node'))
+    capture('63-sticker-mixed')
+    shell('am','force-stop',pkg)
+    route('chat/demo-xiaoman')
+    find('大哭')
+    assert any(all(part in (n.get('content-desc','') + n.get('text','')) for part in ('Native', '心动捧脸', '捧心微笑')) for n in tree().iter('node'))
+
+def sticker_comment():
+    route('life/moment/00000000-0000-4000-8000-000000000022')
+    tap('评论表情')
+    find('大哭')
+    capture('64-sticker-comment-panel')
+    tap('心动捧脸')
+    tap('发送')
+    find('心动捧脸')
+    route('life/moment/00000000-0000-4000-8000-000000000022')
+    find('心动捧脸')
+    capture('65-sticker-comment')
+
+def sticker_dark():
+    shell('cmd','uimode','night','yes')
+    shell('am','force-stop',pkg)
+    route('chat/demo-xiaoman')
+    find('大哭')
+    capture('66-sticker-dark-chat')
+    tap('表情')
+    find('大哭')
+    capture('67-sticker-panel-dark')
+
 adb('install','-r',str(apk))
 shell('wm','size','540x1200');shell('wm','density','240')
 shell('settings','put','secure','show_ime_with_hard_keyboard','1')
@@ -293,7 +347,11 @@ check('cold-start',cold)
 # Record the compositor output, including scrolling, transitions and system surfaces.
 video=Popen(['adb','shell','screenrecord','--time-limit','178','--bit-rate','3000000','/sdcard/together.mp4'],stdout=DEVNULL,stderr=DEVNULL)
 try:
-    if '--gathering-only' in sys.argv:
+    if '--official-stickers' in sys.argv:
+        check('sticker-panel-persistence-and-mixed-chat',sticker_peer)
+        check('sticker-comment-persistence',sticker_comment)
+        check('sticker-dark-surfaces',sticker_dark)
+    elif '--gathering-only' in sys.argv:
         check('date-wheels-friend-invite-chat',revised_gathering)
     elif '--favorites-profile' in sys.argv:
         check('legacy-place-in-favorites',revised_places)

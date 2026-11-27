@@ -21,7 +21,9 @@ import { demoPortrait } from '../../demo/visuals';
 import { useDemo } from '../../demo/state';
 import { errorMessage, type Relationship } from '../../services/api';
 import { useFriends } from '../../services/friends';
-import { commentEmoji } from '../../features/moments/Comments';
+import { StickerPanel } from '../../features/stickers/StickerPanel';
+import { appendOfficialSticker, encodeOfficialDraft } from '../../features/stickers/catalog';
+import { isBuiltInStickerOnly } from '../../features/stickers/wire';
 import { MessageMarks, NoReply } from '../../features/media/NoReply';
 import { PeerVideo } from '../../features/media/PeerVideo';
 import { MomentVideo, persistGalleryVideo, readGalleryVideo } from '../../features/moments/media';
@@ -86,7 +88,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     .sort((a, b) => b.timestamp - a.timestamp) : undefined, [demoMedia, demoText, isDemo]);
   const { connection, online, status, revision, retry, changed } = useIm();
   const [draft, setDraft] = useState(initialDraft);
-  const [sticker, setSticker] = useState<string>();
+  const encodedDraft = encodeOfficialDraft(draft.trim());
   const [picker, setPicker] = useState<'emoji' | 'attachments' | 'location'>();
   const [sendError, setSendError] = useState(false);
   const [messages, setMessages] = useState<RichMessage[]>([]);
@@ -265,7 +267,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
         changed();
       }
       pending.current = undefined;
-      if (value.kind === 'text') { setDraft((current) => current.trim() === value.text ? '' : current); setSticker(undefined); }
+      if (value.kind === 'text') setDraft((current) => encodeOfficialDraft(current.trim()) === value.text ? '' : current);
       if (value.kind === 'image' || value.kind === 'video')
         setMediaQueue((current) => current.filter((item) => !sameAttachment(item.value, value)));
       else { setQuiet(false); setNoReply(false); }
@@ -283,15 +285,15 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   }
 
   async function sendText(options = { silent: quiet, noReply }) {
-    const text = draft.trim();
-    if (!text) return;
+    const text = encodedDraft;
+    if (!text || text.length > 500) return;
     const previous = pending.current;
     const retry = previous?.value.kind === 'text' && previous.value.text === text ? previous : undefined;
     if (retry?.uncertain) return;
     if (retry && retry.value.quote?.id === manage.quote?.id && !!retry.value.silent === options.silent && !!retry.value.noReply === options.noReply) {
       if (await transmit(retry.value, retry.original)) manage.setQuote(undefined);
     } else {
-      if (await transmit({ kind: 'text', text, sticker: sticker === text, quote: manage.quote, ...options })) manage.setQuote(undefined);
+      if (await transmit({ kind: 'text', text, sticker: isBuiltInStickerOnly(text), quote: manage.quote, ...options })) manage.setQuote(undefined);
     }
   }
 
@@ -382,7 +384,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(message.id)}
       toggle={() => report.selected ? report.toggle(message.id) : manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
       {block && <ChatTimestamp value={message.timestamp} />}
-      <ChatBubble bare={!!invitation || 'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
+      <ChatBubble bare={!!invitation || 'text' in message && isBuiltInStickerOnly(message.text) || 'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
@@ -397,8 +399,8 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   }, [changed, connection, items, online, person, manage.selected, manage.quote, report.selected, markers, position, recalls.available, session?.user.name, demo]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
-  const sendDisabled = (!demo && !online) || !draft.trim() || sending
-    || !!(pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === draft.trim());
+  const sendDisabled = (!demo && !online) || !encodedDraft || encodedDraft.length > 500 || sending
+    || !!(pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === encodedDraft);
   return (
     <>
       <View style={styles.grow}>
@@ -437,7 +439,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       </View>}
       {report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <>
       <MessageComposer label="消息" floating focusKey={manage.quote?.id}
-        value={draft} onChange={(text) => { setDraft(text); setSticker(undefined); }} maxLength={500}
+        value={draft} onChange={setDraft} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择照片和视频" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareMedia()} onEmoji={() => setPicker('emoji')}
         photoDisabled={photoLocked} photoBusy={photoBusy} toolsDisabled={sending}
@@ -455,35 +457,30 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
         setPicker(undefined);
         void transmit({ kind: 'location', ...value, silent:quiet, quote: manage.quote }).then((ok) => { if (ok) manage.setQuote(undefined); });
       }} />}
-      {(picker === 'emoji' || picker === 'attachments') && <Sheet
-        title={picker === 'emoji' ? '表情' : '添加'} tone="neutral" onClose={() => setPicker(undefined)}>
-        {picker === 'emoji' ? <View style={local.emoji}>
-          {commentEmoji.map((emoji) =>
-            <Button key={emoji} label={emoji} variant="soft" onPress={() => {
-              if (!draft.trim()) setSticker(emoji);
-              setDraft((text) => text.length + emoji.length <= 500 ? text + emoji : text);
-              setPicker(undefined);
-            }} />)}
-        </View> : <>
-          <Button label="语音通话" icon="call-outline" variant="quiet" onPress={() => openCall('voice')} />
-          <Button label="视频通话" icon="videocam-outline" variant="quiet" onPress={() => openCall('video')} />
-          <Button label="位置" icon="location-outline" variant="quiet" disabled={(!demo && !online) || sending}
-            onPress={() => setPicker('location')} />
-          {!demo&&<>
-            <Button label={quiet ? '关闭安静送达' : '安静送达'} icon={quiet ? 'moon' : 'moon-outline'}
-              variant={quiet ? 'primary' : 'soft'} disabled={sending}
-              onPress={() => { setQuiet(!quiet); setPicker(undefined); }} />
-            <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'}
-              disabled={sending} onPress={()=>{setNoReply(!noReply);setPicker(undefined);}}/>
-            <Text style={styles.muted}>可与安静送达同时使用。</Text>
+      {picker === 'emoji' && <Sheet title="表情" tone="neutral" style={{ maxHeight: 315 }}
+        onClose={() => setPicker(undefined)}
+        footer={<Button label="完成选择" variant="soft" onPress={() => setPicker(undefined)} />}>
+        <StickerPanel draft={draft} limit={500} onSelect={(item) => setDraft((current) => appendOfficialSticker(current, item, 500))} />
+      </Sheet>}
+      {picker === 'attachments' && <Sheet title="添加" tone="neutral" onClose={() => setPicker(undefined)}>
+        <Button label="语音通话" icon="call-outline" variant="quiet" onPress={() => openCall('voice')} />
+        <Button label="视频通话" icon="videocam-outline" variant="quiet" onPress={() => openCall('video')} />
+        <Button label="位置" icon="location-outline" variant="quiet" disabled={(!demo && !online) || sending}
+          onPress={() => setPicker('location')} />
+        {!demo&&<>
+          <Button label={quiet ? '关闭安静送达' : '安静送达'} icon={quiet ? 'moon' : 'moon-outline'}
+            variant={quiet ? 'primary' : 'soft'} disabled={sending}
+            onPress={() => { setQuiet(!quiet); setPicker(undefined); }} />
+          <Button label={noReply?'关闭只是分享':'只是分享'} variant={noReply?'primary':'soft'}
+            disabled={sending} onPress={()=>{setNoReply(!noReply);setPicker(undefined);}}/>
+          <Text style={styles.muted}>可与安静送达同时使用。</Text>
 
-          </>}
-          <Button label="照片" icon="images-outline" variant="soft" disabled={(!demo && !online) || sending || photoLocked} onPress={() => {
-            setPicker(undefined);
-            void prepareMedia();
-          }} />
-          {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
         </>}
+        <Button label="照片" icon="images-outline" variant="soft" disabled={(!demo && !online) || sending || photoLocked} onPress={() => {
+          setPicker(undefined);
+          void prepareMedia();
+        }} />
+        {!demo && !online && <Text style={styles.muted}>聊天连接恢复后即可选择并发送附件。</Text>}
       </Sheet>}
       {report.showForm && <ReportForm peerId={person.userId} lines={reportLines} onClose={() => report.setShowForm(false)} onFinish={report.cancel} />}
       {currentMedia && <Sheet title={mediaQueue.length > 1 ? '发送照片和视频' : video ? '发送短视频' : demo ? '图片预览' : '发送图片'}
@@ -580,6 +577,5 @@ const local = StyleSheet.create({
   headerClearance: { paddingTop: headerHeight + space.xs },
   profilePressed: { opacity: 0.72 },
   notice: { paddingHorizontal: space.md, paddingVertical: space.xxs },
-  emoji: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   imagePreview: { width: '100%', height: 290, borderRadius: radius.control, backgroundColor: colors.backdrop },
 });

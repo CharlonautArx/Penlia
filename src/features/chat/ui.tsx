@@ -1,4 +1,4 @@
-import { stickerCaption } from '../stickers/wire';
+import { StickerText } from '../stickers/StickerText';
 import { PlaceMessage } from '../play/PlaceMessage';
 import { parsePlaceCard } from '../play/place-card-model';
 import type { MessageLongPress } from './record-model';
@@ -116,7 +116,7 @@ export function MessageBody({ text, onLongPress }: { text: string; onLongPress?:
       </Pressable>;
     }
   }
-  return <Text style={styles.body}>{stickerCaption(text)}</Text>;
+  return <StickerText text={text} />;
 }
 
 export function MessageComposer({ label, placeholder, value, onChange, maxLength,

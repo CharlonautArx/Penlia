@@ -1,3 +1,4 @@
+import { StickerText } from '../../features/stickers/StickerText';
 import { isBuiltInStickerOnly } from '../../features/stickers/wire';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -140,7 +141,9 @@ export default function ChatSearch() {
     return <View style={local.result}>
       <Pressable accessibilityRole="button" accessibilityLabel={entry.caption} style={styles.grow}
         onPress={() => hasPreview ? setPreview(entry.row) : locate(entry.row)}>
-        <Text style={styles.body}>{entry.caption}</Text>
+        {'text' in entry.row && isBuiltInStickerOnly(entry.row.text)
+          ? <StickerText text={entry.row.text} compact numberOfLines={2} />
+          : <Text style={styles.body}>{entry.caption}</Text>}
         <Text style={styles.small}>{'kind' in entry.row && entry.row.kind === 'file' ? fileDetails(entry.row) + ' · ' : ''}{date}</Text>
       </Pressable>
       {hasPreview && <Button label="定位" variant="quiet" onPress={() => locate(entry.row)} />}
@@ -192,7 +195,7 @@ export default function ChatSearch() {
     </View>
     {preview && entries.some((row) => row.id === preview.id) && <Sheet title="查看聊天消息" onClose={() => setPreview(undefined)}>
       <Text style={styles.small}>{localDay(preview.timestamp)}</Text>
-      {'text' in preview ? <Text style={local.sticker}>{preview.text}</Text>
+      {'text' in preview ? <StickerText text={preview.text} style={local.sticker} />
         : preview.kind === 'image' ? <ImageBubble item={preview} connection={connection} online={online} onDownloaded={changed} />
         : preview.kind === 'video' ? <PeerVideo item={preview} connection={connection} />
         : preview.kind === 'file' ? <PeerFile item={preview} connection={connection} /> : null}

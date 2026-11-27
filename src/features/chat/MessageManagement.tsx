@@ -1,4 +1,5 @@
-import { stickerCaption } from '../stickers/wire';
+import { StickerText } from '../stickers/StickerText';
+import { clipStickerText, stickerCaption } from '../stickers/wire';
 import { usePlaceDelivery } from '../play/PlaceShare';
 import { parsePlaceCard, placeCaption } from '../play/place-card-model';
 import type { MessageLongPress } from './record-model';
@@ -111,7 +112,7 @@ export function ManagementUI({ manage }: { manage: Manager }) {
       { label: '多选', icon: 'checkbox-outline', run: () => setSelected(new Set([row.id])) },
       ...(manage.history.ready ? [{ label: '删除', icon: 'trash-outline' as const, run: () => remove([row]) }] : []),
       ...(row.replyable !== false ? [{ label: '引用', icon: 'return-down-back-outline' as const, run: () => setQuote({
-        id: row.id, author: row.author, body: shareSafeText(row.body).slice(0, 180) || (row.kind === 'video' ? '[视频]' : '[图片]'),
+        id: row.id, author: row.author, body: clipStickerText(shareSafeText(row.body), 180) || (row.kind === 'video' ? '[视频]' : '[图片]'),
       }) }] : []),
     ];
   }
@@ -182,7 +183,7 @@ export function SelectionCheck({ active, checked, toggle, children }: { active: 
 export function QuotePreview({ quote, cancel }: { quote: Quote; cancel?: () => void }) {
   return <View style={[local.quote, !cancel && local.bubbleQuote]}>
     <Icon name="return-down-back-outline" color={colors.quiet} size={15} />
-    <Text style={[styles.small, styles.grow]} numberOfLines={1}>{quote.author} · {stickerCaption(quote.body)}</Text>
+    <View style={styles.grow}><StickerText text={quote.author + ' · ' + quote.body} style={styles.small} compact numberOfLines={1} /></View>
     {cancel && <IconButton label="取消引用" icon="close" onPress={cancel} />}
   </View>;
 }
