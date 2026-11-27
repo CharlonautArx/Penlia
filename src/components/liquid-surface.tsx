@@ -30,7 +30,7 @@ export function LiquidSurface({ finish, roundness, target, opaque, rimOnly }: {
   const radius = roundness;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const fill = dark
-    ? sample ? '#24212BD9' : '#24252D'
+    ? sample ? '#24212BD9' : finish === 'bubble' ? '#484451' : '#24252D'
     : sample ? '#FAF9FBC2' : finish === 'sheet' ? '#FDFCFD' : '#FCFBFC';
   const reflection = dark ? '#E4E3FF' : '#FFFFFF';
   const separation = dark ? '#F1DDF0' : '#554861';
@@ -82,15 +82,17 @@ export function LiquidSurface({ finish, roundness, target, opaque, rimOnly }: {
         </LinearGradient>
       </Defs>
       {!rimOnly && <>
-      <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}body)`} />
-      <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}warm)`} />
-      <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}cool)`} />
-      <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}surface)`} />
+        <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}body)`} />
+        <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}warm)`} />
+        <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}cool)`} />
+        <Rect width={materialWidth} height={materialHeight} rx={r} fill={`url(#${uid}surface)`} />
       </> }
-      <Rect x={.7} y={.7} width={materialWidth - 1.4} height={materialHeight - 1.4}
-        rx={Math.max(0,r-.7)} fill="none" stroke={`url(#${uid}rim)`} strokeWidth={1.4} />
-      <Rect x={bevel/2} y={bevel/2} width={materialWidth-bevel} height={materialHeight-bevel}
-        rx={Math.max(0,r-bevel/2)} fill="none" stroke={`url(#${uid}bevel)`} strokeWidth={bevel*.62} />
+      {radius > 0 && <>
+        <Rect x={.7} y={.7} width={materialWidth - 1.4} height={materialHeight - 1.4}
+          rx={Math.max(0,r-.7)} fill="none" stroke={`url(#${uid}rim)`} strokeWidth={1.4} />
+        <Rect x={bevel/2} y={bevel/2} width={materialWidth-bevel} height={materialHeight-bevel}
+          rx={Math.max(0,r-bevel/2)} fill="none" stroke={`url(#${uid}bevel)`} strokeWidth={bevel*.62} />
+      </> }
     </Svg>
   </View>;
 }
