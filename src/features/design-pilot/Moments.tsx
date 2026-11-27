@@ -28,7 +28,7 @@ const tabs: { key: SpacePane; label: string; icon: IconName }[] = [
 
 export function MomentsCoverTitle({ edition, top, photo }: { edition: Edition; top: number; photo: boolean }) {
   const { width, fontScale } = useWindowDimensions();
-  const { colors } = useDesignPilot();
+  const { colors, dark } = useDesignPilot();
   // Under large text or a short landscape cover, a normal-flow heading in the toolbar stays clear of the avatar.
   if (fontScale > 1.3 || width > 600) return null;
   const letter: TextStyle = edition === 'A' ? { fontSize: 31, lineHeight: 40, fontWeight: '500', letterSpacing: 1 }
@@ -38,7 +38,7 @@ export function MomentsCoverTitle({ edition, top, photo }: { edition: Edition; t
   return <View pointerEvents="none" style={[layout.coverTitle, { paddingTop: top + (edition === 'B' ? 12 : 19),
     alignItems: edition === 'D' ? 'center' : 'flex-start', paddingHorizontal: edition === 'D' || edition === 'A' ? 24 : 18 }]}>
     {photo && <LinearGradient colors={['#15121AC9', '#15121A66', '#15121A00']} style={StyleSheet.absoluteFill} />}
-    <Text accessibilityRole="header" style={[letter, { color: photo ? '#FFFFFF' : edition === 'D' ? colors.text : '#342D36' }]}>好友动态</Text>
+    <Text accessibilityRole="header" style={[letter, { color: photo ? '#FFFFFF' : (edition === 'D' || dark) ? colors.text : '#342D36' }]}>好友动态</Text>
   </View>;
 }
 

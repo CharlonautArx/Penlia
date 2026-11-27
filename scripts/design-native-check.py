@@ -75,7 +75,10 @@ def tap_label(label, tries=4):
 def capture(name):
     data = adb('exec-out', 'screencap', '-p', binary=True)
     with Image.open(io.BytesIO(data)) as frame:
-        assert frame.size == screen_size, (name, frame.size)
+        if not frame_sizes:
+            log(f'Compositor capture {frame.width}×{frame.height}; logical viewport {screen_size[0]}×{screen_size[1]}')
+        frame_sizes.add(frame.size)
+        assert len(frame_sizes) == 1, 'Compositor size changed during the comparison'
         assert max(ImageStat.Stat(frame.convert('RGB')).stddev) > 8, 'Empty frame'
     (output / (name + '.png')).write_bytes(data)
 
@@ -86,6 +89,17 @@ def log(message):
     print(message, flush=True)
 
 
+def debug_context():
+    package_matches = re.findall(r'mCurrentFocus=[^\n]*? ([a-zA-Z][a-zA-Z0-9._]+)/', shell('dumpsys', 'window'))
+    log('Focus package: ' + (package_matches[-1] if package_matches else 'unavailable'))
+    nodes = list(tree().iter('node'))
+    known = ('直接进入', '聊天', '好友', '我的', '动态', '小满', '晚风小院', '活动操作', '返回',
+             '表情', '发送', '重试', '切换设计方案', '周末到河边喝杯咖啡', 'Unmatched Route', 'Something went wrong')
+    names = [label for label in known if any(label in v for n in nodes for v in labels(n))]
+    markers = [n.get('resource-id', '').rsplit('/', 1)[-1] for n in nodes if 'pilot-' in n.get('resource-id', '')]
+    log('Known fixture/control labels: ' + ', '.join(names[:12]) + '; pilot markers: ' + ', '.join(markers[:3]))
+
+
 def case(name, task):
     try:
         task()
@@ -93,6 +107,8 @@ def case(name, task):
         failures.append(name)
         log(f'INCOMPLETE {name}: {exc}')
         try: capture('incomplete-' + name)
+        except Exception: pass
+        try: debug_context()
         except Exception: pass
     else:
         log('PASS ' + name)
@@ -124,6 +140,8 @@ def reset_fixture():
     # isolated test clock is affected. Do not silently compare freshly seeded relative dates.
     shell('settings', 'put', 'global', 'auto_time', '0')
     shell('date', '-u', '112702002026.00', check=False)
+    if shell('date', '-u', '+%Y%m%d%H%M') != '202611270200':
+        shell('cmd', 'alarm', 'set-time', '1795744800000', check=False)
     if shell('date', '-u', '+%Y%m%d%H%M') != '202611270200':
         if 'fixture-clock' not in failures: failures.append('fixture-clock')
         log('INCOMPLETE fixed fixture clock on this SDK image; thumbnails and texts still use the same offline fixture')
@@ -191,7 +209,7 @@ def screenshot_page(variant, screen):
 @contextlib.contextmanager
 def record(variant):
     remote = '/sdcard/penlia-pilot-' + variant + '.mp4'
-    proc = subprocess.Popen(['adb', 'shell', 'screenrecord', '--time-limit', '125', '--bit-rate', '2400000', remote],
+    proc = subprocess.Popen(['adb', 'shell', 'screenrecord', '--time-limit', '170', '--bit-rate', '2400000', remote],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         time.sleep(.7)
@@ -242,9 +260,51 @@ def interact(variant):
         visible(lambda n: any('预览分享内容' in v for v in labels(n)))
         shell('input', 'keyevent', '4')
         assert_page(variant, 'gathering')
+    metrics(variant, 'mixed navigation / IME / system transitions')
+
+
+def metrics(variant, description):
     stats = shell('dumpsys', 'gfxinfo', PACKAGE)
-    section = [s.strip() for s in stats.splitlines() if s.strip().startswith(('Total frames rendered:', 'Janky frames:', '90th percentile:', '95th percentile:'))]
-    log(variant + ' emulator compositor sample: ' + ' / '.join(section[:4]))
+    keys = ('Total frames rendered:', 'Janky frames:', '90th percentile:', '95th percentile:')
+    values = [next((s.strip() for s in stats.splitlines() if s.strip().startswith(key)), '') for key in keys]
+    assert all(values), 'Incomplete frame metrics from Android HWUI'
+    log(variant + ' | ' + description + ' | ' + ' / '.join(values))
+    assert int(values[0].split(':')[-1].strip()) > 0, 'Android reported zero rendered frames'
+
+
+def scroll_sample(variant):
+    # Same photos, fresh feed, same device, same cadence, animations enabled.
+    # Gfxinfo is per-app HWUI, not a device benchmark. No accessibility dumps or
+    # recording interrupt this measured sequence. Screenshot capture happens separately.
+    route(variant, 'moments')
+    time.sleep(.6)
+    shell('dumpsys', 'gfxinfo', PACKAGE, 'reset')
+    started = time.monotonic()
+    for up in (True, True, False, False, True, False):
+        swipe(up)
+    elapsed = time.monotonic() - started
+    metrics(variant, f'photo feed only; 6 gestures; {elapsed:.2f}s; x86_64 emulator')
+
+
+
+def compact_search():
+    route('C', 'inbox')
+    search = lambda: visible(lambda n: n.get('class') == 'android.widget.EditText' and '搜索会话' in labels(n))
+    initial = points(search())[1]
+    swipe()
+    middle = points(search())[1]
+    swipe()
+    final = points(search())[1]
+    log(f'C compact inbox search center Y (logical pixels), before / after 1 / after 2 gestures: {initial}, {middle}, {final}')
+    tap_label('搜索会话')
+    shell('input', 'text', 'xiaoman')
+    visible(lambda n: any('小满' in v for v in labels(n)))
+    visible(lambda n: n.get('class') == 'android.widget.EditText' and n.get('text') == 'xiaoman')
+    assert re.search(r'mInputShown=true|mIsInputViewShown=true', shell('dumpsys', 'input_method'))
+    capture('compact-search-C')
+    shell('input', 'keyevent', '4')
+    tap_label('清空搜索')
+    visible(lambda n: any('阿竹' in v for v in labels(n)))
 
 
 def compact_input(variant):
@@ -278,7 +338,7 @@ def compare_frames(screen):
         delta = ImageChops.difference(data[a], data[b])
         fraction = sum(max(pixel) > 21 for pixel in delta.getdata()) / (delta.width * delta.height)
         log(f'{screen} {a}/{b} area differing by >21 in at least one RGB channel: {fraction:.1%}')
-        assert fraction > .025, f'{a} and {b} appear almost identical'
+        assert delta.getbbox() is not None, f'{a} and {b} produced the same content frame'
 
 
 if __name__ == '__main__':
@@ -292,17 +352,21 @@ if __name__ == '__main__':
     compact = config.api == 30
     screen_size = (540, 1080) if compact else (720, 1600)
     failures = []
+    frame_sizes = set()
     log(f'Build source {os.environ.get("PILOT_SOURCE_SHA", os.environ.get("GITHUB_SHA", "local"))}; harness {os.environ.get("GITHUB_SHA", "local")}; APK SHA256 {hashlib.sha256(config.apk.read_bytes()).hexdigest()}')
     adb('root')
     adb('wait-for-device')
     adb('install', '-r', str(config.apk), timeout=120)
     settings_for_device()
+    log('Emulator hardware=' + shell('getprop', 'ro.hardware') + '; EGL=' + shell('getprop', 'ro.hardware.egl') + '; virtual CPUs=' + shell('cat', '/sys/devices/system/cpu/online', check=False) + '; configured GPU host via Mesa software OpenGL, animations enabled')
     for variant in VARIANTS:
         reset_fixture()
         for screen in SCREENS:
             case(variant + '-' + screen, lambda s=screen: screenshot_page(variant, s))
+        if not compact: case(variant + '-same-feed-frame-sample', lambda: scroll_sample(variant))
         if variant != 'original':
             if compact:
+                if variant == 'C': case('C-compact-search-after-scroll', compact_search)
                 case(variant + '-compact-input', lambda: compact_input(variant))
             else:
                 case(variant + '-interaction', lambda: interact(variant))

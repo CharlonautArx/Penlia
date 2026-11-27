@@ -24,9 +24,13 @@ def package(light, dark, out, source):
     comparison = out / 'Penlia-design-comparison.pdf'
     with ZipFile(out / 'Penlia-native-screens.zip', 'w', ZIP_DEFLATED) as archive:
         pages = []
-        for folder, prefix, size, condition in [(light, '', (720, 1600), 'Android 15 · 默认字号 · 浅色'),
-                                                (dark, 'compact-dark-', (540, 1080), 'Android 11 · 130% 字号 · 深色')]:
+        for folder, prefix, condition in [(light, '', 'Android 15 · 默认字号 · 浅色'),
+                                                (dark, 'compact-dark-', 'Android 11 · 130% 字号 · 深色')]:
+            with Image.open(folder / (prefix + 'original-inbox.png')) as first:
+                size = first.size
             w, h = size
+            assert h > w >= 300, 'Expected portrait emulator capture'
+            condition += f' · {w} × {h}'
             outer, gutter = 44, 20
             board_w = 2 * outer + cols * w + (cols - 1) * gutter
             for screen, label in PAGES.items():
@@ -42,6 +46,8 @@ def package(light, dark, out, source):
                         draw.text((x, 103), caption, font=sub, fill='#33383B')
                         board.paste(frame.convert('RGB'), (x, 165))
                     archive.write(path, path.name)
+                    if not prefix:
+                        copyfile(path, out / ('native-' + path.name))
                 # Append one full-resolution page at a time to bound peak memory use.
                 board.save(comparison, 'PDF', append=bool(pages), resolution=190.0, quality=93)
                 board.close()

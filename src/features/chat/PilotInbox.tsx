@@ -21,15 +21,14 @@ export function DesignSwitch({ color }: { color?: string }) {
   </Pressable>;
 }
 
-export function PilotInboxHeader({ pilot, value, onChange, onFocus }: {
+export function PilotInboxSearch({ pilot, value, onChange, onFocus }: {
   pilot: Pilot; value: string; onChange: (next: string) => void; onFocus: () => void;
 }) {
   const { colors, variant } = pilot;
   const [focused, setFocused] = useState(false);
-  const large = useFontScale() > 1.25;
   const minimal = variant === 'B';
   const letter = variant === 'D';
-  const search = <View style={[s.search, { backgroundColor: colors.surface }, minimal && s.compactSearch,
+  return <View style={[s.search, { backgroundColor: colors.surface }, minimal && s.compactSearch,
     variant === 'C' && s.nativeSearch, letter && s.letterSearch,
     { borderColor: focused ? colors.accent : colors.line, borderWidth: letter || minimal ? 0 : hair },
     letter && { borderBottomWidth: hair }]}>
@@ -41,6 +40,13 @@ export function PilotInboxHeader({ pilot, value, onChange, onFocus }: {
     {!!value && <Pressable accessibilityLabel="清空搜索" accessibilityRole="button" onPress={() => onChange('')}
       style={s.clear}><Icon name="close-circle" color={colors.muted} size={18} /></Pressable>}
   </View>;
+}
+
+export function PilotInboxHeader({ pilot, search }: { pilot: Pilot; search?: ReactNode }) {
+  const { variant, colors } = pilot;
+  const large = useFontScale() > 1.25;
+  const minimal = variant === 'B';
+  const letter = variant === 'D';
   const inline = minimal && !large;
   return <View style={[s.header, minimal && s.utilityHeader, variant === 'C' && s.nativeHeader]}>
     <View style={s.headline}>

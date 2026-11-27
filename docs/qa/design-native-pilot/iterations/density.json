@@ -1,0 +1,72 @@
+{
+  "original": {
+    "inbox": {
+      "total": 9,
+      "bottom": 785,
+      "fullyVisible": 9,
+      "firstTop": 76,
+      "lastBottom": 724
+    },
+    "moments": {
+      "firstPhotoTop": 497.5,
+      "firstPhotoWidth": 358,
+      "firstPhotoHeight": 268.5
+    }
+  },
+  "A": {
+    "inbox": {
+      "total": 9,
+      "bottom": 785,
+      "fullyVisible": 6,
+      "firstTop": 173,
+      "lastBottom": 960
+    },
+    "moments": {
+      "firstPhotoTop": 307,
+      "firstPhotoWidth": 358,
+      "firstPhotoHeight": 268.5
+    }
+  },
+  "B": {
+    "inbox": {
+      "total": 9,
+      "bottom": 785,
+      "fullyVisible": 9,
+      "firstTop": 72,
+      "lastBottom": 675
+    },
+    "moments": {
+      "firstPhotoTop": 247,
+      "firstPhotoWidth": 139.609375,
+      "firstPhotoHeight": 104.703125
+    }
+  },
+  "C": {
+    "inbox": {
+      "total": 9,
+      "bottom": 785,
+      "fullyVisible": 8,
+      "firstTop": 152,
+      "lastBottom": 845
+    },
+    "moments": {
+      "firstPhotoTop": 364,
+      "firstPhotoWidth": 346,
+      "firstPhotoHeight": 259.5
+    }
+  },
+  "D": {
+    "inbox": {
+      "total": 9,
+      "bottom": 785,
+      "fullyVisible": 7,
+      "firstTop": 139,
+      "lastBottom": 958
+    },
+    "moments": {
+      "firstPhotoTop": 375,
+      "firstPhotoWidth": 344,
+      "firstPhotoHeight": 258
+    }
+  }
+}

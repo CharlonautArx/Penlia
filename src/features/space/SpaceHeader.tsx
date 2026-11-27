@@ -27,10 +27,10 @@ export function CoverPreview({ cover }: { cover: Cover }) {
   </View>;
 }
 
-export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true, pilotPaper, paperWash = false }: {
+export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true, pilotPaper, paperWash = 0 }: {
   person: { id: string; name: string; username: string; bio?: string };
   card: SpaceCard;
-  paperWash?: boolean;
+  paperWash?: number;
   pilotPaper?: { background: string; text: string; muted: string };
   immersive?: { width: number; resting: number; reserve: number; top: number; reveal: SharedValue<number> };
   avatarKey?: string;
@@ -60,18 +60,18 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
             && Math.hypot(nativeEvent.pageX - start.x, nativeEvent.pageY - start.y) <= space.xs)) onCover();
         }}
         style={({ pressed }) => pressed && local.coverPressed}>{coverImage}</Pressable> : coverImage}
-      {paperWash && pilotPaper && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: pilotPaper.background, opacity: 0.85 }]} />}
+      {paperWash > 0 && pilotPaper && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: pilotPaper.background, opacity: paperWash }]} />}
       <LinearGradient pointerEvents="none" colors={pilotPaper ? [pilotPaper.background + '00', pilotPaper.background + '28', pilotPaper.background + 'A3', pilotPaper.background + 'F2', pilotPaper.background] : ['#FFFFFF00', '#FFFFFF28', '#FFFFFFA3', '#FFFFFFF2', '#FFFFFF']}
         locations={[0, 0.23, 0.58, 0.86, 1]} style={local.fade} />
     </View> : <CoverPreview cover={card.cover} />}
     {!immersive && onCover && <View style={local.coverAction}>
       <IconButton label="更换空间封面" icon="image-outline" onPress={onCover} tinted />
     </View>}
-    <View style={[local.identity, immersive && local.homeIdentity]}>
+    <View pointerEvents={pilotPaper ? 'box-none' : undefined} style={[local.identity, immersive && local.homeIdentity]}>
       {onAvatar ? <Pressable accessibilityRole="button" accessibilityLabel="查看我的动态" onPress={onAvatar}
         style={({ pressed }) => [local.avatar, immersive && local.homeAvatar, pressed && local.pressed]}>{avatar}</Pressable>
         : <View style={[local.avatar, immersive && local.homeAvatar]}>{avatar}</View>}
-      <View style={[styles.grow, local.identityText]}>
+      <View pointerEvents={pilotPaper ? 'none' : undefined} style={[styles.grow, local.identityText]}>
         <Text style={[local.name, immersive && local.homeName, pilotPaper && { color: pilotPaper.text }]}>{person.name}</Text>
         {!!person.bio && <Text numberOfLines={2} style={[styles.small, immersive && local.homeMeta, pilotPaper && { color: pilotPaper.muted }]}>{person.bio}</Text>}
       </View>

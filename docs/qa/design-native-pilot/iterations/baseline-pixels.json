@@ -1,0 +1,179 @@
+{
+  "inbox": {
+    "viewport": [
+      390,
+      844
+    ],
+    "differentPixels": 6972,
+    "differentBounds": [
+      16,
+      304,
+      64,
+      568
+    ],
+    "maxChannelDelta": 6,
+    "meanAbsoluteChannelDeltaFullFrame": 0.018829748450601532,
+    "pixelsAbove5": 2,
+    "fullFrameShareAbove5": 6.0760724267833275e-06,
+    "imageURIsGeometryAndComputedFitEqual": true,
+    "outsideCropRemainingBounds": null,
+    "portraits": [
+      {
+        "bounds": [
+          16,
+          304,
+          64,
+          352
+        ],
+        "asset": "person-4.6c9772a03ea8fdd68cff862ac3227287.jpg",
+        "assetSha256": "a09114bbdbb1330931c4c720e2f1f8f3abe646c601bd7469f315d04f2a5eaa45",
+        "identicalShippedJpeg": true,
+        "baselineSevenRunsUniqueRGBHashes": [
+          "1292e613d4ca373931c97409db0fc76b4a1c9b27e281c28cbc1e24896b0f0480",
+          "4521b99cf913a4a386b868b79eb995106f0d8db222662f01295ebfe2be4e2743"
+        ],
+        "trialSevenRunsUniqueRGBHashes": [
+          "4521b99cf913a4a386b868b79eb995106f0d8db222662f01295ebfe2be4e2743"
+        ],
+        "matchedEveryTrialSampleInBaseline": true
+      },
+      {
+        "bounds": [
+          16,
+          376,
+          64,
+          424
+        ],
+        "asset": "person-6.687180abace25cee1a9e085b2285f059.jpg",
+        "assetSha256": "86c2ae1bf0d34a43967ac3f00e84411c36bd6de7c3239a23f176b184b877352f",
+        "identicalShippedJpeg": true,
+        "baselineSevenRunsUniqueRGBHashes": [
+          "59ac3031631226babdeb695b3de00ef32c39baaed44fa753d56df49c8f3b0073",
+          "6973de8a48e85ff6a34ed60943443eec99fdd346d8ff80cf9b3c2d290ad2fc8e"
+        ],
+        "trialSevenRunsUniqueRGBHashes": [
+          "59ac3031631226babdeb695b3de00ef32c39baaed44fa753d56df49c8f3b0073"
+        ],
+        "matchedEveryTrialSampleInBaseline": true
+      },
+      {
+        "bounds": [
+          16,
+          448,
+          64,
+          496
+        ],
+        "asset": "person-7.bbf21acec3acbb977963d73761eaab71.jpg",
+        "assetSha256": "a1b680725820582712f2b88ce4a8c3481bf39ef70a97dbdb99e0019e76fe2805",
+        "identicalShippedJpeg": true,
+        "baselineSevenRunsUniqueRGBHashes": [
+          "47e5b2b7a9afdd3dbd3da416b6ff54db8001f1235b5569e85ba5c53f1cebc16d",
+          "9fa14279750dbf80b013c0de9a6cdf7e86d9e3ea4956dee3e966a2ae97bfbb3c"
+        ],
+        "trialSevenRunsUniqueRGBHashes": [
+          "9fa14279750dbf80b013c0de9a6cdf7e86d9e3ea4956dee3e966a2ae97bfbb3c"
+        ],
+        "matchedEveryTrialSampleInBaseline": true
+      },
+      {
+        "bounds": [
+          16,
+          520,
+          64,
+          568
+        ],
+        "asset": "person-8.4a977a744fc64b7173e825be00d9a4e3.jpg",
+        "assetSha256": "a219c51ee9fe8b6c7452f84a5a2093eb41325c816fc1a8788f856ba67aed5f06",
+        "identicalShippedJpeg": true,
+        "baselineSevenRunsUniqueRGBHashes": [
+          "39e629dd1c461fb57d3e8af354971f80f56fe5e8152f3f9c802a748b7f87d10d",
+          "eb8d3c7576450c34b3eb2b6814f330a9cfc1c9716716f00a131acd44aaf360a9"
+        ],
+        "trialSevenRunsUniqueRGBHashes": [
+          "39e629dd1c461fb57d3e8af354971f80f56fe5e8152f3f9c802a748b7f87d10d"
+        ],
+        "matchedEveryTrialSampleInBaseline": true
+      }
+    ]
+  },
+  "chat": {
+    "viewport": [
+      390,
+      844
+    ],
+    "differentPixels": 0,
+    "differentBounds": null,
+    "maxChannelDelta": 0,
+    "meanAbsoluteChannelDeltaFullFrame": 0.0,
+    "pixelsAbove5": 0,
+    "fullFrameShareAbove5": 0.0,
+    "imageURIsGeometryAndComputedFitEqual": true
+  },
+  "moments": {
+    "viewport": [
+      390,
+      844
+    ],
+    "differentPixels": 2464,
+    "differentBounds": [
+      19,
+      157,
+      81,
+      219
+    ],
+    "maxChannelDelta": 7,
+    "meanAbsoluteChannelDeltaFullFrame": 0.005190991209948556,
+    "pixelsAbove5": 7,
+    "fullFrameShareAbove5": 2.1266253493741646e-05,
+    "imageURIsGeometryAndComputedFitEqual": true,
+    "outsideCropRemainingBounds": null,
+    "portraits": [
+      {
+        "bounds": [
+          19,
+          157,
+          81,
+          219
+        ],
+        "asset": "person-5.843adb929556753645d7756a1cc4cd11.jpg",
+        "assetSha256": "7ed84e3758c183a19d48e195e51fa055e74b647b14c10607694a096a61a5af4a",
+        "identicalShippedJpeg": true,
+        "baselineSevenRunsUniqueRGBHashes": [
+          "86d4397eb7a8cf384d1f5c4d9616beb7183202a5b18a7a1f21bccb087279175b",
+          "e4f7b50681fb009308dca8be39ccd9d488c4b68bfeaeaa616aeef914768b6508"
+        ],
+        "trialSevenRunsUniqueRGBHashes": [
+          "86d4397eb7a8cf384d1f5c4d9616beb7183202a5b18a7a1f21bccb087279175b",
+          "e4f7b50681fb009308dca8be39ccd9d488c4b68bfeaeaa616aeef914768b6508"
+        ],
+        "matchedEveryTrialSampleInBaseline": true
+      }
+    ]
+  },
+  "world": {
+    "viewport": [
+      390,
+      844
+    ],
+    "differentPixels": 0,
+    "differentBounds": null,
+    "maxChannelDelta": 0,
+    "meanAbsoluteChannelDeltaFullFrame": 0.0,
+    "pixelsAbove5": 0,
+    "fullFrameShareAbove5": 0.0,
+    "imageURIsGeometryAndComputedFitEqual": true
+  },
+  "gathering": {
+    "viewport": [
+      390,
+      844
+    ],
+    "differentPixels": 0,
+    "differentBounds": null,
+    "maxChannelDelta": 0,
+    "meanAbsoluteChannelDeltaFullFrame": 0.0,
+    "pixelsAbove5": 0,
+    "fullFrameShareAbove5": 0.0,
+    "imageURIsGeometryAndComputedFitEqual": true
+  }
+}

@@ -26,7 +26,7 @@ import { useConversationPreferences } from '../../features/chat/useConversationP
 import { useDirectory } from '../../features/friends/store';
 import { formatHandle } from '../../services/handle';
 import { useDesignPilot } from '../../features/design-pilot/context';
-import { PilotInboxHeader, PilotInboxRow } from '../../features/chat/PilotInbox';
+import { PilotInboxHeader, PilotInboxRow, PilotInboxSearch } from '../../features/chat/PilotInbox';
 import { ConversationRow } from '../../features/chat/ui';
 import { useReportConversationUnread } from '../../features/chat/unread';
 
@@ -40,6 +40,7 @@ function threadSummary(value: ThreadMessage) {
 export default function ChatsScreen() {
   const pilot = useDesignPilot();
   const custom = pilot.variant !== 'original';
+  const pinnedSearch = pilot.variant === 'C';
   const { session } = useSession();
   const { relationships, refresh, error: friendsError } = useFriends();
   const { connection, status, retry, revision, changed } = useIm();
@@ -180,21 +181,31 @@ export default function ChatsScreen() {
     try { await refresh(); } finally { setRefreshing(false); }
   }
 
+  const changeSearch = (next: string) => { closeSwipe(); setQuery(next); };
+  const pilotSearch = custom && <PilotInboxSearch pilot={pilot} value={query} onChange={changeSearch} onFocus={closeSwipe} />;
+  const notices = <>
+    {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
+    {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
+    {!!preferences.error && <Notice action="重试" onAction={preferences.retry}>{preferences.error}</Notice>}
+    {!!actionError && <Notice>{actionError}</Notice>}
+  </>;
+  const hasNotice = !!(status || friendsError || listError || preferences.error || actionError);
+
   return (
     <GestureHandlerRootView style={local.root}>
       <KeyboardInsets>
         <Screen solid inset={false} fill refreshing={refreshing} onRefresh={() => void reload()}
-          renderScroll={custom ? (props) => <ScrollView {...props} style={{ backgroundColor: pilot.colors.background }} /> : undefined}
+          renderScroll={custom ? (props) => <ScrollView {...props} stickyHeaderIndices={pinnedSearch ? [1] : undefined}
+            style={{ backgroundColor: pilot.colors.background }} /> : undefined}
           onScroll={() => { if (owner.value) closeSwipe(); }}>
-          <View style={local.controls}>
-            {custom ? <PilotInboxHeader pilot={pilot} value={query} onFocus={closeSwipe}
-              onChange={(next) => { closeSwipe(); setQuery(next); }} /> : <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query}
-              onFocus={closeSwipe} onChangeText={(next) => { closeSwipe(); setQuery(next); }} returnKeyType="search" />}
-            {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
-            {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
-            {!!preferences.error && <Notice action="重试" onAction={preferences.retry}>{preferences.error}</Notice>}
-            {!!actionError && <Notice>{actionError}</Notice>}
+          {pinnedSearch && <View style={local.nativeHeading}><PilotInboxHeader pilot={pilot} /></View>}
+          <View style={[local.controls, pinnedSearch && { backgroundColor: pilot.colors.background }]}>
+            {pinnedSearch ? pilotSearch : custom ? <PilotInboxHeader pilot={pilot} search={pilotSearch} /> :
+              <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query}
+                onFocus={closeSwipe} onChangeText={changeSearch} returnKeyType="search" />}
+            {!pinnedSearch && notices}
           </View>
+          {pinnedSearch && hasNotice && <View style={local.controls}>{notices}</View>}
           <View style={pilot.variant === 'C' ? local.groupedList : pilot.variant === 'D' ? local.letterList : undefined}>
           {preferences.value && filtered.map((thread, index) => {
             const { person, last, unread, pinned, manualUnread, hidden } = thread;
@@ -269,5 +280,6 @@ const local = StyleSheet.create({
   dayLabel: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
   dayRule: { flex: 1, height: StyleSheet.hairlineWidth },
   searchResult: { flexDirection: 'row', alignItems: 'center', paddingRight: space.xs },
+  nativeHeading: { paddingHorizontal: space.md, paddingTop: space.sm },
   controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm },
 });

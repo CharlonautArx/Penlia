@@ -41,7 +41,7 @@ export default function DesignPilotScreen() {
         {variants.map((item) => {
           const selected = variant === item;
           const colors = pilotColors(item, dark);
-          return <Pressable key={item} accessibilityRole="radio" accessibilityState={{ checked: selected }}
+          return <Pressable key={item} accessibilityRole="radio" aria-checked={selected} accessibilityState={{ checked: selected }}
             accessibilityLabel={variantNames[item]} onPress={() => select(item)}
             style={({ pressed }) => [s.item, { borderBottomColor: choice.line }, pressed && s.pressed]}>
             <View style={[s.sample, { backgroundColor: colors.tint, borderRadius: item === 'B' ? 6 : item === 'C' ? 17 : 11 }]}>

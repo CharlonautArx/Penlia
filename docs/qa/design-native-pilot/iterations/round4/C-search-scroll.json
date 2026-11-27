@@ -1,0 +1,15 @@
+{
+  "before": {
+    "y": 87,
+    "sw": 360,
+    "fieldCount": 1,
+    "body": true
+  },
+  "after": {
+    "y": 13,
+    "sw": 360,
+    "fieldCount": 1,
+    "body": true
+  },
+  "expected": "pinned"
+}

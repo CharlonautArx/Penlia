@@ -168,7 +168,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   }
   const spaceHeader = person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
     immersive={immersive ? { ...metrics, width, reveal, top: insets.top } : undefined} hidePanes={mine || !!edition}
-    pilotPaper={edition ? pilot.colors : undefined} paperWash={edition === 'D' && !card.cover.photo}
+    pilotPaper={edition ? pilot.colors : undefined} paperWash={!card.cover.photo && edition ? edition === 'D' ? 0.85 : pilot.dark ? 0.76 : 0 : 0}
     pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
     onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
     onCover={home || mine ? () => setPanel('cover') : undefined}
@@ -178,7 +178,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     {immersive ? <View onLayout={({ nativeEvent }) => { coverHeaderHeight.current = nativeEvent.layout.height; }}>
       {home ? <BlurTargetView ref={bellTarget}>{spaceHeader}</BlurTargetView> : spaceHeader}
       {edition && <MomentsCoverTitle edition={edition} top={insets.top} photo={!!card.cover.photo} />}
-      {home ? <HomeNotificationBell target={bellTarget} photo={!!card.cover.photo} top={insets.top + space.xs} />
+      {home ? <HomeNotificationBell target={bellTarget} photo={!!card.cover.photo || (!!edition && pilot.dark)} top={insets.top + space.xs} />
         : <View pointerEvents="box-none" style={[local.timelineNav, { top: insets.top + space.xs }]}>
           <CoverAction label="返回" icon="chevron-back" onPress={goBack} />
           <View style={styles.grow} />
@@ -234,8 +234,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
       }} /> : <FlatList {...list} />}
     {immersive && focused && person && statusSurface !== 'feed' && <StatusBar
-      style={(statusSurface === 'cover' && (card.cover.photo || (edition === 'D' && pilot.dark))) || (edition && pilot.dark && statusSurface === 'profile') ? 'light' : 'dark'} />}
-    {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...metrics }} onClose={() => setPanel(undefined)} />}
+      style={(statusSurface === 'cover' && (card.cover.photo || (edition && pilot.dark))) || (edition && pilot.dark && statusSurface === 'profile') ? 'light' : 'dark'} />}
+    {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...regularMetrics }} onClose={() => setPanel(undefined)} />}
     {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />
       <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => openPublish(true)} separator={false} />
