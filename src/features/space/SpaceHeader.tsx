@@ -27,9 +27,10 @@ export function CoverPreview({ cover }: { cover: Cover }) {
   </View>;
 }
 
-export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true }: {
+export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, onPane, counts, immersive, hidePanes = false, showsCollections = true, pilotPaper }: {
   person: { id: string; name: string; username: string; bio?: string };
   card: SpaceCard;
+  pilotPaper?: { background: string; text: string; muted: string };
   immersive?: { width: number; resting: number; reserve: number; top: number; reveal: SharedValue<number> };
   avatarKey?: string;
   onAvatar?: () => void;
@@ -43,7 +44,7 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
   const avatar = <Avatar userId={person.id} name={person.name} source={demoPortrait(avatarKey ?? person.username)} size={62} />;
   const press = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
   const coverImage = immersive && <ImmersiveCover cover={card.cover} {...immersive} />;
-  return <View style={immersive ? local.home : local.header}>
+  return <View style={[immersive ? local.home : local.header, pilotPaper && { backgroundColor: pilotPaper.background }]}>
     {immersive ? <View>
       {onCover ? <Pressable accessibilityRole="button" accessibilityLabel="更换空间封面"
         onPressIn={({ nativeEvent }) => { press.current = { x: nativeEvent.pageX, y: nativeEvent.pageY, moved: false }; }}
@@ -58,7 +59,7 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
             && Math.hypot(nativeEvent.pageX - start.x, nativeEvent.pageY - start.y) <= space.xs)) onCover();
         }}
         style={({ pressed }) => pressed && local.coverPressed}>{coverImage}</Pressable> : coverImage}
-      <LinearGradient pointerEvents="none" colors={['#FFFFFF00', '#FFFFFF28', '#FFFFFFA3', '#FFFFFFF2', '#FFFFFF']}
+      <LinearGradient pointerEvents="none" colors={pilotPaper ? [pilotPaper.background + '00', pilotPaper.background + '28', pilotPaper.background + 'A3', pilotPaper.background + 'F2', pilotPaper.background] : ['#FFFFFF00', '#FFFFFF28', '#FFFFFFA3', '#FFFFFFF2', '#FFFFFF']}
         locations={[0, 0.23, 0.58, 0.86, 1]} style={local.fade} />
     </View> : <CoverPreview cover={card.cover} />}
     {!immersive && onCover && <View style={local.coverAction}>
@@ -69,8 +70,8 @@ export function SpaceHeader({ person, card, avatarKey, onAvatar, onCover, pane, 
         style={({ pressed }) => [local.avatar, immersive && local.homeAvatar, pressed && local.pressed]}>{avatar}</Pressable>
         : <View style={[local.avatar, immersive && local.homeAvatar]}>{avatar}</View>}
       <View style={[styles.grow, local.identityText]}>
-        <Text style={[local.name, immersive && local.homeName]}>{person.name}</Text>
-        {!!person.bio && <Text numberOfLines={2} style={[styles.small, immersive && local.homeMeta]}>{person.bio}</Text>}
+        <Text style={[local.name, immersive && local.homeName, pilotPaper && { color: pilotPaper.text }]}>{person.name}</Text>
+        {!!person.bio && <Text numberOfLines={2} style={[styles.small, immersive && local.homeMeta, pilotPaper && { color: pilotPaper.muted }]}>{person.bio}</Text>}
       </View>
     </View>
     {!hidePanes && <View style={[local.panes, immersive && local.homePanes]}>

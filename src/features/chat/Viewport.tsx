@@ -10,11 +10,11 @@ import { chatLayout } from './ui';
 
 export { KeyboardInsets } from '../../components/keyboard-insets';
 
-export function ChatViewport({ children, floatingChrome, peer }: { children: ReactNode; floatingChrome?: boolean; peer?: string }) {
+export function ChatViewport({ children, floatingChrome, peer, paper }: { children: ReactNode; floatingChrome?: boolean; peer?: string; paper?: string }) {
   const { scheme } = useAppearance();
   const picture = useChatBackgrounds().resolve(peer);
-  return <SafeAreaView style={[local.safe, floatingChrome && local.floating, scheme === 'light' && local.white]}>
-    <View style={[chatLayout.page, scheme === 'dark' && local.floating]}>
+  return <SafeAreaView style={[local.safe, floatingChrome && local.floating, scheme === 'light' && local.white, paper && { backgroundColor: paper }]}>
+    <View style={[chatLayout.page, scheme === 'dark' && local.floating, paper && { backgroundColor: paper }]}>
       {picture && <WallpaperImage picture={picture} style={StyleSheet.absoluteFill} />}
       <WallpaperVisible.Provider value={!!picture}>
         <KeyboardAvoidingView style={local.frame} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

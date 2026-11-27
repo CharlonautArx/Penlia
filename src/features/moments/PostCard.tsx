@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useDesignPilot } from '../design-pilot/context';
+import { PilotPostArticle } from '../design-pilot/Moments';
 import { Button, Icon, IconButton, ListRow, Notice, Sheet, Tag, type IconName } from '../../components/ui';
 import { demoPortrait } from '../../demo/visuals';
 import { errorMessage } from '../../services/api';
@@ -15,7 +17,8 @@ import { PeaceIcon } from './PeaceIcon';
 import { CommentList } from './Comments';
 import { MomentShareSheet } from './ShareSheet';
 
-export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = false, hideComments = false, showPin = true }: {
+export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = false, hideComments = false, showPin = true, edition }: {
+  edition?: 'A' | 'B' | 'C' | 'D';
   item: Moment;
   onReply?: (comment?: MomentComment) => void;
   detail?: boolean;
@@ -26,6 +29,7 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
   onRemove?: () => void;
 }) {
   const { request, session } = useSession();
+  const pilot = useDesignPilot();
   const mine = item.authorId === session?.user.id;
   const path = '/moments/' + item.id;
   const [sheet, setSheet] = useState<'share' | 'options' | 'deleteForward'>();
@@ -85,27 +89,26 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
     }, () => setOptimistic(undefined));
   }
 
-  return <View style={local.post}>
-    <MomentAuthor id={item.authorId} name={item.author} photo={demoPortrait(item.authorUsername ?? '')}
+  const author = <MomentAuthor id={item.authorId} name={item.author} photo={demoPortrait(item.authorUsername ?? '')}
       stamp={createdTime(Date.parse(item.createdAt))} visibility={visibilityText(item.scope, item.visibility)}
       onPress={mine ? undefined : () => router.push({ pathname: '/life/timeline/[id]', params: { id: item.authorId } })}>
       {showPin && !!item.pinned && mine && <Tag>置顶</Tag>}
       {mine && <IconButton label={item.pinned ? '管理置顶动态' : '管理这条动态'} icon="ellipsis-horizontal"
         onPress={() => { setError(''); setSheet('options'); }} />}
-    </MomentAuthor>
-    {item.forwarded && <ListRow title="查看转发的原动态" left={<Icon name="arrow-redo-outline" />}
-      onPress={() => router.push({ pathname: '/life/moment/[id]', params: { id: item.id, original: '1' } })} separator={false} />}
-    {!detail && <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openDetail()}>
-      {!!item.body ? <Text style={local.caption}>{item.body}</Text> : <Text style={styles.small}>查看动态详情</Text>}
+    </MomentAuthor>;
+  const before = item.forwarded && <ListRow title="查看转发的原动态" left={<Icon name="arrow-redo-outline" />}
+      onPress={() => router.push({ pathname: '/life/moment/[id]', params: { id: item.id, original: '1' } })} separator={false} />;
+  const body = <>{!detail && <Pressable accessibilityRole="button" accessibilityLabel="查看动态详情" onPress={() => openDetail()} style={edition ? ({ pressed }) => ({ opacity: pressed ? 0.72 : 1, minHeight: 44, justifyContent: 'center' }) : undefined}>
+      {!!item.body ? <Text style={[local.caption, edition && { color: pilot.colors.text, fontSize: edition === 'D' ? 24 : edition === 'A' ? 18 : 16, lineHeight: edition === 'D' ? 35 : edition === 'A' ? 28 : 24, fontFamily: edition === 'D' ? 'PenliaReading' : undefined }]}>{item.body}</Text> : <Text style={styles.small}>查看动态详情</Text>}
     </Pressable>}
-    {detail && !!item.body && <Text style={local.caption}>{item.body}</Text>}
-    {!!item.media.length && <MomentMediaGrid media={item.media} mode={detail ? 'detail' : 'feed'} onMore={() => openDetail()} />}
-    {!!item.location && <View style={styles.row}><Icon name="location-outline" size={15} color={colors.quiet} />
+    {detail && !!item.body && <Text style={local.caption}>{item.body}</Text>}</>;
+  const media = !!item.media.length && <MomentMediaGrid media={item.media} mode={detail ? 'detail' : 'feed'} onMore={() => openDetail()} />;
+  const footer = <>{!!item.location && <View style={styles.row}><Icon name="location-outline" size={15} color={colors.quiet} />
       <Text style={styles.small}>{item.location}</Text></View>}
     {!!item.collaborationId && <ListRow title="查看共同创作" left={<Icon name="people-outline" color={colors.accent} />}
       onPress={() => router.push({ pathname: '/collection/[id]', params: { id: item.collaborationId! } })}
       separator={false} />}
-    <View style={local.actions}>
+    <View style={[local.actions, edition === 'B' && { justifyContent: 'flex-start', gap: 6 }, edition === 'D' && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pilot.colors.line }]}>
       <Action icon={<PeaceIcon active={liked} />} label={liked ? '取消比耶' : '比耶'} badge={count}
         selected={liked} onPress={like} disabled={pending} />
       <Action icon="chatbubble-outline" label="评论" badge={item.commentCount} onPress={() => onReply ? onReply() : openDetail(undefined, true)} />
@@ -122,7 +125,8 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
         setComments((old) => old?.filter((row) => row.id !== comment.id));
         onUpdate?.({ commentCount: Math.max(0, (item.commentCount ?? 1) - 1) });
       }} />}
-    {sheet === 'share' && <MomentShareSheet item={shareState} onClose={() => setSheet(undefined)}
+  </>;
+  const panels = <>{sheet === 'share' && <MomentShareSheet item={shareState} onClose={() => setSheet(undefined)}
       onUpdate={(forwardRequest) => {
         setSharing((previous) => ({ ...previous, forwardRequest }));
         onUpdate?.({ forwardRequest });
@@ -157,8 +161,10 @@ export function PostCard({ item, onUpdate, onPin, onRemove, onReply, detail = fa
           setSheet(undefined);
           router.push({ pathname: '/private-moment', params: { id: item.id } });
         }} separator={false} />}
-    </Sheet>}
-  </View>;
+    </Sheet>}</>;
+  return <>{edition ? <PilotPostArticle edition={edition} author={author} before={before} body={body} media={media} footer={footer}
+    date={new Date(item.createdAt)} singlePhoto={item.media.length === 1 && item.media[0].mime !== 'video/mp4'} />
+    : <View style={local.post}>{author}{before}{body}{media}{footer}</View>}{panels}</>;
 }
 
 function Action({ icon, label, onPress, badge, selected, disabled }: {

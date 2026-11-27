@@ -6,6 +6,7 @@ const publicKeys = new Set([
   'EXPO_PUBLIC_API_URL',
   'EXPO_PUBLIC_EASEMOB_APP_KEY',
   'EXPO_PUBLIC_PENLIA_UI_DEMO',
+  'EXPO_PUBLIC_PENLIA_DESIGN_PILOT',
 ]);
 
 function validatePublicConfig(env) {
@@ -16,6 +17,11 @@ function validatePublicConfig(env) {
       throw new Error('Unapproved public build variable: ' + key);
   }
   const stage = env.EAS_BUILD_PROFILE;
+  if (env.EXPO_PUBLIC_PENLIA_DESIGN_PILOT === '1' &&
+    (env.EXPO_PUBLIC_PENLIA_UI_DEMO !== '1' || (stage && stage !== 'ui-demo') ||
+     env.EXPO_PUBLIC_API_URL || env.EXPO_PUBLIC_EASEMOB_APP_KEY)) {
+    throw new Error('Design pilot requires an isolated, offline UI demo build');
+  }
   const api = env.EXPO_PUBLIC_API_URL?.trim();
   if (api) {
     let url;

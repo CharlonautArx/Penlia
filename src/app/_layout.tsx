@@ -1,3 +1,4 @@
+import { DesignPilotProvider, isDesignPilot } from '../features/design-pilot/context';
 import { ChatRecallsProvider } from '../features/chat/recalls';
 import { TypographyProvider } from '../components/Typography';
 import { MomentDraftProvider } from '../features/moments/draft';
@@ -73,6 +74,9 @@ function AppNavigation() {
                   <Stack.Screen name="boundary/[id]" />
                   <Stack.Screen name="review/[id]" />
                 </Stack.Protected>
+                <Stack.Protected guard={!!session && isDesignPilot}>
+                  <Stack.Screen name="design-pilot" />
+                </Stack.Protected>
                 <Stack.Protected guard={!!session && isUiDemo}>
                   <Stack.Screen name="pet/[id]" />
                 </Stack.Protected>
@@ -98,5 +102,5 @@ export default function RootLayout() {
 
 function ThemedApp() {
   const { scheme } = useAppearance();
-  return <><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} /><AppNavigation /></>;
+  return <><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} /><DesignPilotProvider><AppNavigation /></DesignPilotProvider></>;
 }

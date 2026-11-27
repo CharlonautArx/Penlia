@@ -1,3 +1,5 @@
+import { useDesignPilot } from '../../features/design-pilot/context';
+import { ContactHeading, threadInk } from '../../features/chat/PilotThread';
 import { parsePlaceCard } from '../../features/play/place-card-model';
 import { GatheringMessage, type ChatInvitation } from '../../features/chat/GatheringMessage';
 import { useRecord } from '../../features/social/ui';
@@ -65,6 +67,7 @@ function EmptyConversation() {
 }
 
 function Conversation({ person, initialDraft, chromeHeight }: { person: Relationship; initialDraft: string; chromeHeight: number }) {
+  const pilot = useDesignPilot();
   const { session, request } = useSession();
   const demo = useDemo();
   const [invitationLimit, setInvitationLimit] = useState(40);
@@ -371,7 +374,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
 
   const renderMessage = useCallback<ListRenderItem<ShownMessage>>(({ item: message, index }) => {
     if (isRecalled(message)) return <View>
-      {startsMessageBlock(message.timestamp, items[index + 1]?.timestamp) && <ChatTimestamp value={message.timestamp} />}
+      {startsMessageBlock(message.timestamp, items[index + 1]?.timestamp) && <ChatTimestamp value={message.timestamp} pilot={pilot} />}
       <Text style={local.recalled}>{recalledCaption(message.mine)}</Text>
     </View>;
     const invitation = 'text' in message ? message.gathering : undefined;
@@ -383,20 +386,20 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     const last = !newer || newer.mine !== message.mine || startsMessageBlock(newer.timestamp, message.timestamp);
     return <SelectionCheck active={!!(report.selected || manage.selected)} checked={!!(report.selected ?? manage.selected)?.has(message.id)}
       toggle={() => report.selected ? report.toggle(message.id) : manage.toggle(message.id)}><View style={position === message.id && local.highlight}>
-      {block && <ChatTimestamp value={message.timestamp} />}
-      <ChatBubble bare={!!invitation || 'text' in message && isBuiltInStickerOnly(message.text) || 'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
+      {block && <ChatTimestamp value={message.timestamp} pilot={pilot} />}
+      <ChatBubble pilot={pilot} bare={!!invitation || 'text' in message && isBuiltInStickerOnly(message.text) || 'kind' in message && message.kind === 'image' || !message.recordId && 'text' in message && !!parsePlaceCard(message.text)} mine={message.mine} first={first} last={last} onActions={(anchor) => manage.setMenu(managed(message), anchor)}
         avatar={<Pressable accessibilityRole="button" accessibilityLabel={'查看' + person.name + '的资料'} hitSlop={4}
           onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
         </Pressable>}>
         {message.quote && <QuotePreview quote={Object.hasOwn(markers, message.quote.id) ? { ...message.quote, body: recalledQuote } : message.quote} />}
-        {invitation ? <GatheringMessage value={invitation} onLongPress={openActions} /> : message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
+        {invitation ? <GatheringMessage value={invitation} onLongPress={openActions} /> : message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} ink={pilot.variant !== 'original' ? threadInk(pilot) : undefined} onLongPress={openActions} />
           : message.kind === 'image' ? <ImageBubble item={message} onLongPress={openActions} connection={connection} online={online} onDownloaded={changed} />
           : message.kind === 'video' ? <PeerVideo item={message} onLongPress={openActions} connection={connection} /> : message.kind === 'file' ? <PeerFile item={message} connection={connection} onLongPress={openActions} /> : <LocationBubble value={message} onLongPress={openActions} />}
         <MessageMarks sharing={message.noReply} silent={message.silent} />
       </ChatBubble>
     </View></SelectionCheck>;
-  }, [changed, connection, items, online, person, manage.selected, manage.quote, report.selected, markers, position, recalls.available, session?.user.name, demo]);
+  }, [changed, connection, items, online, person, manage.selected, manage.quote, report.selected, markers, position, recalls.available, session?.user.name, demo, pilot]);
 
   const hasTopNotice = !!(demo?.mediaError || status);
   const sendDisabled = (!demo && !online) || !encodedDraft || encodedDraft.length > 500 || sending
@@ -418,7 +421,8 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
             setTimeout(() => { if (searchJump.current) list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
           }}
           inverted data={items} style={styles.grow}
-          contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }]}
+          contentContainerStyle={[chatLayout.messages, pilot.variant === 'D' && { paddingHorizontal: 18 },
+            pilot.variant === 'B' && { paddingHorizontal: 8 }, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }]}
           keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
           ListEmptyComponent={EmptyConversation}
           ListFooterComponent={!window && (cursor && online || chatInvitations?.more) ? (
@@ -522,7 +526,10 @@ function QueuePreview({ item, index, active, onPress }: { item: QueuedMedia; ind
 
 export default function ConversationScreen() {
   const fontScale = useFontScale();
-  const chromeHeight = fontScale <= 1 ? headerHeight : Math.max(headerHeight, 2 * Math.ceil(24 * fontScale) + 4);
+  const pilot = useDesignPilot();
+  const custom = pilot.variant !== 'original';
+  const standardHeight = fontScale <= 1 ? headerHeight : Math.max(headerHeight, 2 * Math.ceil(24 * fontScale) + 4);
+  const chromeHeight = pilot.variant === 'C' ? 52 + Math.ceil(24 * fontScale) : standardHeight;
   const { id, draft } = useLocalSearchParams<{ id: string; draft?: string }>();
   const { relationships, refresh, error } = useFriends();
   const { value: directory } = useDirectory();
@@ -536,7 +543,7 @@ export default function ConversationScreen() {
   }
 
   return (
-    <ChatViewport floatingChrome peer={person?.userId}>
+    <ChatViewport floatingChrome peer={person?.userId} paper={custom ? pilot.colors.background : undefined}>
       {/* Anchor absolute overlays inside the keyboard-adjusted area, using a stable native parent. */}
       <View collapsable={false} style={styles.grow}>
         {person ? <Conversation key={person.userId} person={person} chromeHeight={chromeHeight}
@@ -547,15 +554,18 @@ export default function ConversationScreen() {
         <View pointerEvents="box-none" style={[local.headerOverlay, { height: chromeHeight + space.xxl }]}>
           <PeerChatFog ready={!!person} />
           <View style={[local.header, { height: chromeHeight }]} pointerEvents="box-none">
-            <IconButton label="返回" icon="chevron-back" onPress={goBack} />
-            {person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + title + '的个人主页'}
+            <IconButton label="返回" icon="chevron-back" color={custom ? pilot.colors.text : undefined} onPress={goBack} />
+            {pilot.variant === 'C' && !!person && <View pointerEvents="none" style={{ width: touch }} />}
+            {custom && person ? <ContactHeading pilot={pilot} name={title || person.name}
+              avatar={<Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={pilot.variant === 'C' ? 33 : 38} />}
+              onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })} /> : person ? <Pressable accessibilityRole="button" accessibilityLabel={'查看' + title + '的个人主页'}
               style={({ pressed }) => [local.profileLink, pressed && local.profilePressed]}
               onPress={() => router.push({ pathname: '/person/[id]', params: { id: person.userId } })}>
               <Text accessibilityRole="header" style={[styles.strong, styles.grow]} numberOfLines={fontScale > 1 ? 2 : 1}>{title}</Text>
             </Pressable> : <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>聊天</Text>}
             {person && <>
               <PetShortcut peer={person.userId} />
-              <IconButton label="聊天设置" icon="menu" onPress={() => router.push({ pathname: '/chat-settings/[id]', params: { id: person.userId } })} />
+              <IconButton label="聊天设置" icon="menu" color={custom ? pilot.colors.text : undefined} onPress={() => router.push({ pathname: '/chat-settings/[id]', params: { id: person.userId } })} />
             </>}
           </View>
         </View>

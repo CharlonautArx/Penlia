@@ -1,3 +1,6 @@
+import { useDesignPilot } from '../../features/design-pilot/context';
+import { GatheringLead } from '../../features/design-pilot/GatheringLead';
+import { SocialButton, SocialPage, SocialSection } from '../../features/design-pilot/social-controls';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityDiscussion } from '../../features/together/ActivityDiscussion';
 import { InvitationFormScroll } from '../../features/together/InvitationFormScroll';
@@ -505,6 +508,7 @@ function GatheringForm({
 }
 
 function GatheringDetail({ id }: { id: string }) {
+  const { variant } = useDesignPilot();
   const router = useTogetherRouter();
   const together = useTogether();
   const [actions, setActions] = useState(false);
@@ -560,10 +564,16 @@ function GatheringDetail({ id }: { id: string }) {
     );
   const selected = data.options.find((item) => item.id === g.choiceId);
   const suggestion = data.options.find((item) => item.id === data.suggestion);
+  const pilotLead = <GatheringLead
+    title={g.title} category={categories[g.category]} state={g.directProposal && g.state === 'interest' ? '待商量' : stateNames[g.state]}
+    cover={g.cover} description={g.description} meetingNote={g.meetingNote} selected={selected}
+    candidate={!selected ? data.options[0] : undefined}
+  />;
   return (
-    <Screen title="约局详情" back={back} refreshing={busy} onRefresh={() => void load()}>
+    <SocialPage title="约局详情" back={back} refreshing={busy} onRefresh={() => void load()}>
       {together ? (
         <>
+          {variant !== 'original' ? pilotLead : <>
           <Invitation
             title={g.title}
             detail={g.directProposal && g.state === 'interest' ? '待商量' : stateNames[g.state]}
@@ -574,6 +584,7 @@ function GatheringDetail({ id }: { id: string }) {
           <Text style={styles.body}>{selected?.place || g.meetingNote || '地点待商量'}</Text>
           {!!selected?.place && !!g.meetingNote && <Text style={styles.muted}>{g.meetingNote}</Text>}
           {!!g.description && <Text style={styles.body}>{g.description}</Text>}
+          </>}
           {g.checklist && (
             <ListRow
               title="共同清单"
@@ -599,7 +610,7 @@ function GatheringDetail({ id }: { id: string }) {
           {!!g.agreedChoice && (
             <ListRow title={g.decision ?? '活动内选择'} detail={'共同建议 · ' + g.agreedChoice} />
           )}
-          <Button
+          <SocialButton
             label="活动操作"
             icon="ellipsis-horizontal"
             variant="soft"
@@ -780,7 +791,7 @@ function GatheringDetail({ id }: { id: string }) {
           )}
           {!['cancelled', 'completed'].includes(g.state) && (
             <>
-              <Button
+              <SocialButton
                 label="我的私密选择"
                 variant="quiet"
                 onPress={() => {
@@ -841,7 +852,7 @@ function GatheringDetail({ id }: { id: string }) {
           <ActivityDiscussion id={id} ended={g.state === 'cancelled' || g.state === 'completed'}/>
           {!!data.updates?.length && (
             <>
-              <Section title="活动通知" />
+              <SocialSection title="活动通知" />
               {data.updates.map((update) => (
                 <ListRow
                   key={update.id}
@@ -883,7 +894,10 @@ function GatheringDetail({ id }: { id: string }) {
             )}
         </>
       ) : (
-        <LifeLead
+        variant !== 'original' ? <>
+          {pilotLead}
+          <Text style={styles.muted}>{modeNames[g.mode]}{g.mode === 'open' ? ' · 至少 ' + g.minimum + ' 人参加' : ''}</Text>
+        </> : <LifeLead
           title={g.title}
           icon="calendar-clear-outline"
           tone="rose"
@@ -901,7 +915,7 @@ function GatheringDetail({ id }: { id: string }) {
         </LifeLead>
       )}
       {['interest', 'confirming', 'formed'].includes(g.state) && (
-        <Button
+        <SocialButton
           label={availability ? '隐藏空闲参考' : '查看空闲参考'}
           icon="calendar-outline"
           variant="soft"
@@ -1110,7 +1124,7 @@ function GatheringDetail({ id }: { id: string }) {
           />
         </Sheet>
       )}
-    </Screen>
+    </SocialPage>
   );
 }
 

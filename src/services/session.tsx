@@ -9,6 +9,7 @@ import {
 
 import { useLocalDocument } from '../features/local/document';
 import { demoPeople, demoUser } from '../demo/data';
+import { isDesignPilot } from '../features/design-pilot/model';
 import { isUiDemo } from '../demo/mode';
 import { DemoProvider, useDemo } from '../demo/state';
 import { handlePattern, normalizeHandle, nextHandleChange, presentLocalIdentity, type ProfilePatch } from './profile-model';
@@ -79,7 +80,7 @@ function DemoSessionProvider({ children }: { children: ReactNode }) {
   const key = 'penlia.demo.session.v1';
   const profileDoc = useLocalDocument<{ user: User; avatarKey?: string; active: boolean }>(key, async () => {
     const record = await AsyncStorage.getItem(key);
-    return record ? JSON.parse(record) : { user: demoUser, active: false };
+    return record ? JSON.parse(record) : { user: demoUser, active: isDesignPilot };
   });
   const profile = profileDoc.value;
   const session = profile?.active && !demo.loading ? { user: profile.user, token: 'demo-only' } : null;

@@ -1,3 +1,4 @@
+import { ThreadDate, threadPaper, type ThreadPilot } from './PilotThread';
 import { StickerText } from '../stickers/StickerText';
 import { PlaceMessage } from '../play/PlaceMessage';
 import { parsePlaceCard } from '../play/place-card-model';
@@ -5,7 +6,7 @@ import type { MessageLongPress } from './record-model';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type TextStyle } from 'react-native';
 
 import { useFontScale } from '../../components/Typography';
 import { useAppearance } from '../../components/appearance';
@@ -51,8 +52,9 @@ export function ConversationRow({ name, avatar, preview, time, unread, pinned, s
   </Pressable>;
 }
 
-export function ChatTimestamp({ value }: { value: number }) {
+export function ChatTimestamp({ value, pilot }: { value: number; pilot?: ThreadPilot }) {
   const wall = useWallpaperLabel();
+  if (pilot && pilot.variant !== 'original') return <ThreadDate pilot={pilot} wallpaper={!!wall}>{messageDate(value)}</ThreadDate>;
   return <View style={ui.timestamp}>
     <View>
       {wall && <View pointerEvents="none" style={[ui.wallLabel, wall]} />}
@@ -73,12 +75,14 @@ function messageDate(value: number) {
   return day + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-export function ChatBubble({ mine, first, last, author, avatar, children, onActions, bare }: {
+export function ChatBubble({ mine, first, last, author, avatar, children, onActions, bare, pilot }: {
   mine: boolean; first: boolean; last: boolean; author?: string; avatar?: ReactNode;
-  bare?: boolean; children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void;
+  bare?: boolean; pilot?: ThreadPilot; children: ReactNode; onActions: (anchor?: { x: number; y: number }) => void;
 }) {
   const wall = useWallpaperLabel();
-  return <View style={[ui.messageRow, mine && ui.sentRow, first && ui.firstMessage]}>
+  const custom = pilot && pilot.variant !== 'original';
+  return <View style={[ui.messageRow, mine && ui.sentRow, first && ui.firstMessage,
+    custom && first && { paddingTop: pilot.variant === 'D' ? 14 : pilot.variant === 'B' ? 4 : 10 }]}>
     {!mine && <View style={ui.bubbleAvatar}>{first && avatar}</View>}
     <View style={[ui.messageContent, mine && ui.sentContent]}>
       {!!author && first && !mine && <Text numberOfLines={1} style={[ui.sender, wall]}>{author}</Text>}
@@ -88,14 +92,14 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
         onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onActions(); }}
         delayLongPress={380}
         style={({ pressed }) => [bare ? ui.bareBubble : [ui.bubble, mine ? ui.sent : ui.received,
-          !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>
+          custom && threadPaper(pilot, mine), !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>
         {children}
       </Pressable>
     </View>
   </View>;
 }
 
-export function MessageBody({ text, onLongPress }: { text: string; onLongPress?: MessageLongPress }) {
+export function MessageBody({ text, onLongPress, ink }: { text: string; onLongPress?: MessageLongPress; ink?: TextStyle }) {
   const place = parsePlaceCard(text);
   if (place) return <PlaceMessage value={place} onLongPress={onLongPress} />;
   const [caption, link, extra] = text.split('\n', 3);
@@ -116,7 +120,7 @@ export function MessageBody({ text, onLongPress }: { text: string; onLongPress?:
       </Pressable>;
     }
   }
-  return <StickerText text={text} />;
+  return <StickerText text={text} style={ink} />;
 }
 
 export function MessageComposer({ label, placeholder, value, onChange, maxLength,

@@ -1,3 +1,6 @@
+import { useDesignPilot } from '../../features/design-pilot/context';
+import { SocialButton, SocialPage, SocialSection } from '../../features/design-pilot/social-controls';
+import { WorldRoom } from '../../features/design-pilot/WorldRoom';
 import { useTogetherRouter } from '../../features/together/navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -20,6 +23,7 @@ export default function WorldDetail() {
 }
 
 function Details({ id }: { id: string }) {
+  const { variant } = useDesignPilot();
   const router = useTogetherRouter();
   const base = '/p3/spaces/' + id;
   const { data, error, run, busy, request, load } = useRecord<{ space: Space; members: Person[] }>(base,20000);
@@ -43,6 +47,11 @@ function Details({ id }: { id: string }) {
     </Screen>
   );
   const world = space.kind === 'world';
+  const pilotWorld = world && variant !== 'original';
+  const PageFrame = pilotWorld ? SocialPage : Screen;
+  const WorldButton = pilotWorld ? SocialButton : Button;
+  const WorldHeading = pilotWorld ? SocialSection : Section;
+  const Stage = pilotWorld ? WorldRoom : WorldScene;
   const audience = data.members.filter((person) => person.state === 'active' && person.id !== me);
   const labels = { contribution:'投稿', link:'连结', decoration:'摆件' };
   const edit = (item: WorldRecord) => { setSelected(undefined); setDraft({ kind:item.kind, initial:item }); };
@@ -50,20 +59,20 @@ function Details({ id }: { id: string }) {
     : item.sourceTitle ?? item.body;
   const activeSelection = selected && all.find((item) => item.id === selected.id);
   return (
-    <Screen title={spaceTitles[space.kind]} back={back} refreshing={busy || contents.busy} onRefresh={refreshFirst}
+    <PageFrame title={spaceTitles[space.kind]} back={back} refreshing={busy || contents.busy} onRefresh={refreshFirst}
       actions={<IconButton label="成员与邀请" icon="people-outline" onPress={() => setPeople(true)} />}>
-      <LifeLead title={space.title} detail={space.eventDay ?? sceneNames[space.scene]} tone={world ? 'paper' : 'rose'}>
+      {!pilotWorld && <LifeLead title={space.title} detail={space.eventDay ?? sceneNames[space.scene]} tone={world ? 'paper' : 'rose'}>
         {!world && <Text style={styles.muted}>每位作者决定谁可以查看自己的投稿。</Text>}
-      </LifeLead>
+      </LifeLead>}
       {world ? <>
-        <WorldScene space={space} records={all} choose={setSelected}
+        <Stage space={space} records={all} choose={setSelected}
           add={(x,y) => setDraft({kind:'decoration',x,y})}
           greet={() => void run(async () => {
             await request(base+'/world',{method:'PATCH',body:{action:'greet'}});
           })} />
         <View style={[styles.row, { flexWrap:'wrap' }]}>
-          <Button label="摆放装饰或纪念物" icon="add" onPress={() => setDraft({ kind:'decoration' })} />
-          <Button label="布景与宠物名字" variant="soft" onPress={() => setArrange(true)} />
+          <WorldButton label="摆放装饰或纪念物" icon="add" onPress={() => setDraft({ kind:'decoration' })} />
+          <WorldButton label="布景与宠物名字" variant="soft" onPress={() => setArrange(true)} />
         </View>
         <RelatedRelays kind="world" id={id} />
       </> : <>
@@ -75,7 +84,7 @@ function Details({ id }: { id: string }) {
           })} />
         </View>
       </>}
-      <Section title={world ? '摆件与纪念物' : '投稿与连结'} />
+      <WorldHeading title={world ? '摆件与纪念物' : '投稿与连结'} />
       {!!error && <Notice>{error}</Notice>}
       {!!contents.error && <Notice action="重试" onAction={() => void contents.load()}>{contents.error}</Notice>}
       {!all.length && !contents.error && <DataEmpty loading={!contents.data}>{world ? '这里还没有可查看的摆件。' : '这里还没有可查看的投稿。'}</DataEmpty>}
@@ -129,7 +138,7 @@ function Details({ id }: { id: string }) {
       </Sheet>}
       {people && <People space={space} members={data.members.filter((p) => p.id !== me)} close={() => setPeople(false)} changed={refresh} />}
       {arrange && <Arrange space={space} close={() => setArrange(false)} changed={refresh} />}
-    </Screen>
+    </PageFrame>
   );
 }
 

@@ -3,7 +3,7 @@ import { applyRecalls, recalledCaption } from '../../features/chat/recall-model'
 import { useChatHistory } from '../../features/chat/history';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -25,6 +25,8 @@ import { ConversationSwipe, type ConversationAction } from '../../features/chat/
 import { useConversationPreferences } from '../../features/chat/useConversationPreferences';
 import { useDirectory } from '../../features/friends/store';
 import { formatHandle } from '../../services/handle';
+import { isDesignPilot, useDesignPilot } from '../../features/design-pilot/context';
+import { DesignSwitch, PilotInboxHeader, PilotInboxRow } from '../../features/chat/PilotInbox';
 import { ConversationRow } from '../../features/chat/ui';
 import { useReportConversationUnread } from '../../features/chat/unread';
 
@@ -36,6 +38,8 @@ function threadSummary(value: ThreadMessage) {
     (value.mine ? '我：' : '') + summaryOf(value);
 }
 export default function ChatsScreen() {
+  const pilot = useDesignPilot();
+  const custom = pilot.variant !== 'original';
   const { session } = useSession();
   const { relationships, refresh, error: friendsError } = useFriends();
   const { connection, status, retry, revision, changed } = useIm();
@@ -180,23 +184,31 @@ export default function ChatsScreen() {
     <GestureHandlerRootView style={local.root}>
       <KeyboardInsets>
         <Screen solid inset={false} fill refreshing={refreshing} onRefresh={() => void reload()}
+          renderScroll={custom ? (props) => <ScrollView {...props} style={{ backgroundColor: pilot.colors.background }} /> : undefined}
           onScroll={() => { if (owner.value) closeSwipe(); }}>
           <View style={local.controls}>
+            {custom ? <PilotInboxHeader pilot={pilot} value={query} onFocus={closeSwipe}
+              onChange={(next) => { closeSwipe(); setQuery(next); }} /> : <View style={local.searchLine}><View style={styles.grow}>
             <SearchField variant="glass" label="搜索会话" placeholder="搜索联系人或消息" value={query}
-              onFocus={closeSwipe} onChangeText={(next) => { closeSwipe(); setQuery(next); }} returnKeyType="search" />
+              onFocus={closeSwipe} onChangeText={(next) => { closeSwipe(); setQuery(next); }} returnKeyType="search" /></View>{isDesignPilot && <DesignSwitch color={pilot.colors.muted} />}</View>}
             {!!status && <Notice action="重连" onAction={retry}>{status}</Notice>}
             {!!(friendsError || listError) && <Notice action="重试" onAction={() => void reload()}>{friendsError || listError}</Notice>}
             {!!preferences.error && <Notice action="重试" onAction={preferences.retry}>{preferences.error}</Notice>}
             {!!actionError && <Notice>{actionError}</Notice>}
           </View>
-          {preferences.value && filtered.map((thread) => {
+          <View style={pilot.variant === 'C' ? local.groupedList : pilot.variant === 'D' ? local.letterList : undefined}>
+          {preferences.value && filtered.map((thread, index) => {
             const { person, last, unread, pinned, manualUnread, hidden } = thread;
-            const row = <ConversationRow name={directory?.remarks[person.userId] || person.name}
-              avatar={<Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={48} />}
-              preview={threadSummary(last).replace(/\s+/g, ' ')}
-              time={threadTime(last.timestamp)} unread={unread} pinned={pinned} silent={'silent' in last && last.silent} noReply={'noReply' in last && last.noReply}
-              manualUnread={manualUnread} signal={<PetSignal peer={person.userId} />}
-              onPress={() => openPeer(person.userId)} />;
+            const lead = index === 0 && !term;
+            const avatarSize = pilot.variant === 'D' ? 26 : pilot.variant === 'B' ? 36 : pilot.variant === 'A' && lead ? 72 : 48;
+            const rowProps = {
+              name: directory?.remarks[person.userId] || person.name,
+              avatar: <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={avatarSize} />,
+              preview: threadSummary(last).replace(/\s+/g, ' '), time: threadTime(last.timestamp),
+              unread, pinned, manualUnread, silent: 'silent' in last && last.silent, noReply: 'noReply' in last && last.noReply,
+              signal: <PetSignal peer={person.userId} />, onPress: () => openPeer(person.userId),
+            };
+            const row = custom ? <PilotInboxRow {...rowProps} pilot={pilot} lead={lead} /> : <ConversationRow {...rowProps} />;
             return hidden
               ? <View key={person.userId} style={local.searchResult}>
                 <View style={styles.grow}>{row}</View>
@@ -204,7 +216,7 @@ export default function ChatsScreen() {
               </View>
               : <ConversationSwipe key={person.userId} id={person.userId} owner={owner} pinned={pinned}
                 unread={manualUnread || unread > 0} busy={busy} onAction={(action) => void act(thread, action)}>{row}</ConversationSwipe>;
-          })}
+          })}</View>
           {preferences.loading || (!relationships && !friendsError) || (!demo && connection && !loaded && !listError)
             ? <LoadingSkeleton label="正在加载会话" />
             : preferences.value && filtered.length === 0 && !(friendsError || listError) && (demo || connection) &&
@@ -233,6 +245,9 @@ function threadTime(timestamp: number) {
 const local = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.panel },
   blank: { flexGrow: 1 },
+  groupedList: { marginHorizontal: 14, marginTop: 6, borderRadius: 23, overflow: 'hidden' },
+  letterList: { marginHorizontal: 20 },
+  searchLine: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   searchResult: { flexDirection: 'row', alignItems: 'center', paddingRight: space.xs },
   controls: { gap: space.xs, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm },
 });

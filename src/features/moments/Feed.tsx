@@ -8,6 +8,8 @@ import { FlatList, Platform, Pressable, StyleSheet, Text, useWindowDimensions, V
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useDesignPilot } from '../design-pilot/context';
+import { MomentsCoverTitle, MomentsToolbar } from '../design-pilot/Moments';
 import { useAppearance } from '../../components/appearance';
 import { Button, Empty, Icon, ListRow, LoadingSkeleton, Notice, Section, Sheet, TopBar, type IconName } from '../../components/ui';
 import { isUiDemo } from '../../demo/mode';
@@ -37,6 +39,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const state = useSpace();
   const me = session?.user;
   const home = !author;
+  const pilot = useDesignPilot();
+  const edition = home && pilot.variant !== 'original' ? pilot.variant : undefined;
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const focused = useIsFocused();
@@ -156,7 +160,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     else router.push('/private-moment');
   }
   const spaceHeader = person && <SpaceHeader person={person} card={card} avatarKey={home || mine ? state.demoAvatarKey : undefined}
-    immersive={immersive ? { ...metrics, width, reveal, top: insets.top } : undefined} hidePanes={mine}
+    immersive={immersive ? { ...metrics, width, reveal, top: insets.top } : undefined} hidePanes={mine || !!edition}
+    pilotPaper={edition ? pilot.colors : undefined}
     pane={pane} onPane={setPane} showsCollections={hasLocalProfile}
     onAvatar={home ? () => router.push({ pathname: '/life/timeline/[id]', params: { id: person.id } }) : undefined}
     onCover={home || mine ? () => setPanel('cover') : undefined}
@@ -165,6 +170,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const header = <View style={!immersive && local.header}>
     {immersive ? <View onLayout={({ nativeEvent }) => { coverHeaderHeight.current = nativeEvent.layout.height; }}>
       {home ? <BlurTargetView ref={bellTarget}>{spaceHeader}</BlurTargetView> : spaceHeader}
+      {edition && <MomentsCoverTitle edition={edition} top={insets.top} photo={!!card.cover.photo} />}
       {home ? <HomeNotificationBell target={bellTarget} photo={!!card.cover.photo} top={insets.top + space.xs} />
         : <View pointerEvents="box-none" style={[local.timelineNav, { top: insets.top + space.xs }]}>
           <CoverAction label="返回" icon="chevron-back" onPress={goBack} />
@@ -173,10 +179,12 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
           <CoverAction label="发布私密动态" icon="create-outline" onPress={() => openPublish()} />
         </View>}
     </View> : spaceHeader}
-    <View style={home ? [local.column, local.homeBody] : mine ? local.timelineBody : local.body}>
+    {edition && <View style={local.column}><MomentsToolbar edition={edition} pane={pane} collections={hasLocalProfile}
+      onPane={setPane} onPublish={() => setPanel('publish')} onPrivacy={() => router.push('/space/privacy')} /></View>}
+    <View style={edition && pane === 'thought' && !error ? local.column : home ? [local.column, local.homeBody] : mine ? local.timelineBody : local.body}>
       {pane === 'thought' ? <>
         {!immersive && <Section title="动态记录" />}
-        {home && <HomePublishBar onPublish={() => setPanel('publish')} />}
+        {home && !edition && <HomePublishBar onPublish={() => setPanel('publish')} />}
         {!!error && <Notice action="重试" onAction={() => void load()}>{error}</Notice>}
         {mine && !!state.error && <Notice action="重试" onAction={state.retry}>{state.error}</Notice>}
       </> : hasLocalProfile && person && <SpaceCollections owner={person.id} pane={pane}
@@ -191,7 +199,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     renderItem: ({ item: row }) => {
       if (row.entry) return <View style={local.column}><EntryCard entry={row.entry} timeline={mine} /></View>;
       const item = row.moment;
-      const post = <PostCard item={item} onRemove={() => { void load(); }} onUpdate={(change) => update(item.id, change)}
+      const post = <PostCard edition={edition} item={item} onRemove={() => { void load(); }} onUpdate={(change) => update(item.id, change)}
         showPin={!home}
         onPin={mine ? async (pinned) => {
           await request('/moments/' + item.id + '/pin', { method: 'PUT', body: { pinned } });
@@ -207,7 +215,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     </View> : undefined,
   };
 
-  return <SafeAreaView style={local.safe} edges={home ? ['left', 'right'] : mine ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
+  return <SafeAreaView style={[local.safe, edition && { backgroundColor: pilot.colors.background }]} edges={home ? ['left', 'right'] : mine ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
     {!immersive && <TopBar title="好友动态" back={goBack} />}
     {immersive ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
       onScroll={({ nativeEvent }) => {
@@ -219,7 +227,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
       }} /> : <FlatList {...list} />}
     {immersive && focused && person && statusSurface !== 'feed' && <StatusBar
-      style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
+      style={statusSurface === 'cover' && card.cover.photo || (edition && pilot.dark && statusSurface === 'profile') ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...metrics }} onClose={() => setPanel(undefined)} />}
     {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />

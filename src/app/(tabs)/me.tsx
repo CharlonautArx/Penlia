@@ -1,3 +1,4 @@
+import { isDesignPilot } from '../../features/design-pilot/model';
 import { useFontSize } from '../../components/Typography';
 import { fontSizes } from '../../font-scale';
 import { formatHandle } from '../../services/handle';
@@ -68,6 +69,7 @@ export default function MeScreen() {
       <ListRow title="生活提醒" left={<Tile icon="notifications-outline" />} onPress={()=>router.push('/life/reminders')}/>
     </SettingGroup>
     <SettingGroup title="偏好设置">
+      {isDesignPilot && <ListRow title="切换设计方案" left={<Tile icon="color-palette-outline" />} onPress={() => router.push('/design-pilot')} />}
       {nativeChatBackgrounds && <ListRow title="聊天背景" left={<Tile icon="image-outline" />}
         onPress={() => router.push('/chat-background')} />}
       <ListRow title="本机空间隐私" left={<Tile icon="eye-outline" />} onPress={() => router.push('/space/privacy')} />
