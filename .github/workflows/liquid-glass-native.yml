@@ -1,15 +1,15 @@
 name: Liquid Glass Depth Android Release
 on:
   push:
-    branches: [codex/liquid-glass-depth]
-    tags: [penlia-liquid-glass-depth-qa-*]
-    paths: ['src/**', 'modules/**', 'app.config.js', 'tooling/**', '.github/workflows/liquid-glass-native.yml', 'scripts/liquid-glass-check.py']
+    branches: [codex/liquid-glass-targeted]
+    tags: [penlia-liquid-glass-targeted-qa-*]
+    paths: ['src/**', 'modules/**', 'app.config.js', 'tooling/**', '.github/workflows/liquid-glass-native.yml', 'scripts/liquid-glass-targeted-check.py']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
-    if: github.ref == 'refs/heads/codex/liquid-glass-depth'
+    if: github.ref == 'refs/heads/codex/liquid-glass-targeted'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     strategy:
@@ -78,8 +78,8 @@ jobs:
         run: |
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/Penlia-${{ matrix.abi }}.apk > /dev/null
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-${{ matrix.abi }}.apk | tee out/badging.txt
-          grep -Fx "application-label:'朋聊 · Liquid Glass 深度体验版'" out/badging.txt
-          grep -F "package: name='app.penlia.mobile.liquidglass.depth'" out/badging.txt
+          grep -Fx "application-label:'朋聊 · Liquid Glass 定向体验版'" out/badging.txt
+          grep -F "package: name='app.penlia.mobile.liquidglass.targeted'" out/badging.txt
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump xmltree out/Penlia-${{ matrix.abi }}.apk AndroidManifest.xml |
             grep -F 'android:allowBackup(0x01010280)=(type 0x12)0x0' > out/data-isolation.txt
           echo "$GITHUB_SHA" > out/source.txt
@@ -124,10 +124,10 @@ jobs:
         run: |
           set -euo pipefail
           if test "$GITHUB_REF_TYPE" = tag; then
-            [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-depth-qa-([0-9]+)(-r[0-9]+)?(-full)?$ ]]
+            [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-targeted-qa-([0-9]+)(-r[0-9]+)?(-full)?$ ]]
             build_run="${BASH_REMATCH[1]}"
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" > "$RUNNER_TEMP/build-run.json"
-            jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .head_branch == "codex/liquid-glass-depth" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/build-run.json"
+            jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .head_branch == "codex/liquid-glass-targeted" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/build-run.json"
             client=$(jq -er .head_sha "$RUNNER_TEMP/build-run.json")
           else
             build_run="$GITHUB_RUN_ID"
@@ -149,11 +149,11 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           github-token: ${{ github.token }}
-          run-id: 46060098594
-          name: liquid-glass-x86_64-f5e005cdb798a65781b0ed2a42d1b8af7d305fcf
+          run-id: 46125310818
+          name: liquid-glass-x86_64-1ce66b7c7f87e5498c77db2f64279a2fff1a23eb
           path: approved/
       - name: Verify the approved simulator package
-        run: echo 'e19a22a1e3f89f87a6d87b651ee8f5197938cf1dec5a78b5000ecb60a8666b3c  approved/Penlia-x86_64.apk' | sha256sum -c
+        run: echo '962352bbd843d51413ac39b9897af576751db58f23fb2e8fcff2b1dfa3d17ac9  approved/Penlia-x86_64.apk' | sha256sum -c
       - name: Retrieve the original offline simulator package for the three-install check
         if: endsWith(github.ref_name, '-full') || (github.ref_type != 'tag' && !contains(github.event.head_commit.message, '[glass-review]'))
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -206,7 +206,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -gpu host -timezone Asia/Shanghai -no-skin -skin 540x1200 -memory 3072 -cores 4 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front emulated
-          script: /usr/bin/python3 scripts/liquid-glass-check.py out/Penlia-x86_64.apk evidence ${{ endsWith(github.ref_name, '-full') && '--full' || github.ref_type == 'tag' && '--material' || contains(github.event.head_commit.message, '[glass-review]') && '--core' || '--full' }}
+          script: /usr/bin/python3 scripts/liquid-glass-targeted-check.py out/Penlia-x86_64.apk evidence
       - name: Scan the evidence allowlist
         id: scan_evidence
         if: always()

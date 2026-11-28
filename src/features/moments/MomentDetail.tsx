@@ -1,3 +1,4 @@
+import { GlassFooter } from '../../components/focused-glass';
 import { randomUUID } from 'expo-crypto';
 import { router, useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -85,8 +86,8 @@ function Discussion({ item, initialFocus, replyId }: { item: Moment; initialFocu
     return () => { mounted.current = false; revision.current++; };
   }, [reload, item.commentCount]);
 
-  return <View style={local.frame}>
-    <ScrollView style={local.frame} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+  return <GlassFooter content={(clearance) =>
+    <ScrollView style={local.frame} contentContainerStyle={clearance ? { paddingBottom: clearance + 8 } : undefined} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <PostCard item={{ ...item, ...changes }} onUpdate={(change) => setChanges((old) => ({ ...old, ...change }))}
         detail hideComments onReply={() => { setReply(undefined); setFocus((value) => value + 1); }} />
       <View style={local.comments}>
@@ -99,8 +100,8 @@ function Discussion({ item, initialFocus, replyId }: { item: Moment; initialFocu
             reload();
           }} />
       </View>
-    </ScrollView>
-    <CommentComposer initialReply={reply} focus={focus} cancel={() => setReply(undefined)} onSend={async (body, replyTo, photo?: LocalMedia) => {
+    </ScrollView>} footer={(glassSource) =>
+    <CommentComposer glassSource={glassSource} initialReply={reply} focus={focus} cancel={() => setReply(undefined)} onSend={async (body, replyTo, photo?: LocalMedia) => {
       const key = JSON.stringify([body, replyTo, photo?.id]);
       if (attempt.current?.key !== key) attempt.current = { key, id: randomUUID() };
       const send = attempt.current;
@@ -111,8 +112,7 @@ function Discussion({ item, initialFocus, replyId }: { item: Moment; initialFocu
       await request(endpoint, { method: 'POST', body: { clientId: send.id, body, replyTo, mediaId: send.mediaId } });
       attempt.current = undefined;
       reload();
-    }} />
-  </View>;
+    }} />} />;
 }
 
 const local = StyleSheet.create({

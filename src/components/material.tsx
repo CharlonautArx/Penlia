@@ -27,8 +27,8 @@ export function GlassLayer({ tone = 'soft', roundness = radius.control }: { tone
 export function UnreadMark({ count, dot = false, style }: { count: number; dot?: boolean; style?: StyleProp<ViewStyle> }) {
   if (count <= 0) return null;
   return <View pointerEvents="none" accessible={false} aria-hidden
-    style={[local.unread, dot ? local.dot : local.counter, style]}>
-    <LinearGradient colors={unread.stops} style={StyleSheet.absoluteFill} />
+    style={[local.unread, dot ? local.dot : local.counter, isLiquidGlass && local.targetedUnread, style]}>
+    {!isLiquidGlass && <LinearGradient colors={unread.stops} style={StyleSheet.absoluteFill} />}
     <View style={[StyleSheet.absoluteFill, local.rim, local.unreadRim]} />
     {!dot && <Text style={local.digits}>{count > 99 ? '99+' : count}</Text>}
   </View>;
@@ -38,6 +38,7 @@ const local = StyleSheet.create({
   layer: { overflow: 'hidden' },
   rim: { borderWidth: StyleSheet.hairlineWidth },
   unread: { overflow: 'hidden', borderRadius: radius.pill, backgroundColor: unread.stops[1] },
+  targetedUnread: { backgroundColor: '#FF6B70' },
   unreadRim: { borderColor: unread.edge, borderTopColor: unread.gleam, borderRadius: radius.pill },
   dot: { width: 9, height: 9 },
   counter: { minWidth: 20, minHeight: 20, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },

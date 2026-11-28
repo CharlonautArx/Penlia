@@ -1,3 +1,4 @@
+import type { CallRecord } from '../calls/record.ts';
 import { isBuiltInStickerOnly, stickerCaption } from '../stickers/wire.ts';
 import { placeCaption } from '../play/place-card-model.ts';
 import { parseQuote, readRecordId, type MessageReferences } from '../chat/record-model.ts';
@@ -10,7 +11,7 @@ export type ImageItem = { id: string; timestamp: number; mine: boolean; kind: 'i
 export type LocationItem = LocationValue & { id: string; timestamp: number; mine: boolean; kind: 'location'; silent?: boolean; noReply?: boolean };
 export type VideoItem = { id: string; timestamp: number; mine: boolean; kind:'video'; source?:ChatMessage; videoId?:string; silent?:boolean; noReply?:boolean };
 export type FileItem = { id: string; timestamp: number; mine: boolean; kind: 'file'; name: string; bytes: number; source?: ChatMessage; sampleText?: string; silent?: boolean; noReply?: boolean };
-export type RichMessage = (TextMessage | ImageItem | LocationItem | VideoItem | FileItem) & MessageReferences & { confirmedAt?: number };
+export type RichMessage = (TextMessage | ImageItem | LocationItem | VideoItem | FileItem) & MessageReferences & { confirmedAt?: number; callRecord?: CallRecord };
 export type PendingMessage = (
   | { kind: 'text'; text: string; sticker?: boolean }
   | { kind: 'image'; photoId: string; width: number; height: number; bytes: number }

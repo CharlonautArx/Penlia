@@ -1,3 +1,4 @@
+import { FocusedGlass, useFocusedGlassSource } from '../../components/focused-glass';
 import { DepthGlass } from '../../components/depth-glass';
 import { useDockClearance } from '../../components/liquid-dock';
 import NativeMaskedView from '@react-native-masked-view/masked-view';
@@ -45,6 +46,7 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const width = Math.max(1, window.width - insets.left - insets.right);
   const metrics = coverMetrics(width, window.height, insets.top);
   const reveal = useSharedValue(0);
+  const publishSource = useFocusedGlassSource();
   const bellTarget = useRef<ComponentRef<typeof View>>(null);
   const coverHeaderHeight = useRef(0);
   const [statusSurface, setStatusSurface] = useState<'cover' | 'profile' | 'feed'>('cover');
@@ -54,7 +56,8 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
   const [albumTheme, setAlbumTheme] = useState<AlbumTheme>('全部');
   const [items, setItems] = useState<Moment[]>();
   const [profile, setProfile] = useState<User>();
-  const immersive = home || mine;
+  const friendCover = isLiquidGlass && !home && !mine;
+  const immersive = home || mine || friendCover;
   const history = useRef(state);
   history.current = state;
   const keys = useMemo(() => archiveOwner ? lookupKeys(state.value?.entries ?? [], archiveOwner).sort().join(',') : '',
@@ -171,8 +174,10 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
         : <View pointerEvents="box-none" style={[local.timelineNav, { top: insets.top + space.xs }]}>
           <CoverAction label="返回" icon="chevron-back" onPress={goBack} />
           <View style={styles.grow} />
-          <CoverAction label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
-          <CoverAction label="发布私密动态" icon="create-outline" onPress={() => openPublish()} />
+          {mine && <>
+            <CoverAction label="动态选项" icon="ellipsis-horizontal" onPress={() => setPanel('timelineActions')} />
+            <CoverAction label="发布私密动态" icon="create-outline" onPress={() => openPublish()} />
+          </>}
         </View>}
     </View> : spaceHeader}
     <View style={home ? [local.column, local.homeBody] : mine ? local.timelineBody : local.body}>
@@ -210,8 +215,9 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
     </View> : undefined,
   };
 
-  return <SafeAreaView style={local.safe} edges={home ? ['left', 'right'] : mine ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
+  return <SafeAreaView style={local.safe} edges={home ? ['left', 'right'] : immersive ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
     {!immersive && <TopBar title="好友动态" back={goBack} />}
+    <BlurTargetView ref={publishSource.target} style={local.feedTarget}>
     {immersive ? <HomeFeedList {...list} reveal={reveal} reserve={metrics.reserve}
       onScroll={({ nativeEvent }) => {
         const barCenter = nativeEvent.contentOffset.y + insets.top / 2;
@@ -221,12 +227,14 @@ export function PrivateFeed({ author, linkedPane }: { author?: string; linkedPan
           : barCenter >= metrics.resting - 72 ? 'profile' : 'cover';
         if (nextSurface !== statusSurface) setStatusSurface(nextSurface);
       }} /> : <FlatList {...list} />}
-    {isLiquidGlass && home && focused && statusSurface !== 'cover' &&
+    </BlurTargetView>
+    {isLiquidGlass && (home || friendCover) && focused && statusSurface !== 'cover' &&
       <View pointerEvents="none" accessible={false} style={[local.statusSurface, { height: insets.top }]} />}
     {immersive && focused && person && statusSurface !== 'feed' && <StatusBar
       style={statusSurface === 'cover' && card.cover.photo ? 'light' : 'dark'} />}
     {panel === 'cover' && (home || mine) && <CoverEditor initial={card} framing={{ width, ...metrics }} onClose={() => setPanel(undefined)} />}
-    {home && panel === 'publish' && <Sheet title="选择发布方式" onClose={() => setPanel(undefined)}>
+    {home && panel === 'publish' && <Sheet title="选择发布方式" surface={isLiquidGlass ? <FocusedGlass kind="sheet" source={publishSource} /> : undefined}
+      scrimColor={isLiquidGlass ? '#201D322E' : undefined} onClose={() => setPanel(undefined)}>
       <ListRow title="发布动态" left={<Icon name="create-outline" />} onPress={() => openPublish()} />
       <ListRow title="共创动态" left={<Icon name="people-outline" />} onPress={() => openPublish(true)} separator={false} />
     </Sheet>}
@@ -303,6 +311,7 @@ function HomePublishBar({ onPublish }: { onPublish: () => void }) {
 }
 
 const local = StyleSheet.create({
+  feedTarget: { flex: 1 },
   statusSurface: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.panel },
   safe: { flex: 1, backgroundColor: colors.backdrop },
   list: { width: '100%', maxWidth: contentWidth, alignSelf: 'center', paddingBottom: space.xl },

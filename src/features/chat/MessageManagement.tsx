@@ -1,3 +1,4 @@
+import { useChatBubbleInk } from './bubble-ink';
 import { DepthGlass } from '../../components/depth-glass';
 import { isLiquidGlass } from '../../demo/mode';
 import { StickerText } from '../stickers/StickerText';
@@ -184,17 +185,19 @@ export function SelectionCheck({ active, checked, toggle, children }: { active: 
 }
 
 export function QuotePreview({ quote, cancel }: { quote: Quote; cancel?: () => void }) {
+  const ink = useChatBubbleInk();
   return <View style={[local.quote, !cancel && local.bubbleQuote]}>
     <Icon name="return-down-back-outline" color={colors.quiet} size={15} />
-    <View style={styles.grow}><StickerText text={quote.author + ' · ' + quote.body} style={styles.small} compact numberOfLines={1} /></View>
+    <View style={styles.grow}><StickerText text={quote.author + ' · ' + quote.body} style={[styles.small, ink && { color: ink }]} compact numberOfLines={1} /></View>
     {cancel && <IconButton label="取消引用" icon="close" onPress={cancel} />}
   </View>;
 }
 
 export function RecordLink({ id, onLongPress }: { id: string; onLongPress?: MessageLongPress }) {
+  const ink = useChatBubbleInk();
   return <Pressable accessibilityRole="button" accessibilityLabel="查看聊天记录" onLongPress={onLongPress} style={local.record}
     onPress={() => router.push({ pathname: '/life/chat-record/[id]', params: { id } })}>
-    <Icon name="reader-outline" size={20} /><Text style={styles.strong}>聊天记录</Text><Icon name="chevron-forward" size={14} />
+    <Icon name="reader-outline" size={20} color={ink} /><Text style={[styles.strong, ink && { color: ink }]}>聊天记录</Text><Icon name="chevron-forward" size={14} color={ink} />
   </Pressable>;
 }
 

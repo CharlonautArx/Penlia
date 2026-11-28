@@ -1,3 +1,4 @@
+import { CallRecordsProvider } from '../features/calls/records';
 import { ChatRecallsProvider } from '../features/chat/recalls';
 import { TypographyProvider } from '../components/Typography';
 import { MomentDraftProvider } from '../features/moments/draft';
@@ -30,6 +31,7 @@ function AppNavigation() {
       <ConversationPreferencesProvider account={session?.user.id}>
       <ChatBackgroundProvider account={session?.user.id}>
         <ChatHistoryProvider account={session?.user.id}>
+        <CallRecordsProvider account={session?.user.id}>
         <SpaceProvider>
           <MomentDraftProvider account={session?.user.id}>
           <PetProvider>
@@ -84,6 +86,7 @@ function AppNavigation() {
           </PetProvider>
           </MomentDraftProvider>
         </SpaceProvider>
+        </CallRecordsProvider>
         </ChatHistoryProvider>
       </ChatBackgroundProvider>
       </ConversationPreferencesProvider>

@@ -1,3 +1,7 @@
+import { callCaption } from '../../features/calls/record';
+import { useCallRecords } from '../../features/calls/records';
+import { useChatBubbleInk } from '../../features/chat/bubble-ink';
+import { GlassFooter } from '../../components/focused-glass';
 import { parsePlaceCard } from '../../features/play/place-card-model';
 import { GatheringMessage, type ChatInvitation } from '../../features/chat/GatheringMessage';
 import { useRecord } from '../../features/social/ui';
@@ -59,6 +63,17 @@ type ShownMessage = ReturnType<typeof applyRecalls<RichMessage>>[number];
 const isRecalled = (message: ShownMessage): message is Extract<ShownMessage, {kind:'recalled'}> =>
   'kind' in message && message.kind === 'recalled';
 const messageKey = (message: ShownMessage) => message.id;
+
+function CallHistoryLine({ text, video, mine, simulated }: { text: string; video: boolean; mine: boolean; simulated: boolean }) {
+  const color = useChatBubbleInk() ?? colors.text;
+  return <View style={[styles.row, { gap: space.xs, flexDirection: mine ? 'row-reverse' : 'row' }]}>
+    <Icon name={video ? 'videocam-outline' : 'call-outline'} size={19} color={color} />
+    <View style={{ flexShrink: 1 }}>
+      <Text style={[styles.body, { color }]}>{text}</Text>
+      {simulated && <Text style={[styles.small, { color }]}>本机模拟</Text>}
+    </View>
+  </View>;
+}
 
 function EmptyConversation() {
   return <View style={chatLayout.inverted}><Empty>还没有消息，可以先打个招呼。</Empty></View>;
@@ -317,9 +332,17 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
   }
 
   const regular = shownMessages ?? messages;
-  const base = useMemo(() => window ?? (localInvitations.length
-    ? [...regular, ...localInvitations].sort((a, b) => b.timestamp - a.timestamp) : regular),
-  [window, regular, localInvitations]);
+  const callRecords = useCallRecords().rows;
+  const account = session?.user.id;
+  const callRows = useMemo<RichMessage[]>(() => account ? callRecords.filter((record) =>
+    (record.caller === account && record.recipient === person.userId)
+    || (record.recipient === account && record.caller === person.userId)).map((record) => ({
+    id: 'call:' + record.id, timestamp: record.endedAt, mine: record.caller === account,
+    text: callCaption(record, account), callRecord: record,
+  })) : [], [account, callRecords, person.userId]);
+  const base = useMemo(() => window ?? (localInvitations.length || callRows.length
+    ? [...regular, ...localInvitations, ...callRows].sort((a, b) => b.timestamp - a.timestamp) : regular),
+  [window, regular, localInvitations, callRows]);
   const items = useMemo(() => {
     if (!manage.history.ready || !recalls.ready) return [];
     if (!window) return applyRecalls(base, markers, manage.history.hidden);
@@ -345,7 +368,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     const file = !text && message.kind === 'file';
     const kind = text || file ? 'text' : message.kind as 'image' | 'video' | 'location';
     const invitation = text ? message.gathering : undefined;
-    const sentAt = invitation ? undefined : demo ? message.timestamp : message.confirmedAt;
+    const sentAt = invitation || message.callRecord ? undefined : demo ? message.timestamp : message.confirmedAt;
     const revoke = recalls.available && !!sentAt && canRecall(message.mine, sentAt) ? async () => {
       await recalls.recall(person.userId, message);
       if (manage.quote?.id === message.id) manage.setQuote(undefined);
@@ -356,10 +379,10 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
       photoId: message.kind === 'image' ? message.photoId : undefined,
       load: connection && message.source ? () => fetchAttachment(connection, message.source!) : undefined,
     } : undefined;
-    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file && !invitation, replyable: !invitation, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
+    return { recall: revoke, recallUntil: revoke && sentAt ? sentAt + recallWindow : undefined, portable: !file && !invitation && !message.callRecord, replyable: !invitation && !message.callRecord, id: message.id, time: message.timestamp, kind, author: message.mine ? session?.user.name ?? '我' : person.name,
       authorId: message.mine ? session?.user.id : person.userId,
       body: text ? message.text : message.kind === 'location' ? message.name + ' · ' + message.address : message.kind === 'file' ? '[文件] ' + message.name : '',
-      canCopy: (text && !message.recordId && !invitation && !parsePlaceCard(message.text)) || kind === 'location', recordId: message.recordId,
+      canCopy: (text && !message.recordId && !invitation && !message.callRecord && !parsePlaceCard(message.text)) || kind === 'location', recordId: message.recordId,
       quote: message.quote && message.quote.author + ' · ' + message.quote.body, assets: asset ? [asset] : undefined };
   }
   const selected = manage.selected && items.filter((message): message is RichMessage => !isRecalled(message) && !!manage.selected?.has(message.id)).map(managed);
@@ -390,7 +413,9 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
           <Avatar userId={person.userId} name={person.name} source={demoPortrait(person.username)} size={31} />
         </Pressable>}>
         {message.quote && <QuotePreview quote={Object.hasOwn(markers, message.quote.id) ? { ...message.quote, body: recalledQuote } : message.quote} />}
-        {invitation ? <GatheringMessage value={invitation} onLongPress={openActions} /> : message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
+        {invitation ? <GatheringMessage value={invitation} onLongPress={openActions} /> : message.recordId ? <RecordLink id={message.recordId} onLongPress={openActions} /> : 'text' in message && message.callRecord
+          ? <CallHistoryLine text={message.text} video={message.callRecord.kind === 'video'} mine={message.mine} simulated={message.callRecord.simulated} />
+          : 'text' in message ? <MessageBody text={message.text} onLongPress={openActions} />
           : message.kind === 'image' ? <ImageBubble item={message} onLongPress={openActions} connection={connection} online={online} onDownloaded={changed} />
           : message.kind === 'video' ? <PeerVideo item={message} onLongPress={openActions} connection={connection} /> : message.kind === 'file' ? <PeerFile item={message} connection={connection} onLongPress={openActions} /> : <LocationBubble value={message} onLongPress={openActions} />}
         <MessageMarks sharing={message.noReply} silent={message.silent} />
@@ -403,7 +428,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
     || !!(pending.current?.uncertain && pending.current.value.kind === 'text' && pending.current.value.text === encodedDraft);
   return (
     <>
-      <View style={styles.grow}>
+      <GlassFooter content={(clearance) => <View style={styles.grow}>
         {hasTopNotice && <View style={[local.headerClearance, { paddingTop: chromeHeight + space.xs }]}>
           {!!demo?.mediaError && <View style={local.notice}><Notice action="重试" onAction={demo.retryMedia}>{demo.mediaError}</Notice></View>}
           {!!status && <View style={local.notice}><Notice action="重连" onAction={retry}>{status}</Notice></View>}
@@ -418,7 +443,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
             setTimeout(() => { if (searchJump.current) list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
           }}
           inverted data={items} style={styles.grow}
-          contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }]}
+          contentContainerStyle={[chatLayout.messages, !hasTopNotice && !window && { paddingBottom: chromeHeight + space.lg }, clearance > 0 && { paddingTop: clearance + space.xs }]}
           keyboardShouldPersistTaps="handled" keyExtractor={messageKey}
           ListEmptyComponent={EmptyConversation}
           ListFooterComponent={!window && (cursor && online || chatInvitations?.more) ? (
@@ -430,7 +455,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
           ) : undefined}
           renderItem={renderMessage}
         />
-      </View>
+      </View>} footer={(glassSource) => <>
       {!!photoError && <View style={local.notice}>
         <Notice action="重新选择" onAction={() => void prepareMedia()}>{photoError}</Notice>
       </View>}
@@ -438,7 +463,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
         <Notice action={sendError && (demo || online) ? '重试' : undefined} onAction={() => { const queued = pending.current; if (queued && !queued.uncertain) void transmit(queued.value, queued.original); }}>{actionError || historyError}</Notice>
       </View>}
       {report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <>
-      <MessageComposer label="消息" floating focusKey={manage.quote?.id}
+      <MessageComposer label="消息" floating glassSource={glassSource} focusKey={manage.quote?.id}
         value={draft} onChange={setDraft} maxLength={500}
         attachLabel="添加" photoLabel="从图库选择照片和视频" onAttach={() => setPicker('attachments')}
         onPhoto={() => void prepareMedia()} onEmoji={() => setPicker('emoji')}
@@ -452,6 +477,7 @@ function Conversation({ person, initialDraft, chromeHeight }: { person: Relation
         onToggle={(option) => setSendOptions((current) => ({ ...current, [option]: !current[option] }))}
         onSend={() => void sendText(sendOptions).then(closeSendMenu)} onClose={closeSendMenu} />
       </>}
+      </>} />
       <ManagementUI manage={manage} />
       {picker === 'location' && <LocationComposer online={!!demo || online} onClose={() => setPicker(undefined)} onConfirm={(value) => {
         setPicker(undefined);

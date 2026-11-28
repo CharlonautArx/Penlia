@@ -199,8 +199,8 @@ export function ListRow({ title, detail, left, trailing, onPress, separator = tr
     : <View style={[ui.listRow, separator && styles.divider, style]}>{content}</View>;
 }
 
-export function Sheet({ title, onClose, children, footer, tone, surface, avoidKeyboard = false, ...props }: ScrollViewProps & {
-  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral'; surface?: ReactNode; avoidKeyboard?: boolean;
+export function Sheet({ title, onClose, children, footer, tone, surface, scrimColor, avoidKeyboard = false, ...props }: ScrollViewProps & {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; tone?: 'neutral'; surface?: ReactNode; scrimColor?: string; avoidKeyboard?: boolean;
 }) {
   const { reduced } = useAppearance();
   const entering = useRef(new Animated.Value(reduced ? 1 : 0)).current;
@@ -216,7 +216,7 @@ export function Sheet({ title, onClose, children, footer, tone, surface, avoidKe
     transition.start();
     return () => transition.stop();
   }, [entering, reduced]);
-  const content = <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={ui.scrim}>
+  const content = <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={[ui.scrim, scrimColor && { backgroundColor: scrimColor }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="关闭浮层" onPress={onClose} style={StyleSheet.absoluteFill} />
       <Animated.View style={[ui.sheetFrame, !reduced && {
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],

@@ -1,3 +1,5 @@
+import { FocusedGlass } from '../../components/focused-glass';
+import type { BackdropSource } from '../../components/depth-glass';
 import { setStringAsync } from 'expo-clipboard';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -112,9 +114,9 @@ export function CommentList({ comments, owner, reply, remove, showEmpty, compact
   </View>;
 }
 
-export function CommentComposer({ initialReply, focus, onSend, cancel }: {
+export function CommentComposer({ initialReply, focus, onSend, cancel, glassSource }: {
   initialReply?: MomentComment; focus: number; onSend: (body: string, reply?: string, photo?: LocalMedia) => Promise<void>;
-  cancel: () => void;
+  cancel: () => void; glassSource?: BackdropSource;
 }) {
   const identity = useIdentityResolver();
   const account = useSession().session?.user.id;
@@ -142,7 +144,8 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
     finally { working.current = false; setBusy(false); }
   }
   const placeholder = initialReply ? '回复：' + (identity(initialReply.authorId)?.name ?? initialReply.author) : '写评论…';
-  return <View style={local.composer}>
+  return <View style={[local.composer, glassSource && local.floating]}>
+    {glassSource && <FocusedGlass source={glassSource} />}
     {!!error && <Notice>{error}</Notice>}
     {!!photo && <View style={styles.row}><DraftMediaTile item={photo} />
       <IconButton label="移除评论图片" icon="close-outline" disabled={busy} onPress={() => setPhoto(undefined)} />
@@ -159,7 +162,7 @@ export function CommentComposer({ initialReply, focus, onSend, cancel }: {
           showKeyboard();
         })} />
       <TextInput ref={input} accessibilityLabel={initialReply ? placeholder : '评论内容'} placeholder={placeholder}
-        onFocus={() => setEmoji(false)} placeholderTextColor={colors.quiet} style={local.input} value={draft}
+        onFocus={() => setEmoji(false)} placeholderTextColor={colors.quiet} style={[local.input, glassSource && local.clearInput]} value={draft}
         editable={!busy} onChangeText={setDraft} maxLength={500} multiline />
       {initialReply && <IconButton label="取消回复" icon="close" disabled={busy} onPress={cancel} />}
       <Button label="发送" variant="gradient" disabled={busy || (!encoded && !photo) || encoded.length > 500} onPress={() => void run(async () => {
@@ -189,6 +192,9 @@ const local = StyleSheet.create({
   empty: { ...styles.small, paddingVertical: space.md, textAlign: 'center' },
   pressed: { opacity: 0.66 },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel, padding: space.xs, gap: space.xxs },
+  floating: { backgroundColor: 'transparent', borderTopWidth: 0, marginHorizontal: 8, marginBottom: 6,
+    borderRadius: 26, boxShadow: '0px 3px 12px #36476329' },
+  clearInput: { backgroundColor: 'transparent', borderWidth: 0 },
   composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   input: { ...styles.input, flex: 1, minWidth: 0, minHeight: touch, maxHeight: 100, borderRadius: radius.pill, paddingHorizontal: space.xs },
   emoji: { maxHeight: 220 },

@@ -1,21 +1,31 @@
+import { randomUUID } from 'expo-crypto';
+import { recordCallEnd, type CallRecord } from '../features/calls/record';
+import { useCallRecords } from '../features/calls/records';
 import { Camera, CameraView } from 'expo-camera';
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Notice, Sheet } from '../components/ui';
 import { CallAction, CallStage } from '../features/calls/CallStage';
 import { callDevice } from '../features/calls/device';
-import { transitionCall, type CallEvent, type CallKind } from '../features/calls/model';
+import { transitionCall, type CallEvent, type CallKind, type CallState } from '../features/calls/model';
 import { useChatBackgrounds } from '../features/chat/background/store';
 import { space, type } from '../theme';
 import { demoPortrait } from './visuals';
 
-export function DemoCall({ kind, name, username, incoming, onClose }: {
-  kind: CallKind; name: string; username: string; incoming: boolean; onClose: () => void;
+export function DemoCall({ kind, name, username, incoming, account, peerId, onClose }: {
+  kind: CallKind; name: string; username: string; incoming: boolean; account: string; peerId: string; onClose: () => void;
 }) {
-  const [state, dispatch] = useReducer(transitionCall, {
-    id: 'local-demo', type: kind, phase: incoming ? 'incoming' : 'outgoing',
-  });
+  const [state, setCall] = useState<CallState>(() => ({
+    id: randomUUID(), type: kind, phase: incoming ? 'incoming' : 'outgoing',
+  }));
+  const current = useRef(state);
+  const connectedAt = useRef<number | undefined>(undefined);
+  const pendingRecord = useRef<CallRecord | undefined>(undefined);
+  const writing = useRef<Promise<boolean> | undefined>(undefined);
+  const records = useCallRecords();
+  const store = useRef(records);
+  store.current = records;
   const [muted, setMuted] = useState(false);
   const [speaker, setSpeaker] = useState(kind === 'video');
   const [camera, setCamera] = useState(false);
@@ -35,7 +45,36 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
   const ringing = state.phase === 'incoming' || state.phase === 'outgoing';
   const live = state.phase === 'active' || state.phase === 'reconnecting';
   const terminal = state.phase === 'ended' || state.phase === 'failed';
-  const act = (action: CallEvent['action']) => dispatch({ id: state.id, action });
+  const act = useCallback((action: CallEvent['action']) => {
+    const before = current.current;
+    const after = transitionCall(before, { id: before.id, action });
+    const now = Date.now();
+    if (after !== before) {
+      if (after.phase === 'active' && connectedAt.current === undefined) connectedAt.current = performance.now();
+      const record = recordCallEnd(before, after, action, { caller: incoming ? peerId : account,
+        recipient: incoming ? account : peerId, endedAt: now,
+        elapsedMs: connectedAt.current === undefined ? undefined : performance.now() - connectedAt.current,
+        simulated: true });
+      if (record) pendingRecord.current = record;
+      current.current = after;
+      setCall(after);
+    }
+    const record = pendingRecord.current;
+    if (!record) return Promise.resolve(true);
+    if (writing.current) return writing.current;
+    writing.current = (async () => {
+      try {
+        if (!store.current.save) throw new Error('No local store');
+        await store.current.save(record);
+        pendingRecord.current = undefined;
+        return true;
+      } catch {
+        if (mounted.current) setNotice('通话记录保存失败，点击完成重试。');
+        return false;
+      }
+    })().finally(() => { writing.current = undefined; });
+    return writing.current;
+  }, [account, incoming, peerId]);
 
   useEffect(() => {
     mounted.current = true;
@@ -60,9 +99,9 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
   useEffect(() => {
     const action = state.phase === 'connecting' ? 'joined' : ringing ? 'timeout' : undefined;
     if (!action) return;
-    const timer = setTimeout(() => dispatch({ id: state.id, action }), ringing ? 45_000 : 500);
+    const timer = setTimeout(() => void act(action), ringing ? 45_000 : 500);
     return () => clearTimeout(timer);
-  }, [state.id, state.phase, ringing]);
+  }, [act, state.phase, ringing]);
 
   async function toggleCamera() {
     if (pendingCamera.current) return;
@@ -111,7 +150,7 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
     <CallAction action={{ label: muted ? '取消静音' : '静音', selected: muted, disabled: terminal,
       icon: muted ? 'mic-off-outline' : 'mic-outline', onPress: () => setMuted(!muted) }} />
     <CallAction action={{ label: terminal ? '完成' : '挂断', icon: terminal ? 'close-outline' : 'call',
-      onPress: () => { if (!terminal) act('end'); onClose(); } }} />
+      onPress: () => { void act(incoming && ringing ? 'decline' : 'end').then((saved) => { if (saved && mounted.current) onClose(); }); } }} />
     <CallAction action={{ label: speaker ? '切回听筒' : '切到扬声器', selected: speaker, disabled: terminal,
       icon: speaker ? 'volume-high-outline' : 'ear-outline', onPress: () => void toggleSpeaker() }} />
   </>;
@@ -139,7 +178,7 @@ export function DemoCall({ kind, name, username, incoming, onClose }: {
       </View>} />
     {details && <Sheet title="模拟选项" onClose={() => setDetails(false)}>
       <Notice>本机模拟通话信令。摄像头仅供本地预览，声音和画面不会传给好友。</Notice>
-      {ringing && <Button label="模拟对方拒绝" variant="soft" onPress={() => { act('decline'); setDetails(false); }} />}
+      {ringing && <Button label={incoming ? '模拟拒绝' : '模拟对方拒绝'} variant="soft" onPress={() => { act('decline'); setDetails(false); }} />}
       {state.phase === 'active' && <Button label="模拟网络切换" variant="soft"
         onPress={() => { act('interrupt'); setDetails(false); }} />}
       {state.phase === 'reconnecting' && <>

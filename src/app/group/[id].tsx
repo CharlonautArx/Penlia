@@ -1,3 +1,5 @@
+import { isLiquidGlass } from '../../demo/mode';
+import { GlassFooter } from '../../components/focused-glass';
 import { StickerPanel } from '../../features/stickers/StickerPanel';
 import { appendOfficialSticker, encodeOfficialDraft } from '../../features/stickers/catalog';
 import { isBuiltInStickerOnly } from '../../features/stickers/wire';
@@ -223,12 +225,12 @@ export default function GroupConversation() {
           )
         }
       />
-      <FlatList
+      <GlassFooter content={(clearance) => <FlatList
         data={items}
         inverted
         keyboardShouldPersistTaps="handled"
         keyExtractor={(line) => line.id}
-        contentContainerStyle={chatLayout.messages}
+        contentContainerStyle={[chatLayout.messages, clearance > 0 && { paddingTop: clearance + space.xs }]}
         ListEmptyComponent={
           <View style={chatLayout.inverted}>
             <Empty busy={!group && !error}>{error || (group ? '还没有群消息。' : '正在读取群聊…')}</Empty>
@@ -287,9 +289,9 @@ export default function GroupConversation() {
             </ChatBubble>
           </View></SelectionCheck>;
         }}
-      />
+      />} footer={(glassSource) => <>
       {!!error && !!group && !details && <Notice>{error}</Notice>}
-      {!!group && (report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <MessageComposer label="群消息" focusKey={manage.quote?.id} placeholder="发消息" value={draft} onChange={setDraft}
+      {!!group && (report.selected ? <ReportSelectionBar state={report} lines={reportLines} /> : selected ? <SelectionBar manage={manage} selected={selected} /> : <MessageComposer label="群消息" floating={isLiquidGlass} glassSource={glassSource} focusKey={manage.quote?.id} placeholder={isLiquidGlass ? undefined : '发消息'} value={draft} onChange={setDraft}
         maxLength={1000} attachLabel="更多群消息选项" photoLabel="从图库选择群图片"
         toolsDisabled={busy} onAttach={() => setTools(true)} onEmoji={() => setEmoji(true)}
         onPhoto={() => void run(async () => {
@@ -301,6 +303,7 @@ export default function GroupConversation() {
         sendLabel={busy ? '发送中…' : '发送'} sendDisabled={(!draft.trim() && !photos.length) || encodeOfficialDraft(draft.trim()).length > 1000 || busy}
         onSend={() => void run(send)} mode={manage.quote ? <QuotePreview quote={manage.quote} cancel={() => manage.setQuote(undefined)} />
           : quiet || noReply ? <>{quiet && <Moon words />}{noReply && <NoReply />}</> : undefined} />)}
+      </>} />
       <ManagementUI manage={manage} />
       {emoji && <Sheet title="表情" tone="neutral" style={{ maxHeight: 315 }} onClose={() => setEmoji(false)}
         footer={<Button label="完成选择" variant="soft" onPress={() => setEmoji(false)} />}>
