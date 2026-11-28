@@ -33,7 +33,7 @@ jobs:
           gh run download "$build_run" -n "liquid-glass-arm64-v8a-$source" -D arm
           gh run download "$build_run" -n "liquid-glass-x86_64-$source" -D x86
           gh run download "$qa_run" -n "liquid-glass-android-35-$qa_source" -D api35
-          gh run download "$qa_run" -n "liquid-glass-android-30-$qa_source" -D api30
+          gh run download "$build_run" -n "liquid-glass-android-30-$source" -D api30
           test "$(cat arm/source.txt)" = "$source"
           test "$(cat x86/source.txt)" = "$source"
           expected=$(cut -d' ' -f1 arm/sha256.txt)

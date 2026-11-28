@@ -45,7 +45,12 @@ def screen(name):
 def nodes():
     if 'dumped to' not in shell('uiautomator', 'dump', '/sdcard/glass.xml'):
         raise ValueError('UI tree unavailable')
-    return list(ElementTree.fromstring(adb('exec-out', 'cat', '/sdcard/glass.xml', binary=True)).iter('node'))
+    tree = list(ElementTree.fromstring(adb('exec-out', 'cat', '/sdcard/glass.xml', binary=True)).iter('node'))
+    if any("Quickstep isn't responding" in node.get('text', '') for node in tree):
+        log('System launcher Quickstep ANR detected; restarting only com.android.launcher3')
+        shell('am', 'force-stop', 'com.android.launcher3')
+        raise ValueError('Quickstep system dialog cleared')
+    return tree
 
 
 def find(label=None, kind=None, tries=3, prefix=False):
@@ -126,14 +131,18 @@ def launch():
 def simulate():
     with record('optics-navigation'):
         tap('好友')
+        find('好友申请')
         screen('02-friends')
         tap('玩乐')
+        find('线下去处')
         screen('03-play')
         tap('动态')
+        find('发布动态')
         screen('04-moments')
         swipe(1020, 370, 700)
         screen('04-scroll')
         tap('我的')
+        find('隐私与安全')
         screen('05-me')
         tap('聊天')
         swipe(1020, 520, 600)
@@ -195,6 +204,10 @@ shell('svc','wifi','disable')
 shell('svc','data','disable')
 log('Android API ' + shell('getprop','ro.build.version.sdk') + '; ABI ' + shell('getprop','ro.product.cpu.abi') + '; offline; 540x1200 / 240dpi')
 log('Artifact SHA-256 ' + sha256(APK.read_bytes()).hexdigest())
+if API >= 35:
+    # The emulator launcher can surface a background ANR over every foreground activity.
+    # Start the measured apps directly and leave normal Penlia Android ANR reporting intact.
+    shell('am', 'force-stop', 'com.android.launcher3')
 def original_comparison():
     result = shell('am','start','-W','-n',BASE + '/.MainActivity')
     assert 'Status: ok' in result
@@ -286,7 +299,7 @@ DEPTH_ROUTES = [
     ('friend-requests/relationship-demo-taozi', 'friend-public', '公开资料'),
     ('person/demo-xiaoman', 'friend-profile', '好友主页'),
     ('person/demo-self', 'own-profile', '个人主页'),
-    ('pet/demo-xiaoman', 'paired-pet', '共同小宠物'),
+    ('pet/demo-xiaoman', 'paired-pet', '小宠物规则'),
     ('profile-field/name', 'edit-name', '修改昵称'),
     ('profile-field/username', 'edit-handle', '修改朋聊号'),
     ('profile-field/bio', 'edit-bio', '修改个性签名'),
