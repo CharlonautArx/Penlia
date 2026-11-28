@@ -1,3 +1,5 @@
+import { DepthGlass } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { AppState, Text, TextInput, View, type TextInputProps } from 'react-native';
@@ -92,17 +94,16 @@ export function useRecord<T>(path: string, refreshMillis?: number) {
 }
 
 export function Field({ title, ...props }: TextInputProps & { title: string }) {
-  return (
-    <View style={{ gap: 5 }}>
-      <Text style={styles.strong}>{title}</Text>
-      <TextInput
-        accessibilityLabel={title}
-        placeholderTextColor={colors.quiet}
-        style={[styles.input, props.multiline && { minHeight: 84, textAlignVertical: 'top' }]}
-        {...props}
-      />
-    </View>
-  );
+  const input = <TextInput accessibilityLabel={title} placeholderTextColor={colors.quiet}
+    style={[styles.input, props.multiline && { minHeight: 84, textAlignVertical: 'top' }]}
+    {...props} />;
+  return <View style={{ gap: 5 }}>
+    <Text style={styles.strong}>{title}</Text>
+    {isLiquidGlass ? <View>
+      {input}
+      <DepthGlass level="medium" roundness={12} rimOnly />
+    </View> : input}
+  </View>;
 }
 
 export function Choices<T extends string>({

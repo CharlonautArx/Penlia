@@ -9,11 +9,11 @@ import time
 from xml.etree import ElementTree
 from hashlib import sha256
 from PIL import ImageDraw
-from PIL import Image
+from PIL import Image, ImageChops
 
 APK, OUT, MODE = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
-PKG = 'app.penlia.mobile.liquidglass'
-BASE = 'app.penlia.mobile.preview'
+PKG = 'app.penlia.mobile.liquidglass.depth'
+BASE = 'app.penlia.mobile.liquidglass'
 API = int(subprocess.check_output(['adb','shell','getprop','ro.build.version.sdk'],text=True).strip())
 OUT.mkdir(exist_ok=True)
 errors = []
@@ -71,8 +71,8 @@ def tap(label=None, **kwargs):
     time.sleep(.4)
 
 
-def route(path):
-    result = shell('am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', 'penlia-liquid://' + path, PKG)
+def route(path, package=PKG):
+    result = shell('am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', ('penlia-liquid://' if package == BASE else 'penlia-liquid-depth://') + path, package)
     assert 'Status: ok' in result and 'Error:' not in result
     time.sleep(.8)
 
@@ -179,8 +179,7 @@ def details(path, name, expected=None):
 
 
 adb('install', '-r', str(APK))
-if MODE == '--full':
-    adb('install', '-r', 'original/Penlia-x86_64.apk')
+adb('install', '-r', 'approved/Penlia-x86_64.apk')
 shell('wm','size','540x1200')
 shell('wm','density','240')
 shell('settings','put','system','font_scale','1.30' if API < 31 else '1.0')
@@ -196,9 +195,11 @@ log('Artifact SHA-256 ' + sha256(APK.read_bytes()).hexdigest())
 def original_comparison():
     result = shell('am','start','-W','-n',BASE + '/.MainActivity')
     assert 'Status: ok' in result
-    tap('直接进入')
     find('搜索会话')
     screen('00-original-inbox')
+    route('chat-settings/demo-xiaoman', BASE)
+    find('消息免打扰', kind='android.widget.Switch')
+    screen('00-approved-switch')
     packages = shell('pm','list','packages','-U')
     uid = lambda name: re.search(r'package:' + re.escape(name) + r' uid:(\d+)', packages)[1]
     assert uid(BASE) != uid(PKG), 'Expected separate application UIDs'
@@ -206,20 +207,47 @@ def original_comparison():
         entry = shell('dumpsys','package',app)
         assert 'dataDir=/data/user/0/' + app in entry
     shell('am','force-stop',BASE)
-if MODE == '--full':
-    check('side-by-side-installation', original_comparison)
+check('side-by-side-installation', original_comparison)
 check('cold-start-inbox', launch)
+
+def protected_material():
+    route('chat-settings/demo-xiaoman')
+    center = find('消息免打扰', kind='android.widget.Switch')
+    screen('00-depth-switch')
+    x, y = center
+    crop = (x-33, y-23, x+33, y+23)
+    with Image.open(OUT/'00-approved-switch.png') as approved, Image.open(OUT/'00-depth-switch.png') as depth:
+        old = approved.crop(crop).convert('RGB')
+        new = depth.crop(crop).convert('RGB')
+        old.save(OUT/'00-approved-switch-crop.png')
+        new.save(OUT/'00-depth-switch-crop.png')
+        diff = ImageChops.difference(old, new)
+        log('Switch pixels changed: ' + str(sum(pixel != (0,0,0) for pixel in diff.getdata())))
+        assert not diff.getbbox(), 'Protected switch pixels changed'
+    with Image.open(OUT/'00-original-inbox.png') as approved, Image.open(OUT/'01-inbox.png') as depth:
+        crop = (0,1089,540,1161)
+        old = approved.crop(crop).convert('RGB')
+        new = depth.crop(crop).convert('RGB')
+        old.save(OUT/'00-approved-dock-crop.png')
+        new.save(OUT/'00-depth-dock-crop.png')
+        diff = ImageChops.difference(old, new)
+        log('Dock pixels changed: ' + str(sum(pixel != (0,0,0) for pixel in diff.getdata())))
+        assert not diff.getbbox(), 'Protected dock pixels changed on the initial inbox'
+    back()
+    find('搜索会话')
+
+check('protected-dock-and-switch', protected_material)
 check('navigation-scroll-keyboard', simulate)
 check('sdk-optics-path', accelerator)
 check('six-scroll-hwui', performance)
-if MODE == '--full' and (OUT/'00-original-inbox.png').exists() and (OUT/'01-inbox.png').exists():
+if (OUT/'00-original-inbox.png').exists() and (OUT/'01-inbox.png').exists():
     with Image.open(OUT/'00-original-inbox.png') as one, Image.open(OUT/'01-inbox.png') as two:
         board = Image.new('RGB',(1104, 1224),'white')
         board.paste(one,(0,24))
         board.paste(two,(564,24))
         draw = ImageDraw.Draw(board)
-        draw.text((7,4),'Original',fill='#303038')
-        draw.text((571,4),'Liquid Glass',fill='#303038')
+        draw.text((7,4),'Approved Liquid Glass',fill='#303038')
+        draw.text((571,4),'Liquid Glass Depth',fill='#303038')
         board.save(OUT/'00-inbox-comparison.png')
 if MODE != '--core':
     for route_path, image_name, expected in [

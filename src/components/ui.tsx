@@ -17,7 +17,7 @@ import { useAppearance } from './appearance';
 import { KeyboardInsets } from './keyboard-insets';
 import { GlassLayer } from './material';
 import { useDockClearance } from './liquid-dock';
-import { LiquidSurface } from './liquid-surface';
+import { DepthGlass } from './depth-glass';
 import { isLiquidGlass } from '../demo/mode';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -34,11 +34,15 @@ export function IconButton({ label, icon, onPress, color, tinted = false, disabl
     <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
       accessibilityState={{ disabled, busy }} onPress={onPress}
       style={({ pressed }) => [ui.iconButton, pressed && ui.pressed, disabled && ui.disabled]}>
-      {tinted && <GlassLayer tone="control" roundness={radius.pill} />}
+      {({ pressed }) => <>
+      {isLiquidGlass && (tinted || pressed)
+        ? <DepthGlass level={tinted ? 'strong' : 'light'} roundness={radius.pill} tone={tinted ? 'brand' : 'clear'} rimOnly={!tinted} />
+        : tinted && <GlassLayer tone="control" roundness={radius.pill} />}
       {iconOffsetX === undefined && !busy ? <Icon name={icon} color={color} size={iconSize} /> :
         <View pointerEvents="none" style={[ui.iconFace, { transform: [{ translateX: iconOffsetX ?? 0 }] }]}>
           {busy ? <ActivityIndicator size="small" color={color ?? colors.ink} /> : <Icon name={icon} color={color} size={iconSize} />}
         </View>}
+      </>}
     </Pressable>
   );
 }
@@ -65,7 +69,7 @@ export function Screen({ title, actions, children, inset = true, refreshing, onR
 export function TopBar({ title, actions, back }: { title: string; actions?: ReactNode; back?: () => void }) {
   const large = useFontScale() > 1;
   return <View style={ui.barWrap}>
-    {isLiquidGlass && <LiquidSurface finish="quiet" roundness={0} />}
+    {isLiquidGlass && <DepthGlass level="light" roundness={0} rimOnly />}
     <View style={[ui.bar, ui.width, back && ui.backBar]}>
       {back && <IconButton label="返回" icon="chevron-back" onPress={back} />}
       <Text accessibilityRole="header" numberOfLines={large ? undefined : 1} style={[ui.title, back && ui.pageTitle]}>{title}</Text>
@@ -77,7 +81,7 @@ export function TopBar({ title, actions, back }: { title: string; actions?: Reac
 
 export function Tag({ children }: { children: string }) {
   return <View style={ui.tag}>
-    <GlassLayer roundness={radius.small} />
+    {isLiquidGlass ? <DepthGlass level="light" roundness={radius.small} /> : <GlassLayer roundness={radius.small} />}
     <Text style={ui.tagText}>{children}</Text>
   </View>;
 }
@@ -120,8 +124,9 @@ export function Button({ label, icon, onPress, onLongPress, disabled, variant = 
         variant === 'danger' && ui.danger, pressed && ui.pressed,
         isLiquidGlass && pressed && !reduced && ui.compress, disabled && ui.disabled,
       ]}>
-      {isLiquidGlass && variant === 'soft' && <LiquidSurface finish="quiet" roundness={radius.control} />}
-      {primary && <GlassLayer tone={variant === 'gradient' ? 'feature' : 'control'} />}
+      {isLiquidGlass && variant !== 'quiet' ? <DepthGlass level={primary ? 'strong' : 'medium'}
+        roundness={radius.control} tone={primary ? 'brand' : 'clear'} rimOnly={variant === 'danger'} />
+        : primary && <GlassLayer tone={variant === 'gradient' ? 'feature' : 'control'} />}
       {icon && <Icon name={icon} size={17} color={foreground} />}
       <Text style={[ui.buttonText, { color: foreground }]}>{label}</Text>
     </Pressable>
@@ -135,10 +140,11 @@ export function SearchField({ label, value, onChangeText, onFocus, onBlur, varia
   const glazed = variant === 'glass';
   const neutral = variant === 'neutral';
   const capsule = glazed || neutral;
+  const searchRadius = capsule ? radius.pill : radius.control;
   return <View style={[ui.search, capsule && ui.glassSearch,
     neutral && ui.neutralSearch]}>
-    {glazed && (isLiquidGlass ? <LiquidSurface finish="search" roundness={radius.pill} />
-      : <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />)}
+    {isLiquidGlass ? <DepthGlass level="medium" tone={glazed ? 'brand' : 'clear'} roundness={searchRadius} />
+      : glazed && <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />}
     <Icon name="search-outline" size={19} color={colors.quiet} />
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
       onFocus={capsule ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
@@ -151,6 +157,7 @@ export function SearchField({ label, value, onChangeText, onFocus, onBlur, varia
 
 export function Notice({ children, action, onAction }: { children: string; action?: string; onAction?: () => void }) {
   return <View style={ui.notice} accessibilityLiveRegion="polite">
+    {isLiquidGlass && <DepthGlass level="light" roundness={radius.control} rimOnly />}
     <Icon name="information-circle-outline" size={20} color={colors.accent} />
     <Text style={[styles.muted, styles.grow]}>{children}</Text>
     {action && onAction && <Button label={action} variant="quiet" onPress={onAction} />}
@@ -213,8 +220,9 @@ export function Sheet({ title, onClose, children, footer, tone, surface, avoidKe
         transform: [{ translateY: entering.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
       }]}>
       <SafeAreaView edges={['bottom', 'left', 'right']} accessibilityViewIsModal style={[ui.sheet, !!surface && { backgroundColor: 'transparent' }]}>
-        {surface ?? (isLiquidGlass ? <LiquidSurface finish={tone === 'neutral' ? 'quiet' : 'sheet'}
-          roundness={radius.sheet} /> : (tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />))}
+        {surface ?? (isLiquidGlass ? <DepthGlass level="strong" roundness={radius.sheet}
+          corners={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} />
+          : (tone !== 'neutral' && <GlassLayer tone="chrome" roundness={radius.sheet} />))}
         <View accessibilityElementsHidden style={ui.grip} />
         <View style={ui.sheetTop}>
           <Text accessibilityRole="header" style={[styles.section, styles.grow]}>{title}</Text>
@@ -258,7 +266,10 @@ export function Segments<T extends string>({ options, value, onChange, label }: 
 export function SettingGroup({ children, title }: { children: ReactNode; title?: string }) {
   return <View style={ui.settings}>
     {!!title && <View style={ui.settingLabel}><Section title={title} /></View>}
-    <View style={ui.settingRows}>{children}</View>
+    <View style={ui.settingRows}>
+      {isLiquidGlass && <DepthGlass level="light" roundness={radius.surface} rimOnly />}
+      {children}
+    </View>
   </View>;
 }
 

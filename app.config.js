@@ -22,15 +22,15 @@ module.exports = ({ config: base }) => {
     return [plugin[0], { ...plugin[1], cameraPermission, microphonePermission }];
   });
   const liquidGlass = process.env.EXPO_PUBLIC_PENLIA_LIQUID_GLASS === '1';
-  const packageId = liquidGlass ? 'app.penlia.mobile.liquidglass' : 'app.penlia.mobile.preview';
+  const packageId = liquidGlass ? 'app.penlia.mobile.liquidglass.depth' : 'app.penlia.mobile.preview';
   return {
     ...config,
-    name: liquidGlass ? '朋聊 · Liquid Glass 体验版' : config.name,
-    version: '0.1.11',
-    scheme: liquidGlass ? 'penlia-liquid' : 'penlia-preview',
+    name: liquidGlass ? '朋聊 · Liquid Glass 深度体验版' : config.name,
+    version: liquidGlass ? '0.1.12' : '0.1.11',
+    scheme: liquidGlass ? 'penlia-liquid-depth' : 'penlia-preview',
     platforms: ['android', 'ios', 'web'],
     plugins: [...plugins, './plugins/with-penlia-call-pip', ['expo-camera', { cameraPermission, microphonePermission, barcodeScannerEnabled: true }]],
-    android: { ...config.android, package: packageId, versionCode: 23, ...(liquidGlass && { allowBackup: false }) },
+    android: { ...config.android, package: packageId, versionCode: liquidGlass ? 24 : 23, ...(liquidGlass && { allowBackup: false }) },
     ios: { ...config.ios, bundleIdentifier: packageId },
   };
 };

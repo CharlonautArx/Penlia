@@ -1,15 +1,14 @@
-name: Liquid Glass native Release and device review
+name: Liquid Glass Depth Android Release
 on:
   push:
-    branches: [codex/liquid-glass-native]
-    tags: [penlia-liquid-glass-device-*]
+    branches: [codex/liquid-glass-depth]
     paths: ['src/**', 'modules/**', 'app.config.js', 'tooling/**', '.github/workflows/liquid-glass-native.yml', 'scripts/liquid-glass-check.py']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
-    if: github.ref_type != 'tag' && !contains(github.event.head_commit.message, '[glass-harness]')
+    if: github.ref == 'refs/heads/codex/liquid-glass-depth'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     strategy:
@@ -78,8 +77,8 @@ jobs:
         run: |
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs out/Penlia-${{ matrix.abi }}.apk > /dev/null
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging out/Penlia-${{ matrix.abi }}.apk | tee out/badging.txt
-          grep -Fx "application-label:'朋聊 · Liquid Glass 体验版'" out/badging.txt
-          grep -F "package: name='app.penlia.mobile.liquidglass'" out/badging.txt
+          grep -Fx "application-label:'朋聊 · Liquid Glass 深度体验版'" out/badging.txt
+          grep -F "package: name='app.penlia.mobile.liquidglass.depth'" out/badging.txt
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump xmltree out/Penlia-${{ matrix.abi }}.apk AndroidManifest.xml |
             grep -F 'android:allowBackup(0x01010280)=(type 0x12)0x0' > out/data-isolation.txt
           echo "$GITHUB_SHA" > out/source.txt
@@ -103,7 +102,7 @@ jobs:
           retention-days: 30
   device:
     needs: build
-    if: ${{ !cancelled() && (needs.build.result == 'success' || github.ref_type == 'tag') }}
+    if: needs.build.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 38
     permissions:
@@ -123,16 +122,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if test "$GITHUB_REF_TYPE" = tag; then
-            [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-device-([0-9]+)(-r[0-9]+)?$ ]]
-            build_run="${BASH_REMATCH[1]}"
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" > "$RUNNER_TEMP/build-run.json"
-            jq -e --arg repo "$GITHUB_REPOSITORY" '.head_repository.full_name == $repo and .head_branch == "codex/liquid-glass-native" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/build-run.json"
-            client=$(jq -er .head_sha "$RUNNER_TEMP/build-run.json")
-          else
-            build_run="$GITHUB_RUN_ID"
-            client="$GITHUB_SHA"
-          fi
+          build_run="$GITHUB_RUN_ID"
+          client="$GITHUB_SHA"
           echo "run=$build_run" >> "$GITHUB_OUTPUT"
           echo "source=$client" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -145,17 +136,15 @@ jobs:
         run: |
           test "$(cat out/source.txt)" = "${{ steps.binary.outputs.source }}"
           sha256sum -c out/sha256.txt
-      - name: Retrieve the unmodified original simulator package
-        if: ${{ !contains(github.event.head_commit.message, '[glass-review]') }}
+      - name: Retrieve the approved Liquid Glass simulator package
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           github-token: ${{ github.token }}
-          run-id: 45998981394
-          name: together-x86_64-f78d89295d78762259b2862ee5bdc799a14d1ab6
-          path: original/
-      - name: Verify the original artifact checksum
-        if: ${{ !contains(github.event.head_commit.message, '[glass-review]') }}
-        run: sed 's#  out/#  original/#' original/sha256.txt | sha256sum -c
+          run-id: 46060098594
+          name: liquid-glass-x86_64-f5e005cdb798a65781b0ed2a42d1b8af7d305fcf
+          path: approved/
+      - name: Verify the approved simulator package
+        run: echo 'e19a22a1e3f89f87a6d87b651ee8f5197938cf1dec5a78b5000ecb60a8666b3c  approved/Penlia-x86_64.apk' | sha256sum -c
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
         with:
           cmdline-tools-version: '16111833'

@@ -8,6 +8,8 @@ import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 
 import { useFontScale } from '../../components/Typography';
+import { DepthGlass, useChatGlassBackdrop } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import { useAppearance } from '../../components/appearance';
 import { GlassLayer, UnreadMark } from '../../components/material';
 import { Avatar, Icon, IconButton } from '../../components/ui';
@@ -89,6 +91,9 @@ export function ChatBubble({ mine, first, last, author, avatar, children, onActi
         delayLongPress={380}
         style={({ pressed }) => [bare ? ui.bareBubble : [ui.bubble, mine ? ui.sent : ui.received,
           !last && (mine ? ui.sentJoined : ui.receivedJoined)], pressed && ui.pressedBubble]}>
+        {isLiquidGlass && !bare && <DepthGlass level="light" tone={mine ? 'sent' : 'message'}
+          roundness={radius.surface} corners={mine ? { borderBottomRightRadius: last ? radius.small : 5 }
+            : { borderBottomLeftRadius: last ? radius.small : 5 }} />}
         {children}
       </Pressable>
     </View>
@@ -129,6 +134,7 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
 }) {
   const { scheme } = useAppearance();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const backdrop = useChatGlassBackdrop();
   useEffect(() => {
     if (!focusKey) return;
     const timer = setTimeout(() => input.current?.focus(), 230);
@@ -152,7 +158,10 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
     {mode && <View style={ui.composerMode}>{mode}</View>}
     <View style={ui.composerControls}>
       {!floating && tools}
-      <View style={[ui.composerEntry, floating && ui.floatingEntry, floating && (dark ? ui.neutralDark : ui.neutralLight)]}>
+      <View style={[ui.composerEntry, floating && ui.floatingEntry, floating && (dark ? ui.neutralDark : ui.neutralLight),
+        isLiquidGlass && ui.transparent]}>
+        {isLiquidGlass && <DepthGlass level={floating ? 'strong' : 'medium'}
+          roundness={floating ? 26 : radius.surface} source={backdrop} />}
         {floating && tools}
         <TextInput ref={input} accessibilityLabel={label} placeholder={placeholder} placeholderTextColor={colors.quiet}
           cursorColor={floating ? ink : undefined}
@@ -170,9 +179,11 @@ export function MessageComposer({ label, placeholder, value, onChange, maxLength
         style={({ pressed }) => [ui.send, floating && ui.floatingSend,
           !floating && sendDisabled && ui.sendDisabled, pressed && ui.pressedBubble]}>
         {floating ? <View pointerEvents="none" style={[ui.sendFace, dark ? ui.neutralDark : ui.neutralLight, sendDisabled && ui.sendFaceDisabled]}>
+          {isLiquidGlass && <DepthGlass level="medium" roundness={18} tone={sendDisabled ? 'clear' : 'brand'} />}
           <Icon name="arrow-up" size={19} color={ink} />
         </View> : <>
-          {!sendDisabled && <GlassLayer tone="control" roundness={radius.pill} />}
+          {!sendDisabled && (isLiquidGlass ? <DepthGlass level="strong" roundness={radius.pill} tone="brand" />
+            : <GlassLayer tone="control" roundness={radius.pill} />)}
           <Icon name="arrow-up" size={21} color={sendDisabled ? colors.quiet : colors.ink} />
         </>}
       </Pressable>
@@ -226,4 +237,5 @@ const ui = StyleSheet.create({
   sendFace: { width: 36, height: 36, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   sendFaceDisabled: { opacity: 0.55 },
   sendDisabled: { backgroundColor: colors.search },
+  transparent: { backgroundColor: 'transparent', borderColor: 'transparent' },
 });
