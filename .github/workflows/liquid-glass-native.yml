@@ -2,6 +2,7 @@ name: Liquid Glass Depth Android Release
 on:
   push:
     branches: [codex/liquid-glass-depth]
+    tags: [penlia-liquid-glass-depth-qa-*]
     paths: ['src/**', 'modules/**', 'app.config.js', 'tooling/**', '.github/workflows/liquid-glass-native.yml', 'scripts/liquid-glass-check.py']
   workflow_dispatch:
 permissions:
@@ -102,7 +103,7 @@ jobs:
           retention-days: 30
   device:
     needs: build
-    if: needs.build.result == 'success'
+    if: ${{ !cancelled() && (needs.build.result == 'success' || github.ref_type == 'tag') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 38
     permissions:
@@ -111,7 +112,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: ${{ contains(github.event.head_commit.message, '[glass-review]') && fromJSON('[35]') || fromJSON('[35,30]') }}
+        api: ${{ (github.ref_type == 'tag' || contains(github.event.head_commit.message, '[glass-review]')) && fromJSON('[35]') || fromJSON('[35,30]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -122,8 +123,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          build_run="$GITHUB_RUN_ID"
-          client="$GITHUB_SHA"
+          if test "$GITHUB_REF_TYPE" = tag; then
+            [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-depth-qa-([0-9]+)(-r[0-9]+)?$ ]]
+            build_run="${BASH_REMATCH[1]}"
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" > "$RUNNER_TEMP/build-run.json"
+            jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .head_branch == "codex/liquid-glass-depth" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/build-run.json"
+            client=$(jq -er .head_sha "$RUNNER_TEMP/build-run.json")
+          else
+            build_run="$GITHUB_RUN_ID"
+            client="$GITHUB_SHA"
+          fi
           echo "run=$build_run" >> "$GITHUB_OUTPUT"
           echo "source=$client" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -186,7 +195,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -gpu host -timezone Asia/Shanghai -no-skin -skin 540x1200 -memory 3072 -cores 4 -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front emulated
-          script: /usr/bin/python3 scripts/liquid-glass-check.py out/Penlia-x86_64.apk evidence ${{ contains(github.event.head_commit.message, '[glass-review]') && '--core' || '--full' }}
+          script: /usr/bin/python3 scripts/liquid-glass-check.py out/Penlia-x86_64.apk evidence ${{ github.ref_type == 'tag' && '--material' || contains(github.event.head_commit.message, '[glass-review]') && '--core' || '--full' }}
       - name: Scan the evidence allowlist
         id: scan_evidence
         if: always()

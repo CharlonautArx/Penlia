@@ -233,7 +233,7 @@ def protected_material():
         diff = ImageChops.difference(old, new)
         log('Dock pixels changed: ' + str(sum(pixel != (0,0,0) for pixel in diff.getdata())))
         assert not diff.getbbox(), 'Protected dock pixels changed on the initial inbox'
-    back()
+    route('')
     find('搜索会话')
 
 check('protected-dock-and-switch', protected_material)
@@ -249,7 +249,26 @@ if (OUT/'00-original-inbox.png').exists() and (OUT/'01-inbox.png').exists():
         draw.text((7,4),'Approved Liquid Glass',fill='#303038')
         draw.text((571,4),'Liquid Glass Depth',fill='#303038')
         board.save(OUT/'00-inbox-comparison.png')
-if MODE != '--core':
+def core_materials():
+    for package, name in [(BASE, 'approved'), (PKG, 'depth')]:
+        for path, screen_id, label in [
+            ('chat/demo-xiaoman', 'chat', '表情'),
+            ('gathering/preview-gathering?together=1', 'gathering', '活动操作'),
+            ('life?together=1', 'together', '约朋友一起玩')
+        ]:
+            route(path, package)
+            find(label)
+            screen(f'{name}-{screen_id}')
+        route('gathering/preview-gathering?together=1', package)
+        tap('活动操作')
+        find('预览分享内容')
+        screen(f'{name}-actions')
+        back()
+
+if MODE in ('--material', '--full'):
+    check('core-materials-native', core_materials)
+
+if MODE == '--full':
     for route_path, image_name, expected in [
         ('chat/demo-xiaoman','06-chat','表情'),
         ('group/preview-weekend','07-group',None),
