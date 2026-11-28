@@ -1,0 +1,18 @@
+Android API 35; ABI x86_64; offline; 540x1200 / 240dpi
+Artifact SHA-256 5dd07540aac8942140b2646730947e5b15dd8727a3a81441c0f01ebe7bd19a70
+PASS side-by-side-installation
+LaunchState: COLD
+TotalTime: 628
+PASS cold-start-inbox
+Switch pixels changed: 0
+Dock pixels changed: 0
+PASS protected-dock-and-switch
+PASS navigation-scroll-keyboard
+AGSL active; fallback triggered False
+PASS sdk-optics-path
+Total frames rendered: 110
+Janky frames: 77 (70.00%)
+90th percentile: 73ms
+95th percentile: 77ms
+PASS six-scroll-hwui
+PASS core-materials-native
