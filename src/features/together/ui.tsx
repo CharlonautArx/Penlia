@@ -1,4 +1,5 @@
 import { DepthGlass } from '../../components/depth-glass';
+import { LiquidSurface } from '../../components/liquid-surface';
 import { useOpaqueMaterial } from '../../components/liquid-access';
 import { isLiquidGlass } from '../../demo/mode';
 import { Backdrop } from './Backdrop';
@@ -193,7 +194,10 @@ function Navigation({
 
 function TogetherBackdropGlass({ target }: { target: Target }) {
   const opaque = useOpaqueMaterial();
-  return <DepthGlass level="strong" roundness={30} source={{ target, opaque }} />;
+  return <>
+    <DepthGlass level="strong" roundness={30} source={{ target, opaque }} />
+    <LiquidSurface finish="quiet" roundness={30} rimOnly />
+  </>;
 }
 
 export function Screen(props: ComponentProps<typeof UI.Screen>) {
@@ -262,6 +266,7 @@ export function Invitation({
         locations={[0, 0.38, 1]}
         style={StyleSheet.absoluteFill}
       />
+      {isLiquidGlass && <DepthGlass level="medium" roundness={24} rimOnly />}
       <View style={local.caption}>
         <Text style={local.meta}>{detail}</Text>
         <Text accessibilityRole="header" style={local.title}>

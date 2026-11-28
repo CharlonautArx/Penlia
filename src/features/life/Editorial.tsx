@@ -1,3 +1,5 @@
+import { DepthGlass } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -9,7 +11,9 @@ export function LifeLead({ title, detail, icon, tone = 'paper', children }: {
   title: string; detail?: string; icon?: IconName; tone?: 'paper' | 'rose' | 'mint'; children?: ReactNode;
 }) {
   return <View style={[local.lead, tone === 'mint' && local.mint]}>
-    {tone === 'rose' && <GlassLayer roundness={radius.surface} />}
+    {isLiquidGlass ? <DepthGlass level="medium" roundness={radius.surface} rimOnly={tone === 'mint'}
+      tone={tone === 'rose' ? 'brand' : 'clear'} />
+      : tone === 'rose' && <GlassLayer roundness={radius.surface} />}
     {!!icon && <View style={local.leadIcon}><Icon name={icon} color={colors.accent} size={22} /></View>}
     {!!detail && <Text style={styles.muted}>{detail}</Text>}
     <Text accessibilityRole="header" style={local.title}>{title}</Text>

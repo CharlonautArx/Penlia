@@ -1,3 +1,5 @@
+import { DepthGlass } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import { StickerText } from '../stickers/StickerText';
 import { clipStickerText, stickerCaption } from '../stickers/wire';
 import { usePlaceDelivery } from '../play/PlaceShare';
@@ -154,7 +156,8 @@ function MessageMenu({ anchor, actions, onClose }: {
       <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} />
       <Animated.View accessibilityViewIsModal accessibilityLabel="消息操作" style={[local.menu, scheme === 'dark' && local.dark,
         { width: menuWidth, left: x, top, opacity: progress, transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}>
-        <LinearGradient pointerEvents="none" colors={['#FFFFFF20', '#FFFFFF00', '#AEFFF81C']} style={StyleSheet.absoluteFill} />
+        {isLiquidGlass ? <DepthGlass level="strong" roundness={radius.surface} />
+          : <LinearGradient pointerEvents="none" colors={['#FFFFFF20', '#FFFFFF00', '#AEFFF81C']} style={StyleSheet.absoluteFill} />}
         {actions.map((action) => <Pressable accessibilityRole="button" accessibilityLabel={action.label} key={action.label} onPress={action.run}
           style={({ pressed }) => [local.action, { minHeight: rowHeight }, pressed && local.pressed]}>
           <Icon name={action.icon} size={21} color={(action.label === '删除' || action.label === '撤回') ? colors.danger : colors.ink} /><Text style={styles.small}>{action.label}</Text>

@@ -1,3 +1,4 @@
+import { DepthGlass } from '../../components/depth-glass';
 import { isLiquidGlass } from '../../demo/mode';
 import { useFontSize } from '../../components/Typography';
 import { fontSizes } from '../../font-scale';
@@ -40,6 +41,7 @@ export default function MeScreen() {
 
   return <Screen>
     <View style={local.profile}>
+      {isLiquidGlass && <DepthGlass level="medium" roundness={radius.surface} />}
       <Pressable accessibilityRole="button" accessibilityLabel="查看个人资料" onPress={() => router.push('/profile')}
         style={({ pressed }) => [StyleSheet.absoluteFill, pressed && local.profilePressed]} />
       <View pointerEvents="none" style={local.profileContent}>

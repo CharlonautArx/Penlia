@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import { useTogetherRouter } from '../../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
 import { useLocalSearchParams } from 'expo-router';
@@ -365,9 +366,9 @@ function CollectionAlbum({ id }: { id: string }) {
   if (!data) return <Empty busy>正在读取相册…</Empty>;
   if (!data.media.length) return <Empty>还没有照片或视频。</Empty>;
   return data.media.map((item) => (
-    <View key={item.id} style={styles.card}>
+    <MaterialCard key={item.id}>
       <Text style={styles.strong}>{item.title} · {item.author}</Text>
       <MomentMediaTile item={item} />
-    </View>
+    </MaterialCard>
   ));
 }

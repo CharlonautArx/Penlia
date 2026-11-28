@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { MaterialCard, Button, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { AssetPicker, DataEmpty, MediaStrip, uploadAssets } from '../../features/life/ui';
 import { MemberChoices } from '../../features/privacy/MemberChoices';
 import { type LocalMedia, type Media } from '../../features/moments/media';
@@ -22,12 +22,12 @@ export type LifeStatus = {
 
 export function StatusBlock({ status }: { status: LifeStatus }) {
   return (
-    <View style={styles.card}>
+    <MaterialCard>
       <Text style={styles.strong}>
         {[status.emoji, status.caption].filter(Boolean).join(' ') || '状态'}
       </Text>
       <MediaStrip media={status.media} />
-    </View>
+    </MaterialCard>
   );
 }
 export default function Status() {

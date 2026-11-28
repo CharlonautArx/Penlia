@@ -1,3 +1,4 @@
+import { MaterialCard } from '../components/ui';
 import { ReminderRows } from '../features/together/ReminderRows';
 import { useTogether, useTogetherRouter } from '../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
@@ -139,7 +140,7 @@ function Wishes({title,place}:{title?:string;place?:string}) {
         <Empty icon="heart-outline">有想做的事，先记下来。允许彼此匹配时才会出现共振。</Empty>
       )}
       {data?.wishes.map((wish) => (
-        <View key={wish.id} style={styles.card}>
+        <MaterialCard key={wish.id}>
           <ListRow
             title={wish.description}
             detail={categories[wish.category] + ' · ' + (wish.active ? scopes[wish.scope] : '已暂停')}
@@ -160,7 +161,7 @@ function Wishes({title,place}:{title?:string;place?:string}) {
               }
             />
           </View>
-        </View>
+        </MaterialCard>
       ))}
       {editor && (
         <WishEditor
@@ -316,7 +317,7 @@ function Collections() {
       />
       {!data?.collections.length && <Empty icon="book-outline">把共同经历记在一起，邀请朋友加入。</Empty>}
       {data?.collections.map((item) => (
-        <View key={item.id} style={styles.card}>
+        <MaterialCard key={item.id}>
           <ListRow
             title={item.title}
             detail={item.owner + ' · ' + (item.kind === 'journal' ? '共同日记' : '共创动态')}
@@ -346,7 +347,7 @@ function Collections() {
               ))}
             </View>
           )}
-        </View>
+        </MaterialCard>
       ))}
       <ListRow
         title="我贡献的内容"

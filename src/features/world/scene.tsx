@@ -1,4 +1,4 @@
-import { LiquidSurface } from '../../components/liquid-surface';
+import { DepthGlass } from '../../components/depth-glass';
 import { isLiquidGlass } from '../../demo/mode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -50,7 +50,7 @@ export function WorldScene({ space, records, choose, add, greet }: {
                 accessibilityLabel={record ? record.sourceTitle ?? record.body : `在第 ${y+1} 行第 ${x+1} 格放摆件`}
                 onPress={() => record ? choose(record) : add(x,y)}
                 style={({ pressed }) => [local.slot, dark && local.darkSlot, !!record && (dark ? local.darkOccupied : local.occupied), pressed && local.pressed]}>
-                {isLiquidGlass && !!record && <LiquidSurface finish="quiet" roundness={11} />}
+                {isLiquidGlass && !!record && <DepthGlass level="medium" roundness={11} />}
                 <Icon name={icon ? decorIcons[icon] : 'add-outline'} color={sceneInk} />
                 {icon && <Text numberOfLines={1} style={[local.label, { color: sceneInk }]}>{record?.sourceId ? '纪念物' : decorNames[icon]}</Text>}
               </Pressable>

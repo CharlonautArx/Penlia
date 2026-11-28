@@ -154,6 +154,17 @@ jobs:
           path: approved/
       - name: Verify the approved simulator package
         run: echo 'e19a22a1e3f89f87a6d87b651ee8f5197938cf1dec5a78b5000ecb60a8666b3c  approved/Penlia-x86_64.apk' | sha256sum -c
+      - name: Retrieve the original offline simulator package for the three-install check
+        if: github.ref_type != 'tag' && !contains(github.event.head_commit.message, '[glass-review]')
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45998981394
+          name: together-x86_64-f78d89295d78762259b2862ee5bdc799a14d1ab6
+          path: original/
+      - name: Verify the original simulator checksum
+        if: github.ref_type != 'tag' && !contains(github.event.head_commit.message, '[glass-review]')
+        run: sed 's#  out/#  original/#' original/sha256.txt | sha256sum -c
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
         with:
           cmdline-tools-version: '16111833'

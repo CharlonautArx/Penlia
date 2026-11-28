@@ -1,3 +1,4 @@
+import { DepthGlass } from '../../components/depth-glass';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -5,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GlassLayer } from '../../components/material';
 import { useFontScale } from '../../components/Typography';
 import { Empty, Icon, Notice, Screen, Sheet } from '../../components/ui';
-import { isUiDemo } from '../../demo/mode';
+import { isLiquidGlass, isUiDemo } from '../../demo/mode';
 import { pilot } from '../../features/design/pilot';
 import { Chips, PlaceCard } from '../../features/play/Cards';
 import { usePlaces } from '../../features/play/catalog';
@@ -30,7 +31,8 @@ export default function PlayScreen() {
         <View style={local.headingActions}>
           <Pressable accessibilityRole="button" accessibilityLabel={'选择城市，当前' + city}
             onPress={() => setChoosingCity(true)} style={({ pressed }) => [local.city, pressed && pilot.pressed]}>
-            <GlassLayer tone="chrome" roundness={radius.pill} />
+            {isLiquidGlass ? <DepthGlass level="medium" roundness={radius.pill} />
+              : <GlassLayer tone="chrome" roundness={radius.pill} />}
             <Icon name="location-outline" size={16} color={colors.ink} />
             <Text style={local.cityLabel}>{city}</Text>
             <Icon name="chevron-down-outline" size={13} color={colors.ink} />

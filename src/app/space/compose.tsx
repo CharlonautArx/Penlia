@@ -1,3 +1,5 @@
+import { DepthGlass } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import { formatHandle } from '../../services/handle';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -15,7 +17,7 @@ import { AudienceSheet } from '../../features/space/AudienceSheet';
 import { selectPhotos, SpacePhoto } from '../../features/space/media';
 import { audienceName, blankDraft, copyDraft, selectableAudience, type Entry, type EntryDraft, type Photo } from '../../features/space/model';
 import { useSpace } from '../../features/space/store';
-import { colors, styles, type } from '../../theme';
+import { colors, radius, styles, type } from '../../theme';
 
 export default function ComposeScreen() {
   const { kind, edit } = useLocalSearchParams<{ kind?: string; edit?: string }>();
@@ -117,6 +119,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
     {restored && <Text style={local.saved}>已恢复本机草稿</Text>}
     {!!(error || state.error) && <Notice>{error || state.error}</Notice>}
     <View style={local.paper}>
+      {isLiquidGlass && <DepthGlass level="medium" roundness={radius.control} rimOnly />}
       {journal && <TextInput accessibilityLabel="日志标题" placeholder="标题" maxLength={80}
         placeholderTextColor={colors.quiet} value={draft.title} onChangeText={(title) => setDraft({ ...draft, title })}
         style={local.title} />}
@@ -151,6 +154,7 @@ function Editor({ initial, entry, restored }: { initial: EntryDraft; entry?: Ent
       </View>
     </View>
     <View style={local.paper}>
+      {isLiquidGlass && <DepthGlass level="medium" roundness={radius.control} rimOnly />}
       <ListRow title="标注地点" detail={draft.location || '手动填写'} left={<Icon name="location-outline" />}
         onPress={() => { setLocation(draft.location); setPanel('location'); }} />
       <ListRow title="可见范围" detail={audienceName(draft.audience)} left={<Icon name="lock-closed-outline" />}

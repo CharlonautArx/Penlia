@@ -1,3 +1,5 @@
+import { DepthGlass } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import { type ComponentRef, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,7 +45,8 @@ export function GatheringTimeFields({ value, change }: { value: string; change: 
       <View style={[local.backdrop, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
         <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={close} />
         <View accessibilityViewIsModal style={[local.panel, { maxHeight: height - insets.top - insets.bottom - 24 }]}>
-          <GlassLayer tone="chrome" roundness={radius.surface} />
+          {isLiquidGlass ? <DepthGlass level="strong" roundness={radius.surface} />
+            : <GlassLayer tone="chrome" roundness={radius.surface} />}
           <View style={local.header}>
             <Text accessibilityRole="header" style={[styles.strong, styles.grow]}>{picker === 'date' ? '选择日期' : '选择时间'}</Text>
             <IconButton label="关闭" icon="close" onPress={close} />

@@ -10,7 +10,7 @@ import type { RelationGroup } from '../privacy/types';
 import { errorMessage } from '../../services/api';
 import { useFriends } from '../../services/friends';
 import { useSession } from '../../services/session';
-import { colors, styles } from '../../theme';
+import { colors, radius, styles } from '../../theme';
 
 export const categories = {
   food: '吃饭',
@@ -101,7 +101,7 @@ export function Field({ title, ...props }: TextInputProps & { title: string }) {
     <Text style={styles.strong}>{title}</Text>
     {isLiquidGlass ? <View>
       {input}
-      <DepthGlass level="medium" roundness={12} rimOnly />
+      <DepthGlass level="medium" roundness={radius.control} rimOnly />
     </View> : input}
   </View>;
 }

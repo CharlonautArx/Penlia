@@ -2,7 +2,7 @@ import { LiquidSwitch } from '../../components/liquid-switch';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Text, TextInput, View, type ImageSourcePropType } from 'react-native';
-import { Avatar, Button, Empty, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
+import { MaterialCard, Avatar, Button, Empty, IconButton, ListRow, Notice, Screen, Section, Sheet } from '../../components/ui';
 import { GroupPortrait, useGroupPortraitPicker } from './GroupPortrait';
 import { ScanCode } from '../privacy/CodeSheet';
 import type { ChatGroup, Invite } from '../privacy/types';
@@ -82,7 +82,7 @@ export function GroupChats({ render }: { render?: (props: {
       <Section title="待确认的邀请" />
       {!invites.length && <Text style={styles.muted}>有人邀请你时，会在这里等你确认。</Text>}
       {invites.map((invite) => (
-        <View key={invite.id} style={styles.card}>
+        <MaterialCard key={invite.id}>
           <ListRow title={invite.name} detail={invite.inviter + ' 邀请你加入 · ' + invite.memberCount + ' 位成员'}
             left={<GroupPortrait name={invite.name} avatar={invite.avatar} />} onPress={() => void run(async () => {
               const result = await request<{ members: { name: string; avatar?: string; portrait?: ImageSourcePropType }[] }>(
@@ -93,20 +93,20 @@ export function GroupChats({ render }: { render?: (props: {
             <Button label="拒绝" variant="quiet" disabled={busy} onPress={() => decide(invite, false)} />
             <Button label="接受" variant="gradient" disabled={busy} onPress={() => decide(invite, true)} />
           </View>
-        </View>
+        </MaterialCard>
       ))}
       <Section title="我加入的群聊" />
       {!groups && !error && <Empty busy>正在读取群聊…</Empty>}
       {groups?.length === 0 && <Empty>暂无群聊。你可以创建属于朋友的小群。</Empty>}
       {groups?.map((group) => (
-        <View key={group.id} style={styles.card}>
+        <MaterialCard key={group.id}>
           <ListRow
             title={group.name}
             detail={group.memberCount + ' 位成员'}
             left={<GroupPortrait name={group.name} avatar={group.avatar} />}
             onPress={() => open(group.id)}
           />
-        </View>
+        </MaterialCard>
       ))}
       {preview && <Sheet title={preview.invite.name} onClose={() => setPreview(undefined)}>
         <Section title="群成员" />

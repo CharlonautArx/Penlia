@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import { useTogether, useTogetherRouter } from '../together/navigation';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
@@ -334,7 +335,7 @@ function ItemCard({
   const [amount,setAmount]=useState(String(item.quantity??1));
   const address = addressOf(item);
   return (
-    <View style={styles.card}>
+    <MaterialCard>
       <View style={styles.row}>
         <Icon name={item.kind === 'place' ? (item.latitude == null ? 'bookmark-outline' : 'location-outline') : 'bookmark-outline'}
           color={colors.accent} size={21} />
@@ -362,7 +363,7 @@ function ItemCard({
           </>
         )}
       </View>
-    </View>
+    </MaterialCard>
   );
 }
 function ItemInformation({ item, personalCollection = false }: { item: Item; personalCollection?: boolean }) {
@@ -421,7 +422,7 @@ function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => v
     min === max ? 50 : 10 + ((n - min) / (max - min)) * 80;
   const pinColors = { want: '#AE3E63', visited: '#1B7767', done: '#6653A4', recommended: '#98602A' };
   return (
-    <View style={styles.card}>
+    <MaterialCard>
       <Section title="地点示意图" />
       <Text style={styles.small}>按已授权点位的经纬度绘制。点按标记查看地点。</Text>
       <View style={{ height: 205, backgroundColor: colors.ice, borderRadius: radius.control, overflow: 'hidden' }}>
@@ -470,7 +471,7 @@ function PlacePlot({ items, select }: { items: Item[]; select: (item: Item) => v
           </Pressable>
         ))}
       </View>
-    </View>
+    </MaterialCard>
   );
 }
 
@@ -481,7 +482,7 @@ function Resonance() {
     '/p2/place-resonance',
   );
   return data?.matches.length ? (
-    <View style={styles.card}>
+    <MaterialCard>
       <Section title="你们都想去" />
       {data.matches.map((item) => (
         <ListRow
@@ -496,7 +497,7 @@ function Resonance() {
           }
         />
       ))}
-    </View>
+    </MaterialCard>
   ) : null;
 }
 

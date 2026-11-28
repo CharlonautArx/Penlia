@@ -14,6 +14,7 @@ from PIL import Image, ImageChops
 APK, OUT, MODE = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 PKG = 'app.penlia.mobile.liquidglass.depth'
 BASE = 'app.penlia.mobile.liquidglass'
+ORIGINAL = 'app.penlia.mobile.preview'
 API = int(subprocess.check_output(['adb','shell','getprop','ro.build.version.sdk'],text=True).strip())
 OUT.mkdir(exist_ok=True)
 errors = []
@@ -180,6 +181,8 @@ def details(path, name, expected=None):
 
 adb('install', '-r', str(APK))
 adb('install', '-r', 'approved/Penlia-x86_64.apk')
+if MODE == '--full':
+    adb('install', '-r', 'original/Penlia-x86_64.apk')
 shell('wm','size','540x1200')
 shell('wm','density','240')
 shell('settings','put','system','font_scale','1.30' if API < 31 else '1.0')
@@ -202,8 +205,10 @@ def original_comparison():
     screen('00-approved-switch')
     packages = shell('pm','list','packages','-U')
     uid = lambda name: re.search(r'package:' + re.escape(name) + r' uid:(\d+)', packages)[1]
-    assert uid(BASE) != uid(PKG), 'Expected separate application UIDs'
-    for app in (BASE,PKG):
+    versions = (BASE, PKG, ORIGINAL) if MODE == '--full' else (BASE, PKG)
+    assert len({uid(app) for app in versions}) == len(versions), 'Expected separate application UIDs'
+    log('Verified private data directories for: ' + ', '.join(versions))
+    for app in versions:
         entry = shell('dumpsys','package',app)
         assert 'dataDir=/data/user/0/' + app in entry
     shell('am','force-stop',BASE)
@@ -268,6 +273,63 @@ def core_materials():
 if MODE in ('--material', '--full'):
     check('core-materials-native', core_materials)
 
+# Additional source routes and meaningful path variants are verified with local fixtures.
+# Titles validate that the intended route, rather than only the package window, opened.
+DEPTH_ROUTES = [
+    ('glass-preview', 'experience-index', '体验入口'),
+    ('chat-search/demo-xiaoman', 'chat-search', '查找聊天记录'),
+    ('chat-background', 'chat-background', '聊天背景'),
+    ('chat-background?mode=voice', 'voice-background', '语音通话背景'),
+    ('group-settings/preview-weekend', 'group-settings', '群资料和邀请'),
+    ('groups', 'groups', '群聊'),
+    ('friend-invite', 'friend-invite', '添加好友'),
+    ('friend-requests/relationship-demo-taozi', 'friend-public', '公开资料'),
+    ('person/demo-xiaoman', 'friend-profile', '好友主页'),
+    ('person/demo-self', 'own-profile', '个人主页'),
+    ('pet/demo-xiaoman', 'paired-pet', '共同小宠物'),
+    ('profile-field/name', 'edit-name', '修改昵称'),
+    ('profile-field/username', 'edit-handle', '修改朋聊号'),
+    ('profile-field/bio', 'edit-bio', '修改个性签名'),
+    ('font-size', 'font-size', '字体大小'),
+    ('private-moment', 'private-moment', '发布动态'),
+    ('space/privacy', 'space-privacy', '空间隐私'),
+    ('space/demo-xiaoman', 'space', '本机空间'),
+    ('space/album/sample-album-days', 'album', '慢慢过的日子'),
+    ('space/post/sample-thought-slow', 'space-post', '动态详情'),
+    ('space/compose?kind=journal', 'compose-journal', '写日志'),
+    ('life/moment/00000000-0000-4000-8000-000000000021', 'moment-detail', '动态详情'),
+    ('life/moment-notifications', 'moment-notifications', '动态消息'),
+    ('life/timeline/demo-xiaoman', 'friend-timeline', '小满'),
+    ('life/capsule-drafts', 'capsule-drafts', '我的胶囊投稿'),
+    ('life/project/preview-trip?kind=trip&together=1', 'trip', '临海两日'),
+    ('life/project/preview-map?kind=map&together=1', 'map', '散步地图'),
+    ('life/project/preview-capsule?kind=capsule&together=1', 'capsule', '留给下个夏天的一封信'),
+    ('life/project/preview-list?kind=list&together=1', 'shopping-list', '周末清单'),
+    ('life/memories?together=1', 'memories', '共同回忆'),
+    ('life/reminders?together=1', 'reminders', '生活提醒'),
+    ('life/status', 'status', '状态'),
+    ('social?section=wishes&together=1', 'wishes', '心愿共振'),
+    ('social?section=events&together=1', 'invitations', '邀请与消息'),
+    ('gathering/new?together=1', 'new-gathering', '发起约局'),
+    ('journal-entry/preview-journal-entry?together=1', 'journal-entry', '共同经历'),
+    ('contributions', 'contributions', '我贡献的内容'),
+    ('playground/game/hands', 'game', '石头剪刀布'),
+    ('playground/with-friends', 'play-with-friends', '约朋友一起玩'),
+    ('world?kind=world&together=1', 'world-list', '共同世界'),
+    ('world/preview-relay?together=1', 'relay', '同一场黄昏'),
+    ('world/own?together=1', 'world-own', '我的投稿与摆件'),
+]
+
+def review_extra_routes():
+    for route_path, name, expected in DEPTH_ROUTES:
+        try:
+            details(route_path, '40-' + name, expected)
+            log('ROUTE PASS ' + route_path)
+        except (AssertionError, ValueError, subprocess.SubprocessError) as issue:
+            screen('unconfirmed-' + name)
+            log('ROUTE UNCONFIRMED ' + route_path + ' ' + str(issue)[:130])
+
+
 if MODE == '--full':
     for route_path, image_name, expected in [
         ('chat/demo-xiaoman','06-chat','表情'),
@@ -315,5 +377,20 @@ if MODE == '--full':
             find('预览分享内容')
             screen('23-actions')
     check('toggle-stickers-IME-actions',controls)
+    review_extra_routes()
+    def signed_out():
+        route('me')
+        for _ in range(4):
+            try:
+                tap('退出登录', tries=1)
+                break
+            except AssertionError:
+                swipe(975,380,450)
+        find('直接进入')
+        screen('41-auth')
+        tap('直接进入')
+        find('搜索会话')
+        log('ROUTE PASS auth')
+    check('local-auth-signout-reentry', signed_out)
 if errors:
     raise SystemExit('Incomplete: ' + ', '.join(errors))

@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import { useTogetherRouter } from '../../features/together/navigation';
 import { randomUUID } from 'expo-crypto';
 import { useLocalSearchParams } from 'expo-router';
@@ -112,7 +113,7 @@ export default function MemoriesScreen() {
       )}
       {!items.length && !error && <DataEmpty loading={!data}>这里没有可查看的回忆。</DataEmpty>}
       {items.map((item) => (
-        <View key={item.id} style={styles.card}>
+        <MaterialCard key={item.id}>
           <View style={styles.row}><DateBadge date={item.eventDay} /><Section title={item.title} detail={item.eventDay} /></View>
           <Text style={styles.muted}>
             {kinds[item.sourceKind]} ·{' '}
@@ -127,7 +128,7 @@ export default function MemoriesScreen() {
               </>
             )}
           </View>
-        </View>
+        </MaterialCard>
       ))}
       {draft && (
         <MemoryEditor
@@ -172,7 +173,7 @@ export default function MemoriesScreen() {
 function MemoryCandidates({ choose }: { choose: (candidate: Candidate) => void }) {
   const { data, error, load } = useRecord<{ candidates: Candidate[] }>('/p2/memory-candidates');
   return (
-    <View style={styles.card}>
+    <MaterialCard>
       <Section title="值得回想" />
       <Text style={styles.muted}>仅从你有权查看的生活记录中挑选。候选只有你能看到，由你决定是否保存。</Text>
       {!!error && (
@@ -193,7 +194,7 @@ function MemoryCandidates({ choose }: { choose: (candidate: Candidate) => void }
           onPress={() => choose(candidate)}
         />
       ))}
-    </View>
+    </MaterialCard>
   );
 }
 

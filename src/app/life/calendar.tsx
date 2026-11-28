@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import { useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
@@ -138,7 +139,7 @@ export default function Calendar() {
             onPress={() => setShowFree(!showFree)}
           />
           {showFree && (
-            <View style={styles.card}>
+            <MaterialCard>
               <Section title="共同空闲参考" />
               <Text style={styles.muted}>
                 根据你的日程和好友授权给你的忙闲记录，列出至少 30 分钟未发现冲突的时段。未共享的时段仍是未知，能否参加请向本人确认。
@@ -149,7 +150,7 @@ export default function Calendar() {
                 </Text>
               ))}
               {!data?.windows.length && <Text style={styles.muted}>已纳入的日程中，未找到 30 分钟以上的时间段。</Text>}
-            </View>
+            </MaterialCard>
           )}
         </>
       )}
@@ -160,7 +161,7 @@ export default function Calendar() {
           const end = moveDays(day, 1);
           const events = entries.filter((e) => new Date(e.startsAt) < end && new Date(e.endsAt) > day);
           return events.length ? (
-            <View key={localDay(day)} style={styles.card}>
+            <MaterialCard key={localDay(day)}>
               <Section title={daysText(day)} />
               {events.map((line, index) => {
                 const i = anyone.findIndex((p) => p.id === line.ownerId);
@@ -189,7 +190,7 @@ export default function Calendar() {
                   </TimelineNode>
                 );
               })}
-            </View>
+            </MaterialCard>
           ) : null;
         })}
       {editing && (
@@ -296,7 +297,7 @@ function ShareEditor({ onClose }: { onClose: () => void }) {
       {data?.shares.map((item) => {
         const own = item.ownerId === me;
         return (
-          <View key={item.ownerId + item.viewerId} style={styles.card}>
+          <MaterialCard key={item.ownerId + item.viewerId}>
             <ListRow
               title={item.name}
               detail={
@@ -323,7 +324,7 @@ function ShareEditor({ onClose }: { onClose: () => void }) {
                 }
               />
             </View>
-          </View>
+          </MaterialCard>
         );
       })}
       <Section title="邀请一位好友" />

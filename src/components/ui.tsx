@@ -18,6 +18,7 @@ import { KeyboardInsets } from './keyboard-insets';
 import { GlassLayer } from './material';
 import { useDockClearance } from './liquid-dock';
 import { DepthGlass } from './depth-glass';
+import { LiquidSurface } from './liquid-surface';
 import { isLiquidGlass } from '../demo/mode';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -143,8 +144,9 @@ export function SearchField({ label, value, onChangeText, onFocus, onBlur, varia
   const searchRadius = capsule ? radius.pill : radius.control;
   return <View style={[ui.search, capsule && ui.glassSearch,
     neutral && ui.neutralSearch]}>
-    {isLiquidGlass ? <DepthGlass level="medium" tone={glazed ? 'brand' : 'clear'} roundness={searchRadius} />
-      : glazed && <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />}
+    {glazed ? (isLiquidGlass ? <LiquidSurface finish="search" roundness={radius.pill} />
+      : <GlassLayer tone={focused ? 'soft' : 'chrome'} roundness={radius.pill} />)
+      : isLiquidGlass && <DepthGlass level="medium" roundness={searchRadius} />}
     <Icon name="search-outline" size={19} color={colors.quiet} />
     <TextInput {...props} accessibilityLabel={label} value={value} onChangeText={onChangeText}
       onFocus={capsule ? (event) => { setFocused(true); onFocus?.(event); } : onFocus}
@@ -260,6 +262,13 @@ export function Segments<T extends string>({ options, value, onChange, label }: 
       {option.id === value && <GlassLayer roundness={radius.small} />}
       <Text style={[ui.segmentText, option.id === value && ui.activeSegmentText]}>{option.label}</Text>
     </Pressable>)}
+  </View>;
+}
+
+export function MaterialCard({ children }: { children: ReactNode }) {
+  return <View style={styles.card}>
+    {isLiquidGlass && <DepthGlass level="medium" roundness={radius.surface} />}
+    {children}
   </View>;
 }
 

@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import { useTogetherRouter } from '../together/navigation';
 import { randomUUID } from 'expo-crypto';
 import { useState } from 'react';
@@ -99,7 +100,7 @@ export function TripScreen({ id }: { id: string }) {
                 <View style={styles.row}><DateBadge date={day} /><Section title={day} /></View>
                 {list.map((stop, index) => (
                   <TimelineNode key={stop.id} last={index === list.length - 1}>
-                    <View style={styles.card}>
+                    <MaterialCard>
                     <Section title={stop.title} detail={categories[stop.category] + ' · ' + stop.author} />
                     {!!stop.details && <Text style={styles.body}>{stop.details}</Text>}
                     <MediaStrip media={stop.media} />
@@ -142,7 +143,7 @@ export function TripScreen({ id }: { id: string }) {
                         )}
                       </View>
                     )}
-                    </View>
+                    </MaterialCard>
                   </TimelineNode>
                 ))}
               </View>

@@ -1,4 +1,4 @@
-import { LiquidSurface } from '../../components/liquid-surface';
+import { DepthGlass } from '../../components/depth-glass';
 import { useDockClearance } from '../../components/liquid-dock';
 import NativeMaskedView from '@react-native-masked-view/masked-view';
 import { BlurTargetView, BlurView } from 'expo-blur';
@@ -290,12 +290,12 @@ function HomePublishBar({ onPublish }: { onPublish: () => void }) {
   return <View style={local.publishRow}>
     <Pressable accessibilityRole="button" accessibilityLabel="空间隐私" onPress={() => router.push('/space/privacy')}
       style={({ pressed }) => [local.publishSurface, surface, local.privacyButton, pressed && local.pressed]}>
-      {isLiquidGlass && <LiquidSurface finish="quiet" roundness={radius.pill} />}
+      {isLiquidGlass && <DepthGlass level="medium" roundness={radius.pill} />}
       <Icon name="shield-checkmark-outline" size={21} />
     </Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="发布动态" accessibilityHint="选择普通或共创发布方式"
       onPress={onPublish} style={({ pressed }) => [local.publishSurface, surface, local.publishButton, pressed && local.pressed]}>
-      {isLiquidGlass && <LiquidSurface finish="control" roundness={radius.pill} />}
+      {isLiquidGlass && <DepthGlass level="strong" tone="brand" roundness={radius.pill} />}
       <Icon name="create-outline" size={19} />
       <Text style={[styles.strong, local.publishLabel]}>发布动态</Text>
     </Pressable>

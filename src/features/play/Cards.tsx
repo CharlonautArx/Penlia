@@ -1,3 +1,5 @@
+import { DepthGlass } from '../../components/depth-glass';
+import { isLiquidGlass } from '../../demo/mode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -15,7 +17,8 @@ export function Chips<T extends string>({ items, value, onChange, horizontal = f
   const choices = items.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={item}
       accessibilityState={{ selected: value === item }} onPress={() => onChange(item)}
       style={({ pressed }) => [local.chip, pressed && local.pressed]}>
-      {value === item && <GlassLayer tone="control" roundness={radius.pill} />}
+      {value === item && (isLiquidGlass ? <DepthGlass level="medium" roundness={radius.pill} tone="brand" />
+        : <GlassLayer tone="control" roundness={radius.pill} />)}
       <Text style={[styles.muted, value === item && local.chosenText]}>{item}</Text>
     </Pressable>);
   return horizontal
@@ -29,6 +32,7 @@ export function GameCard({ game, featured = false }: { game: Game; featured?: bo
   return <Pressable accessibilityRole="button" accessibilityLabel={game.title}
     onPress={() => router.push({ pathname: '/playground/game/[id]', params: { id: game.id } })}
     style={({ pressed }) => [featured ? local.hero : local.gameRow, pressed && local.pressed]}>
+    {isLiquidGlass && !featured && <DepthGlass level="medium" roundness={radius.control} />}
     <Image source={game.image} style={featured ? local.heroImage : local.square} />
     {featured ? <>
       <LinearGradient colors={['#251C2DEB', '#2C223233', '#2C223200']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
@@ -38,7 +42,10 @@ export function GameCard({ game, featured = false }: { game: Game; featured?: bo
         <Text style={local.featuredTitle}>{game.title}</Text>
         <Text style={local.featuredMeta}>{game.subtitle}</Text>
       </View>
-      <View style={local.heroArrow}><Icon name="play" size={17} color="#312633" /></View>
+      <View style={local.heroArrow}>
+        {isLiquidGlass && <DepthGlass level="strong" roundness={14} rimOnly />}
+        <Icon name="play" size={17} color="#312633" />
+      </View>
     </> : <>
       <View style={styles.grow}>
         <Text style={styles.strong}>{game.title}</Text>
@@ -54,6 +61,7 @@ export function PlaceCard({ place, compact = false, editorial = false }: { place
     onPress={() => router.push({ pathname: '/playground/place/[id]', params: { id: place.id } })}
     style={({ pressed }) => [editorial ? (compact ? [pilot.rule, local.editorialRow] : [pilot.surface, local.editorialFeature])
       : [local.place, compact && local.placeCompact], pressed && (editorial ? pilot.pressed : local.pressed)]}>
+    {isLiquidGlass && !(editorial && compact) && <DepthGlass level="medium" roundness={radius.surface} />}
     {place.image && (editorial && !compact
       ? <View style={local.editorialPhoto}><Image source={place.image} style={[pilot.photo, local.editorialPhotoImage]} /></View>
       : <Image source={place.image} style={compact ? [local.thumbnail, editorial && local.editorialThumb] : local.placePhoto} />)}

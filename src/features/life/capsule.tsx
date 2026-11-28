@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import { useTogetherRouter } from '../together/navigation';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getDocumentAsync, type DocumentPickerAsset } from 'expo-document-picker';
@@ -61,7 +62,7 @@ export function CapsuleScreen({ id }: { id: string }) {
       {!data && !error && <DataEmpty loading>暂无胶囊。</DataEmpty>}
       {data && (
         <>
-          <View style={styles.card}>
+          <MaterialCard>
             <Section
               title={
                 data.capsule.opened ? '可以打开了' : data.capsule.sealedAt ? '胶囊已封存' : '一起写给未来'
@@ -75,7 +76,7 @@ export function CapsuleScreen({ id }: { id: string }) {
                   : '封存前只有你能看见自己的草稿。封存后无法修改内容或提前打开，可撤回自己的投稿。'}
               </Text>
             )}
-          </View>
+          </MaterialCard>
           {!data.capsule.sealedAt && (
             <Button
               label={old ? '编辑我的投稿' : '写下我的投稿'}
@@ -85,7 +86,7 @@ export function CapsuleScreen({ id }: { id: string }) {
             />
           )}
           {data.entries.map((item) => (
-            <View key={item.id} style={styles.card}>
+            <MaterialCard key={item.id}>
               <Section title={item.author} detail={!data.capsule.opened ? '我的草稿' : undefined} />
               {!!item.body && <Text style={styles.body}>{item.body}</Text>}
               <MediaStrip media={item.media} />
@@ -97,7 +98,7 @@ export function CapsuleScreen({ id }: { id: string }) {
                   onPress={() => setOpenAudio(item.id)}
                 />
               )}
-            </View>
+            </MaterialCard>
           ))}
           {data.capsule.opened && !data.entries.length && (
             <DataEmpty loading={false}>这里没有可查看的投稿。</DataEmpty>

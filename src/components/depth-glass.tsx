@@ -43,7 +43,7 @@ export const DepthGlass = memo(function DepthGlass({
   const face = tone === 'sent' || tone === 'message' || rimOnly
     ? 'transparent'
     : sample
-      ? dark ? '#20212A9E' : '#FDF9FD64'
+      ? dark ? '#20212ABA' : '#FDF9FDAB'
       : dark ? '#28272F' : '#FDFCFD';
   const highlight = dark ? '#FFF3FF' : '#FFFFFF';
   const edge = dark ? '#F3DAF3' : '#69596C';
@@ -61,12 +61,12 @@ export const DepthGlass = memo(function DepthGlass({
       start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
     {level !== 'light' && <LinearGradient
       colors={[highlight + (dark ? '26' : 'AD'), highlight + (dark ? '06' : '18'), 'transparent']}
-      locations={[0, .5, 1]} style={[local.arc, { height: shoulder * 2 }]} />}
+      locations={[0, .5, 1]} start={{ x: 0, y: 0 }} end={{ x: 0.20, y: 1 }} style={[local.arc, { height: shoulder * 2 }]} />}
     <View style={[StyleSheet.absoluteFill, shape, local.edge, {
       borderTopColor: highlight + (dark ? '34' : 'EB'),
       borderLeftColor: edge + (dark ? '1A' : '20'),
       borderRightColor: edge + (dark ? '16' : '18'),
-      borderBottomColor: edge + (dark ? '26' : '26'),
+      borderBottomColor: edge + '26',
     }]} />
     {level !== 'light' && <View style={[local.contact, { opacity: depth, backgroundColor: dark ? '#EEE1FA' : '#4B4055' }]} />}
   </View>;
@@ -75,6 +75,6 @@ export const DepthGlass = memo(function DepthGlass({
 const local = StyleSheet.create({
   clip: { overflow: 'hidden' },
   edge: { borderWidth: StyleSheet.hairlineWidth },
-  arc: { position: 'absolute', top: 0, left: 0, right: 0, width: '77%' },
+  arc: { position: 'absolute', top: 0, left: 0, right: 0 },
   contact: { position: 'absolute', height: StyleSheet.hairlineWidth, bottom: 1, left: '24%', right: '11%' },
 });

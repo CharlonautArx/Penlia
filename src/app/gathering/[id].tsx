@@ -1,3 +1,4 @@
+import { MaterialCard } from '../../components/ui';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityDiscussion } from '../../features/together/ActivityDiscussion';
 import { InvitationFormScroll } from '../../features/together/InvitationFormScroll';
@@ -118,7 +119,7 @@ function OptionsEditor({ items, set }: { items: DraftOption[]; set: (items: Draf
   return (
     <View style={{ gap: 10 }}>
       {items.map((option, index) => (
-        <View style={styles.card} key={index}>
+        <MaterialCard key={index}>
           <Section title={'候选 ' + (index + 1)} />
           <GatheringTimeFields value={option.time}
             change={(time) => set(items.map((item, i) => (i === index ? { ...item, time } : item)))} />
@@ -144,7 +145,7 @@ function OptionsEditor({ items, set }: { items: DraftOption[]; set: (items: Draf
               onPress={() => set(items.filter((_, i) => i !== index))}
             />
           )}
-        </View>
+        </MaterialCard>
       ))}
       {items.length < 8 && (
         <Button label="添加候选时间" variant="soft" icon="add" onPress={() => set([...items, blank()])} />
@@ -708,7 +709,7 @@ function GatheringDetail({ id }: { id: string }) {
           {managing && (
             <Sheet title="管理邀请" onClose={() => setManaging(false)}>
               {data.roster?.map((person) => (
-                <View key={person.id} style={styles.card}>
+                <MaterialCard key={person.id}>
                   <ListRow title={person.name} detail={person.note || undefined} />
                   {person.preparation && (
                     <Button
@@ -734,7 +735,7 @@ function GatheringDetail({ id }: { id: string }) {
                       onPress={() => void run(() => post('roster', { action: 'remove', userId: person.id }))}
                     />
                   )}
-                </View>
+                </MaterialCard>
               ))}
               {!['completed', 'cancelled'].includes(g.state) && (
                 <>
@@ -948,7 +949,7 @@ function GatheringDetail({ id }: { id: string }) {
             </>
           )}
           {data.options.map((item) => (
-            <View style={styles.card} key={item.id}>
+            <MaterialCard key={item.id}>
               <Text style={styles.strong}>{formatTime(item.startsAt)}</Text>
               <Text style={styles.muted}>
                 {item.place || '地点待商量'}
@@ -972,7 +973,7 @@ function GatheringDetail({ id }: { id: string }) {
                   action={() => setChoice(item.id)}
                 />
               )}
-            </View>
+            </MaterialCard>
           ))}
           {!g.directProposal && !g.ballotClosed && (
             <Button
@@ -1119,7 +1120,7 @@ function Availability({ id, options }: { id: string; options: Option[] }) {
     options: { id: string; includedCalendars: number; hasKnownConflict?: boolean; allFree: boolean }[];
   }>('/p2/availability/' + id);
   return (
-    <View style={styles.card}>
+    <MaterialCard>
       <Section title="共享日程参考" />
       <Text style={styles.muted}>
         按已填写的活动时段比对。时长待定时，仅能核对开始时刻。未共享的时段仍是未知，能否参加以本人确认为准。
@@ -1139,6 +1140,6 @@ function Availability({ id, options }: { id: string; options: Option[] }) {
           </Text>
         ) : null;
       })}
-    </View>
+    </MaterialCard>
   );
 }

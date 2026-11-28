@@ -1,7 +1,7 @@
-name: Publish the isolated Liquid Glass preview
+name: Publish the independent Liquid Glass Depth Android preview
 on:
   push:
-    tags: ['penlia-liquid-glass-preview-*']
+    tags: ['penlia-liquid-glass-depth-preview-*']
 permissions: {}
 jobs:
   collect:
@@ -20,14 +20,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-preview-([0-9]+)(-qa-([0-9]+))?(-r[0-9]+)?$ ]]
+          [[ "$GITHUB_REF_NAME" =~ ^penlia-liquid-glass-depth-preview-([0-9]+)(-qa-([0-9]+))?(-r[0-9]+)?$ ]]
           build_run="${BASH_REMATCH[1]}"
           qa_run="${BASH_REMATCH[3]:-$build_run}"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$qa_run" > "$RUNNER_TEMP/checked-qa"
           jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/checked-qa"
           qa_source=$(jq -er .head_sha "$RUNNER_TEMP/checked-qa")
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" > "$RUNNER_TEMP/checked-run"
-          jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .head_branch == "codex/liquid-glass-native" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/checked-run"
+          jq -e '.head_repository.full_name == "CharlonautArx/Penlia" and .head_branch == "codex/liquid-glass-depth" and .path == ".github/workflows/liquid-glass-native.yml"' "$RUNNER_TEMP/checked-run"
           source=$(jq -er .head_sha "$RUNNER_TEMP/checked-run")
           git diff --exit-code "$source" HEAD -- app.config.js src modules tooling package.json package-lock.json assets plugins
           gh run download "$build_run" -n "liquid-glass-arm64-v8a-$source" -D arm
@@ -42,12 +42,15 @@ jobs:
             grep -Fq "$(cut -d' ' -f1 x86/sha256.txt)" "$device/checks.txt"
             grep -Fxq 'PASS side-by-side-installation' "$device/checks.txt"
             grep -Fxq 'PASS cold-start-inbox' "$device/checks.txt"
+            grep -Fxq 'PASS protected-dock-and-switch' "$device/checks.txt"
+            grep -Fxq 'PASS core-materials-native' "$device/checks.txt"
+            ! grep -Fq 'INCOMPLETE' "$device/checks.txt"
           done
           mkdir delivery
-          cp arm/Penlia-arm64-v8a.apk delivery/Penlia-Liquid-Glass-arm64.apk
+          cp arm/Penlia-arm64-v8a.apk delivery/Penlia-Liquid-Glass-Depth-arm64.apk
           cp arm/{badging.txt,source.txt} delivery/
           cp api35/00-inbox-comparison.png delivery/android-inbox-comparison.png
-          cp api35/{01-inbox,02-friends,03-play,04-moments,05-me}.png delivery/
+          cp api35/{01-inbox,02-friends,03-play,04-moments,05-me,approved-chat,depth-chat,approved-gathering,depth-gathering,00-approved-dock-crop,00-depth-dock-crop,00-approved-switch-crop,00-depth-switch-crop}.png delivery/
           cp api35/{optics-navigation,controls}.mp4 delivery/
           cp api35/checks.txt delivery/android-15.txt
           cp api30/checks.txt delivery/android-11.txt
@@ -83,5 +86,5 @@ jobs:
         run: |
           set -euo pipefail
           (cd delivery && sha256sum -c SHA256SUMS.txt)
-          printf '朋聊 Liquid Glass 独立离线体验版。安装包源码 %s。截图与录屏来自 Android 模拟器。\n' "$(cat delivery/source.txt)" > notes.md
-          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --verify-tag --prerelease --latest=false --title '朋聊 · Liquid Glass Android 体验版' --notes-file notes.md delivery/*
+          printf '朋聊 Liquid Glass 深度独立离线体验版。安装包源码 %s。截图与录屏来自 Android 模拟器。\n' "$(cat delivery/source.txt)" > notes.md
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --verify-tag --prerelease --latest=false --title '朋聊 · Liquid Glass 深度 Android 体验版' --notes-file notes.md delivery/*
