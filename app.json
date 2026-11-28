@@ -9,7 +9,7 @@
       "ios"
     ],
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/penlia_new_icon.jpg",
     "ios": {
       "bundleIdentifier": "app.penlia.mobile",
       "supportsTablet": true
@@ -19,9 +19,8 @@
       "allowBackup": false,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F8D9E2",
-        "backgroundImage": "./assets/identity/icon-background.png"
+        "foregroundImage": "./assets/branding/penlia_new_icon_adaptive.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "plugins": [
@@ -29,14 +28,14 @@
       "./plugins/with-penlia-colors",
       [
         "./plugins/with-penlia-launch-screen",
-        { "source": "./assets/startup/pale-blue-dot.png" }
+        { "source": "./assets/startup/penlia_new_splash.jpg" }
       ],
       [
         "expo-splash-screen",
         {
           "android": {
-            "backgroundColor": "#010103",
-            "dark": { "backgroundColor": "#010103" }
+            "backgroundColor": "#FFFFFF",
+            "dark": { "backgroundColor": "#FFFFFF" }
           },
           "ios": {
             "image": "./assets/adaptive-icon.png",

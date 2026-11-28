@@ -30,8 +30,8 @@ function updateLaunchTheme(styles) {
   const values = {
     'android:statusBarColor': '@android:color/transparent',
     'android:navigationBarColor': '@android:color/transparent',
-    'android:windowLightStatusBar': 'false',
-    'android:windowLightNavigationBar': 'false',
+    'android:windowLightStatusBar': 'true',
+    'android:windowLightNavigationBar': 'true',
   };
   const overridden = new Set([...Object.keys(values), 'android:windowSplashScreenBehavior']);
   splash.item = [
@@ -59,8 +59,13 @@ module.exports = (config, { source }) => {
     const java = path.join(root, 'java', ...appPackage.split('.'));
     const kotlin = await fs.readFile(path.join(__dirname, 'penlia-launch/PenliaLaunchScreen.kt'), 'utf8');
     await Promise.all([fs.mkdir(raw, { recursive: true }), fs.mkdir(java, { recursive: true })]);
+    const launchArt = `penlia_launch_art${path.extname(source).toLowerCase()}`;
+    // A non-clean prebuild may still have the previous PNG resource with the same Android ID.
+    if (launchArt !== 'penlia_launch_art.png') {
+      await fs.rm(path.join(raw, 'penlia_launch_art.png'), { force: true });
+    }
     await Promise.all([
-      fs.copyFile(path.resolve(mod.modRequest.projectRoot, source), path.join(raw, 'penlia_launch_art.png')),
+      fs.copyFile(path.resolve(mod.modRequest.projectRoot, source), path.join(raw, launchArt)),
       fs.writeFile(path.join(java, 'PenliaLaunchScreen.kt'), kotlin.replace('__APP_PACKAGE__', appPackage)),
     ]);
     return mod;
